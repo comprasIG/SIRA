@@ -1,0 +1,22 @@
+# Dockerfile.dev
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Forzar polling en Docker (especialmente en Windows)
+ENV CHOKIDAR_USEPOLLING=true
+
+# Copia solo package.json y lock para cachear instalación
+COPY package*.json ./
+
+# Instala dependencias
+RUN npm ci
+
+# Copia todo el código
+COPY . .
+
+# Exponer el puerto de Vite
+EXPOSE 5173
+
+# Arrancar el dev server de Vite escuchando en todas las interfaces
+CMD ["npm", "run", "dev", "--", "--host"]
