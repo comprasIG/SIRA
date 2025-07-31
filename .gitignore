@@ -1,29 +1,43 @@
-# Node modules
+# === Frontend ===
 /node_modules/
-
-# Build outputs
 /dist/
 /build/
+/.vite/
 
-# Vite cache
-.vite/
+# === Backend ===
+/backend/node_modules/
+/backend/dist/
+/backend/*.log
+/backend/.env
 
-# Logs
+# === Logs ===
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Env files
+# === Env files (raíz y locales) ===
 .env
 .env.local
 .env.*.local
 
-# OS files
+# === OS files ===
 .DS_Store
+Thumbs.db
 
-# Editor folders
+# === IDE / Editor ===
 .vscode/
+/.idea/
+/.history/
+
+# Microsoft Visual Studio
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
+
+# === DBeaver ===
+.dbeaver/
+*.dbeaver-data-sources.xml
+
+# === Test coverage ===
+/coverage/
