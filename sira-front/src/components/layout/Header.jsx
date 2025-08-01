@@ -1,10 +1,22 @@
 // src/components/layout/Header.jsx
-export default function Header({ userName = 'Usuario' }) {
+import { signOut } from "firebase/auth";
+import { auth } from "../../firebase/firebase";
+
+export default function Header({ userName }) {
+  const handleLogout = () => {
+    signOut(auth);
+  };
+
   return (
-    <header className="fixed top-0 left-64 right-0 h-16 bg-white shadow flex items-center justify-between px-6">
-      <h1 className="text-lg font-medium">Bienvenido, {userName}</h1>
-      <button className="px-3 py-1 rounded bg-red-500 text-white hover:bg-red-600">
-        Logout
+    <header className="fixed top-0 left-0 w-full h-16 bg-gray-200 flex items-center justify-between px-4 shadow z-10">
+      <h1 className="text-xl font-bold">Bienvenido, {userName}</h1>
+
+      <button
+        onClick={handleLogout}
+        className="text-gray-700 hover:text-red-600 text-2xl"
+        title="Cerrar sesión"
+      >
+        🔓
       </button>
     </header>
   );

@@ -1,21 +1,27 @@
 // src/components/layout/Sidebar.jsx
+import { Link } from "react-router-dom";
+
 export default function Sidebar() {
   return (
-  <aside className="h-screen w-64 bg-gray-800 text-white ">
-      <div className="p-4 text-2xl font-bold">
-        SIRA
-      </div>
+    <aside className="h-screen w-64 bg-gray-800 text-white">
+      <div className="p-4 text-2xl font-bold">SIRA</div>
       <nav className="flex-1 px-2">
         <ul className="space-y-1">
           <li>
-            <a href="/" className="block px-4 py-2 rounded hover:bg-gray-700">
+            <Link
+              to="/dashboard"
+              className="block px-4 py-2 rounded hover:bg-gray-700"
+            >
               Dashboard
-            </a>
+            </Link>
           </li>
           <li>
-            <a href="/requisiciones" className="block px-4 py-2 rounded hover:bg-gray-700">
+            <Link
+              to="/requisiciones"
+              className="block px-4 py-2 rounded hover:bg-gray-700"
+            >
               Requisiciones
-            </a>
+            </Link>
           </li>
           {/* Añade más enlaces aquí */}
         </ul>
