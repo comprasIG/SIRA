@@ -1,11 +1,15 @@
 // src/components/layout/Sidebar.jsx
 import { Link } from "react-router-dom";
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen }) {
   return (
-    <aside className="h-screen w-64 bg-gray-800 text-white">
+    <aside
+      className={`${
+        isOpen ? "w-64" : "w-0"
+      } overflow-hidden bg-gray-800 text-white transition-all duration-300 ease-in-out`}
+    >
       <div className="p-4 text-2xl font-bold">SIRA</div>
-      <nav className="flex-1 px-2">
+      <nav className="px-2">
         <ul className="space-y-1">
           <li>
             <Link
@@ -23,7 +27,6 @@ export default function Sidebar() {
               Requisiciones
             </Link>
           </li>
-          {/* Añade más enlaces aquí */}
         </ul>
       </nav>
     </aside>
