@@ -1,0 +1,43 @@
+# === Frontend ===
+/node_modules/
+/dist/
+/build/
+/.vite/
+
+# === Backend ===
+/backend/node_modules/
+/backend/dist/
+/backend/*.log
+/backend/.env
+
+# === Logs ===
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === Env files (raíz y locales) ===
+.env
+.env.local
+.env.*.local
+
+# === OS files ===
+.DS_Store
+Thumbs.db
+
+# === IDE / Editor ===
+.vscode/
+/.idea/
+/.history/
+
+# Microsoft Visual Studio
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# === DBeaver ===
+.dbeaver/
+*.dbeaver-data-sources.xml
+
+# === Test coverage ===
+/coverage/
