@@ -7,7 +7,7 @@ export default function MainLayout({ children, userName }) {
     <div className="flex">
       <Sidebar />
 
-      <div className="flex-1 ml-64">
+      <div className="flex-1">
         <Header userName={userName} />
 
         <main className="pt-16 p-6">

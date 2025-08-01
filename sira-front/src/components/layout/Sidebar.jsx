@@ -1,7 +1,7 @@
 // src/components/layout/Sidebar.jsx
 export default function Sidebar() {
   return (
-    <aside className="fixed top-0 left-0 h-screen w-64 bg-gray-800 text-white flex flex-col">
+  <aside className="h-screen w-64 bg-gray-800 text-white ">
       <div className="p-4 text-2xl font-bold">
         SIRA
       </div>

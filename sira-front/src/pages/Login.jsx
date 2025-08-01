@@ -1,9 +1,17 @@
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { auth } from "../firebase/firebase";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 const provider = new GoogleAuthProvider();
 
-export default function Login() {
+export default function Login({user}) {
+  const navigate = useNavigate();
+  
+ useEffect(() => {
+   if (user) navigate("/dashboard", { replace: true });
+ }, [user, navigate]);
+
   const handleLogin = async () => {
     try {
       const result = await signInWithPopup(auth, provider);
@@ -17,7 +25,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+    <div className="min-h-screen w-full flex items-center justify-center bg-gray-100">
       <div className="p-8 bg-white rounded-xl shadow-md text-center">
         <h1 className="text-2xl font-bold mb-4">Iniciar sesión en SIRA</h1>
         <button
