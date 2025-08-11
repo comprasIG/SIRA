@@ -6,7 +6,7 @@ export default function Sidebar({ isOpen }) {
     <aside
       className={`${
         isOpen ? "w-64" : "w-0"
-      } overflow-hidden bg-gray-800 text-white transition-all duration-300 ease-in-out`}
+      } overflow-hidden bg-gray-800 text-white transition-all duration-450 ease-in-out`}
     >
       <div className="p-4 text-2xl font-bold">SIRA</div>
       <nav className="px-2">
