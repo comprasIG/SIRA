@@ -1,33 +1,56 @@
-import React, { useEffect, useState } from "react";
-import { Autocomplete, TextField, CircularProgress, Button, IconButton } from '@mui/material';
+import React, { useEffect, useState, useMemo } from "react";
+import { Autocomplete, TextField, Button, IconButton, CircularProgress } from '@mui/material';
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteIcon from '@mui/icons-material/Delete';
+import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
+
+// --- Hook de Debounce para optimizar la búsqueda ---
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+  return debouncedValue;
+}
+
+// --- Constante para evitar "números mágicos" ---
+const ALMACEN_ID = "21";
 
 function RequisicionForm() {
-  // Configuración para la búsqueda de materiales en el Autocomplete
   const [materialesOptions, setMaterialesOptions] = useState([]);
   const [loading, setLoading] = useState(false);
-  
-  // ANOTACIÓN: Iniciamos useForm con valores por defecto para nuestra lista de items.
-  // Esto asegura que el formulario comience con al menos una línea de material.
-  const { register, handleSubmit, setValue, watch, control, formState: { errors } } = useForm({
-    defaultValues: {
-      items: [{ material: null, cantidad: '', comentario: '' }]
-    }
+  const [proyectos, setProyectos] = useState([]);
+  const [sitios, setSitios] = useState([]);
+  const [unidadesLoading, setUnidadesLoading] = useState({});
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+
+  const defaultFormValues = {
+    items: [{ material: null, cantidad: '', comentario: '', unidad: '' }],
+    proyecto_id: '',
+    sitio_id: '',
+    fecha_requerida: '',
+    lugar_entrega: '',
+    comentario: '',
+  };
+
+  const { register, handleSubmit, setValue, watch, control, formState: { errors }, reset } = useForm({
+    defaultValues: defaultFormValues
   });
 
-  // ANOTACIÓN: Esta es la clave para los campos dinámicos. 'useFieldArray' nos da
-  // las herramientas para agregar, quitar y mapear sobre las líneas de material.
-  const { fields, append, remove } = useFieldArray({
+  const { fields, prepend, remove } = useFieldArray({
     control,
     name: "items"
   });
 
-  const [proyectos, setProyectos] = useState([]);
-  const [sitios, setSitios] = useState([]);
-
-  // Carga inicial de proyectos y sitios
+  // Cargar proyectos y sitios al inicio
   useEffect(() => {
     fetch("http://localhost:3001/api/proyectos")
       .then(res => res.json())
@@ -39,63 +62,119 @@ function RequisicionForm() {
       .then(data => setSitios(data))
       .catch(err => console.error("Error cargando sitios:", err));
   }, []);
-
-  // Lógica de filtrado de proyectos y sitios (sin cambios)
+  
   const selectedProyectoId = watch("proyecto_id");
   const selectedSitioId = watch("sitio_id");
-  let sitiosFiltrados = sitios;
-  if (selectedProyectoId) {
-    const proyecto = proyectos.find(p => String(p.id) === String(selectedProyectoId));
-    if (proyecto) sitiosFiltrados = sitios.filter(s => String(s.id) === String(proyecto.sitio_id));
-  }
-  let proyectosFiltrados = proyectos;
-  if (selectedSitioId) {
-    proyectosFiltrados = proyectos.filter(p => String(p.sitio_id) === String(selectedSitioId));
-  }
 
-  // Lógica para resetear campos dependientes (sin cambios)
+  const sitiosFiltrados = useMemo(() => {
+    if (!selectedProyectoId) return sitios;
+    const proyecto = proyectos.find(p => String(p.id) === String(selectedProyectoId));
+    return proyecto ? sitios.filter(s => String(s.id) === String(proyecto.sitio_id)) : [];
+  }, [selectedProyectoId, proyectos, sitios]);
+
+  const proyectosFiltrados = useMemo(() => {
+    if (!selectedSitioId) return proyectos;
+    return proyectos.filter(p => String(p.sitio_id) === String(selectedSitioId));
+  }, [selectedSitioId, proyectos]);
+
+  // Reseteo de dependencias
   useEffect(() => {
     if (selectedProyectoId && selectedSitioId) {
       const proyecto = proyectos.find(p => String(p.id) === String(selectedProyectoId));
-      if (proyecto && String(proyecto.sitio_id) !== String(selectedSitioId)) setValue("sitio_id", "");
+      if (proyecto && String(proyecto.sitio_id) !== String(selectedSitioId)) {
+        setValue("sitio_id", "");
+      }
     }
   }, [selectedProyectoId, selectedSitioId, proyectos, setValue]);
+
   useEffect(() => {
     if (selectedSitioId && selectedProyectoId) {
       const validProjects = proyectos.filter(p => String(p.sitio_id) === String(selectedSitioId));
-      if (!validProjects.some(p => String(p.id) === String(selectedProyectoId))) setValue("proyecto_id", "");
+      if (!validProjects.some(p => String(p.id) === String(selectedProyectoId))) {
+        setValue("proyecto_id", "");
+      }
     }
   }, [selectedSitioId, selectedProyectoId, proyectos, setValue]);
 
+  useEffect(() => {
+    const buscarMateriales = async (query) => {
+      setLoading(true);
+      try {
+        const res = await fetch(`http://localhost:3001/api/materiales?query=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        setMaterialesOptions(data);
+      } catch (err) {
+        console.error("Error en el fetch de materiales:", err);
+        setMaterialesOptions([]);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const onSubmit = (data) => {
-    console.log("Datos de la requisición completa:", data);
-  };
-
-  // Función de búsqueda para el Autocomplete
-  const buscarMateriales = async (input) => {
-    if (!input) {
+    if (debouncedSearchTerm) {
+      buscarMateriales(debouncedSearchTerm);
+    } else {
       setMaterialesOptions([]);
+    }
+  }, [debouncedSearchTerm]);
+
+
+  const onSubmit = async (form) => {
+    let lugarEntregaTexto = "";
+    if (form.lugar_entrega === ALMACEN_ID) {
+      lugarEntregaTexto = "ALMACÉN IG";
+    } else if (form.sitio_id) {
+      const sitio = sitios.find(s => String(s.id) === String(form.sitio_id));
+      lugarEntregaTexto = sitio?.nombre || "Sitio";
+    }
+
+    const materiales = form.items
+      .filter(it => it?.material && Number(it?.cantidad) > 0)
+      .map(it => ({
+        material_id: it.material.id,
+        cantidad: Number(it.cantidad),
+        comentario: it.comentario?.trim() || undefined,
+      }));
+
+    if (materiales.length === 0) {
+      alert("Debes agregar al menos un material con cantidad válida.");
       return;
     }
-    setLoading(true);
+
+    const payload = {
+      proyecto_id: Number(form.proyecto_id),
+      sitio_id: Number(form.sitio_id),
+      fecha_requerida: form.fecha_requerida,
+      lugar_entrega: lugarEntregaTexto,
+      comentario: form.comentario?.trim() || undefined,
+      materiales,
+    };
+    
+    console.log("Payload enviado al backend:", payload);
     try {
-      const res = await fetch(`http://localhost:3001/api/materiales?query=${encodeURIComponent(input)}`);
+      const res = await fetch("http://localhost:3001/api/requisiciones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       const data = await res.json();
-      setMaterialesOptions(data);
-    } catch (err) {
-      console.error("Error en el fetch de materiales:", err);
+      if (!res.ok) throw data;
+
+      alert(`Requisición creada: ${data.numero_requisicion} (ID ${data.requisicion_id})`);
+      reset(defaultFormValues);
       setMaterialesOptions([]);
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      console.error(err);
+      const errorMsg = err.error || "Error al crear la requisición";
+      const missing = err.materiales_faltantes ? ` Materiales faltantes: ${err.materiales_faltantes.join(", ")}` : '';
+      alert(`${errorMsg}.${missing}`);
     }
   };
 
-  // ANOTACIÓN: Función que se ejecuta al seleccionar un material.
-  // Obtiene la unidad de medida y la guarda en el estado del formulario.
   const handleMaterialChange = async (selectedOption, fieldOnChange, index) => {
-    fieldOnChange(selectedOption); // Actualiza el valor del material en react-hook-form
+    fieldOnChange(selectedOption);
     if (selectedOption) {
+      setUnidadesLoading(prev => ({ ...prev, [index]: true }));
       try {
         const res = await fetch(`http://localhost:3001/api/materiales/${selectedOption.id}`);
         const materialDetails = await res.json();
@@ -103,146 +182,170 @@ function RequisicionForm() {
       } catch (error) {
         console.error("Error obteniendo unidad:", error);
         setValue(`items.${index}.unidad`, 'Error');
+      } finally {
+        setUnidadesLoading(prev => ({ ...prev, [index]: false }));
       }
     } else {
       setValue(`items.${index}.unidad`, '');
     }
   };
+  
+  const inputStyle = "mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-colors duration-300";
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 p-4 md:p-6 bg-gray-50" autoComplete="off">
       
       {/* --- SECCIÓN DE DATOS GENERALES --- */}
-      <div className="p-4 border rounded-lg space-y-4 bg-white shadow-sm">
-        <h2 className="text-xl font-semibold border-b pb-2">Datos Generales</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Select de Proyecto */}
+      <div className="bg-white p-6 rounded-xl shadow-lg transition-shadow duration-300 hover:shadow-2xl">
+        <h2 className="text-2xl font-bold text-gray-800 border-b-2 border-gray-200 pb-3 mb-6">Datos Generales</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+          
           <div>
-            <label htmlFor="proyecto_id" className="block font-medium">Proyecto:</label>
-            <select id="proyecto_id" {...register("proyecto_id", { required: "Selecciona un proyecto" })} className="border p-2 rounded w-full">
-              <option value="">Selecciona un proyecto</option>
+            <label htmlFor="proyecto_id" className="block text-sm font-medium text-gray-700">Proyecto</label>
+            <select id="proyecto_id" {...register("proyecto_id", { required: "Selecciona un proyecto" })} className={inputStyle}>
+              <option value="">Selecciona un proyecto...</option>
               {proyectosFiltrados.map(proy => (<option key={proy.id} value={proy.id}>{proy.nombre}</option>))}
             </select>
-            {errors.proyecto_id && <span className="text-red-500 text-sm">{errors.proyecto_id.message}</span>}
+            {errors.proyecto_id && <span className="text-red-600 text-xs mt-1">{errors.proyecto_id.message}</span>}
           </div>
 
-          {/* Select de Sitio */}
           <div>
-            <label htmlFor="sitio_id" className="block font-medium">Sitio:</label>
-            <select id="sitio_id" {...register("sitio_id", { required: "Selecciona un sitio" })} className="border p-2 rounded w-full">
-              <option value="">Selecciona un sitio</option>
+            <label htmlFor="sitio_id" className="block text-sm font-medium text-gray-700">Sitio</label>
+            <select id="sitio_id" {...register("sitio_id", { required: "Selecciona un sitio" })} className={inputStyle}>
+              <option value="">Selecciona un sitio...</option>
               {sitiosFiltrados.map(sitio => (<option key={sitio.id} value={sitio.id}>{sitio.nombre}</option>))}
             </select>
-            {errors.sitio_id && <span className="text-red-500 text-sm">{errors.sitio_id.message}</span>}
+            {errors.sitio_id && <span className="text-red-600 text-xs mt-1">{errors.sitio_id.message}</span>}
           </div>
 
-          {/* Fecha requerida */}
           <div>
-            <label htmlFor="fecha_requerida" className="block font-medium">Fecha requerida:</label>
-            <input id="fecha_requerida" type="date" {...register("fecha_requerida", { required: "La fecha es obligatoria" })} className="border p-2 rounded w-full"/>
-            {errors.fecha_requerida && <span className="text-red-500 text-sm">{errors.fecha_requerida.message}</span>}
+            <label htmlFor="fecha_requerida" className="block text-sm font-medium text-gray-700">Fecha Requerida</label>
+            <input id="fecha_requerida" type="date" {...register("fecha_requerida", { required: "La fecha es obligatoria" })} className={inputStyle} />
+            {errors.fecha_requerida && <span className="text-red-600 text-xs mt-1">{errors.fecha_requerida.message}</span>}
           </div>
 
-          {/* Select de Lugar de Entrega */}
           <div>
-            <label htmlFor="lugar_entrega" className="block font-medium">Lugar de entrega:</label>
-            <select id="lugar_entrega" {...register("lugar_entrega", { required: "Selecciona el lugar" })} className="border p-2 rounded w-full">
-              <option value="">Selecciona el lugar</option>
-              <option value="21">ALMACÉN IG</option>
+            <label htmlFor="lugar_entrega" className="block text-sm font-medium text-gray-700">Lugar de Entrega</label>
+            <select id="lugar_entrega" {...register("lugar_entrega", { required: "Selecciona el lugar" })} className={inputStyle}>
+              <option value="">Selecciona el lugar...</option>
+              <option value={ALMACEN_ID}>ALMACÉN IG</option>
               {selectedSitioId && (<option value={selectedSitioId}>{sitios.find(s => String(s.id) === String(selectedSitioId))?.nombre || "Sitio"}</option>)}
             </select>
-            {errors.lugar_entrega && <span className="text-red-500 text-sm">{errors.lugar_entrega.message}</span>}
+            {errors.lugar_entrega && <span className="text-red-600 text-xs mt-1">{errors.lugar_entrega.message}</span>}
+          </div>
+
+          <div className="md:col-span-2">
+             <label htmlFor="comentario" className="block text-sm font-medium text-gray-700">Comentario General (Opcional)</label>
+            <input id="comentario" placeholder="Instrucciones especiales de la requisición..." {...register("comentario")} className={inputStyle} autoComplete="off" />
           </div>
         </div>
-        
-        {/* Comentario general */}
-        <div>
-          <label htmlFor="comentario" className="block font-medium">Comentario general:</label>
-          <input id="comentario" placeholder="Instrucciones especiales de la requisición" {...register("comentario")} className="border p-2 rounded w-full"/>
-        </div>
       </div>
-
+      
       {/* --- SECCIÓN DE MATERIALES --- */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold border-b pb-2">Materiales Requeridos</h2>
-        {fields.map((field, index) => {
-          const unidad = watch(`items.${index}.unidad`, '');
-          return (
-            <div key={field.id} className="flex items-start space-x-2 p-3 border rounded-lg bg-gray-50">
-              <div className="flex-grow grid grid-cols-1 md:grid-cols-6 gap-3">
+      <div className="bg-white p-6 rounded-xl shadow-lg transition-shadow duration-300 hover:shadow-2xl">
+        <div className="flex justify-between items-center border-b-2 border-gray-200 pb-3 mb-6">
+            <h2 className="text-2xl font-bold text-gray-800">Materiales Requeridos</h2>
+            {/* --- MEJORA UX: Botón movido a la parte superior de la sección --- */}
+            <Button
+                type="button"
+                onClick={() => prepend({ material: null, cantidad: '', comentario: '', unidad: '' })}
+                startIcon={<AddCircleOutlineIcon />}
+                className="transition-transform duration-300 hover:scale-105"
+                variant="contained"
+            >
+                Agregar
+            </Button>
+        </div>
+        
+        {/* El contenedor de la lista ahora tiene un espacio superior */}
+        <div className="space-y-4">
+            {fields.map((field, index) => (
+            <div key={field.id} className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg bg-gray-50/50 transition-all duration-300">
+                <div className="flex-grow grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
                 
-                {/* 1. Autocomplete de Material (ocupa 3 columnas) */}
-                <div className="md:col-span-3">
-                  <Controller
+                <div className="md:col-span-6">
+                    <Controller
                     name={`items.${index}.material`}
                     control={control}
                     rules={{ required: "Debes seleccionar un material" }}
                     render={({ field: { onChange, value }, fieldState: { error } }) => (
-                      <Autocomplete
+                        <Autocomplete
                         options={materialesOptions}
                         getOptionLabel={(option) => option.nombre || ''}
                         filterOptions={(x) => x}
                         loading={loading}
-                        onInputChange={(_, inputValue) => buscarMateriales(inputValue)}
+                        onInputChange={(_, newInputValue) => setSearchTerm(newInputValue)}
                         onChange={(_, selectedOption) => handleMaterialChange(selectedOption, onChange, index)}
                         value={value}
-                        isOptionEqualToValue={(option, value) => option && value && option.id === value.id}
+                        isOptionEqualToValue={(option, val) => option && val && option.id === val.id}
                         renderInput={(params) => (
-                          <TextField {...params} label={`Material #${index + 1}`} error={!!error} helperText={error?.message} />
+                            <TextField 
+                            {...params} 
+                            label={`Material #${index + 1}`} 
+                            error={!!error} 
+                            helperText={error?.message} 
+                            variant="outlined" 
+                            size="small"
+                            inputProps={{
+                                ...params.inputProps,
+                                autoComplete: 'off', 
+                            }}
+                            />
                         )}
-                      />
+                        />
                     )}
-                  />
+                    />
                 </div>
 
-                {/* 2. Cantidad y Unidad (ocupa 1 columna) */}
-                <div className="flex items-center">
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Cantidad"
+                <div className="md:col-span-2 flex items-center">
+                    <input
+                    type="number" step="0.01" placeholder="Cant."
                     {...register(`items.${index}.cantidad`, {
-                      required: "Cantidad",
-                      valueAsNumber: true,
-                      min: { value: 0.01, message: "> 0" }
+                        required: "Req.", valueAsNumber: true, min: { value: 0.01, message: "> 0" }
                     })}
-                    className="border p-2 rounded-l-md w-full"
-                  />
-                  {unidad && <span className="p-2 bg-gray-200 rounded-r-md font-mono border-t border-b border-r">{unidad}</span>}
-                  {errors.items?.[index]?.cantidad && <span className="text-red-500 text-sm ml-2">{errors.items[index].cantidad.message}</span>}
+                    className="w-full border-gray-300 rounded-l-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2"
+                    autoComplete="off"
+                    />
+                    <span className="inline-flex items-center px-3 h-[40px] rounded-r-md border border-l-0 border-gray-300 bg-gray-100 text-gray-600 text-sm font-mono">
+                    {unidadesLoading[index] ? <CircularProgress size={16} /> : watch(`items.${index}.unidad`) || '...'}
+                    </span>
                 </div>
-
-                {/* 3. Comentario por Material (ocupa 2 columnas) */}
-                <div className="md:col-span-2">
-                  <input
-                    type="text"
-                    placeholder="Comentario (opcional)"
+                    {errors.items?.[index]?.cantidad && <span className="text-red-600 text-xs col-span-full md:col-span-1">{errors.items[index].cantidad.message}</span>}
+                
+                <div className="md:col-span-3">
+                    <input type="text" placeholder="Comentario (opcional)"
                     {...register(`items.${index}.comentario`)}
-                    className="border p-2 rounded w-full"
-                  />
+                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2"
+                    autoComplete="off"
+                    />
                 </div>
-              </div>
 
-              {/* Botón para eliminar */}
-              <IconButton onClick={() => remove(index)} color="error" aria-label="Eliminar material" disabled={fields.length <= 1}>
+                </div>
+                <IconButton onClick={() => remove(index)} color="error" disabled={fields.length <= 1} className="transition-transform duration-300 hover:scale-125">
                 <DeleteIcon />
-              </IconButton>
+                </IconButton>
             </div>
-          );
-        })}
-        
-        <Button
-          type="button"
-          onClick={() => append({ material: null, cantidad: '', comentario: '' })}
-          startIcon={<AddCircleOutlineIcon />}
-        >
-          Agregar Material
-        </Button>
+            ))}
+        </div>
       </div>
-
-      <button type="submit" className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 text-lg font-bold w-full md:w-auto">
-        Guardar Requisición
-      </button>
+      
+      {/* --- SECCIÓN DE ACCIONES --- */}
+      <div className="flex flex-col md:flex-row items-center justify-end gap-4 pt-4 border-t-2 border-gray-200">
+        <button
+            type="button"
+            onClick={() => reset(defaultFormValues)}
+            className="w-full md:w-auto flex items-center justify-center gap-2 bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold shadow-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-300 transform hover:scale-105"
+          >
+          <CleaningServicesIcon />
+          Limpiar Formulario
+        </button>
+        <button
+          type="submit"
+          className="w-full md:w-auto bg-indigo-600 text-white px-8 py-3 rounded-lg font-bold text-lg shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105 hover:shadow-xl"
+        >
+          Guardar Requisición
+        </button>
+      </div>
     </form>
   );
 }

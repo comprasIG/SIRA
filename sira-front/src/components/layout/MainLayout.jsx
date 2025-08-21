@@ -6,9 +6,16 @@ import Header from "./Header";
 export default function MainLayout({ children, userName }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  // 1. Creamos la función para cerrar el sidebar
+  const closeSidebar = () => {
+    setIsSidebarOpen(false);
+  };
+
   return (
     <div className="flex h-screen">
-      <Sidebar isOpen={isSidebarOpen} />
+      {/* 2. Pasamos la función como la prop 'onClose' */}
+      <Sidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
+
       <div className="flex flex-col flex-1">
         <Header
           userName={userName}

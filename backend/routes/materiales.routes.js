@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db/pool');
+const pool = require('../db/pool'); // Asegúrate de que esta ruta sea correcta
 
+// --- RUTA ORIGINAL PARA BÚSQUEDA GENERAL (SIN CAMBIOS) ---
 router.get('/', async (req, res) => {
   try {
     const query = req.query.query || '';
     if (!query) {
-      const result = await pool.query('SELECT id, nombre FROM catalogo_materiales ORDER BY nombre LIMIT 10');
-      return res.json(result.rows);
+      return res.json([]);
     }
 
     const palabras = query.toLowerCase().split(/\s+/).filter(Boolean);
@@ -21,28 +21,50 @@ router.get('/', async (req, res) => {
       ORDER BY nombre ASC
       LIMIT 50
     `;
-/*
-    // --- INICIO DE CÓDIGO DE DIAGNÓSTICO ---
-    // Estas líneas imprimirán en tu consola del servidor la consulta exacta que se está ejecutando.
-    console.log('--- NUEVA BÚSQUEDA ---');
-    console.log('Término de búsqueda:', query);
-    console.log('SQL generado:', sql);
-    console.log('Valores:', valores);
-    // --- FIN DE CÓDIGO DE DIAGNÓSTICO ---
-*/
+    
     const result = await pool.query(sql, valores);
-    
-    // Si la búsqueda fue exitosa, también lo mostraremos
-    //console.log('Resultados encontrados:', result.rows.length);
-
     res.json(result.rows);
-  } catch (error) {
-    // Si hay un error, lo veremos claramente aquí
-    console.error('!!!!!!!! ERROR EN LA BÚSQUEDA !!!!!!!!:', error);
-    res.status(500).json({ error: 'Error buscando materiales' });
-  
-    }
     
+  } catch (error) {
+    console.error('ERROR EN LA BÚSQUEDA DE MATERIALES:', error);
+    res.status(500).json({ error: 'Error buscando materiales' });
+  }
+});
+
+// --- RUTA CORREGIDA PARA OBTENER UN MATERIAL POR SU ID ---
+// Responde a peticiones como GET /api/materiales/76
+router.get('/:id', async (req, res) => {
+  const { id } = req.params;
+
+  if (isNaN(id)) {
+    return res.status(400).json({ error: 'El ID del material debe ser un número.' });
+  }
+
+  try {
+    // --- MEJORA CLAVE: Se usa un JOIN para obtener el símbolo de la unidad ---
+    const sql = `
+      SELECT
+        m.id,
+        m.nombre,
+        u.simbolo AS unidad 
+      FROM public.catalogo_materiales AS m
+      JOIN public.catalogo_unidades AS u ON m.unidad_de_compra = u.id
+      WHERE m.id = $1
+    `;
+    
+    const result = await pool.query(sql, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: `Material con ID ${id} no encontrado.` });
+    }
+
+    // Devuelve el material con la propiedad 'unidad' conteniendo el símbolo (ej. 'PZA')
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error(`ERROR AL OBTENER MATERIAL CON ID ${id}:`, error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
 });
 
 module.exports = router;
