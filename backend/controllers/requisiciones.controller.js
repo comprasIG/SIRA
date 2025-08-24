@@ -1,3 +1,5 @@
+//C:\SIRA\backend\controllers\requisiciones.controller.js
+
 const pool = require('../db/pool');
 
 const crearRequisicion = async (req, res) => {

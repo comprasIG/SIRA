@@ -299,9 +299,9 @@ function RequisicionForm() {
 
                 <div className="md:col-span-2 flex items-center">
                     <input
-                    type="number" step="0.01" placeholder="Cant."
+                    type="number" step="any" placeholder="Cant." min="0"
                     {...register(`items.${index}.cantidad`, {
-                        required: "Req.", valueAsNumber: true, min: { value: 0.01, message: "> 0" }
+                        required: "Req.", valueAsNumber: true, min: { value: 1, message: "> 0" }
                     })}
                     className="w-full border-gray-300 rounded-l-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2"
                     autoComplete="off"

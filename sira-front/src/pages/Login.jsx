@@ -1,3 +1,5 @@
+// C:\SIRA\sira-front\src\pages\Login.jsx
+
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { auth } from "../firebase/firebase";
 import { useEffect } from "react";

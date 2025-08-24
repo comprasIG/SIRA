@@ -41,3 +41,6 @@ Thumbs.db
 
 # === Test coverage ===
 /coverage/
+
+# === Firebase service account ===
+/backend/firebase/firebase-service-account.json
