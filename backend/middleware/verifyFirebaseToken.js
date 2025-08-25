@@ -1,4 +1,4 @@
-//C:\SIRA\backend\middleware\verifyFirebaseToken.js
+// C:\SIRA\backend\middleware\verifyFirebaseToken.js
 
 const admin = require("../firebase/firebaseAdmin");
 
@@ -11,7 +11,13 @@ const verifyFirebaseToken = async (req, res, next) => {
 
     const idToken = authHeader.split("Bearer ")[1];
     const decodedToken = await admin.auth().verifyIdToken(idToken);
-    req.firebaseUser = decodedToken;
+
+    req.usuario = {
+      correo_google: decodedToken.email,
+      uid: decodedToken.uid,
+      nombre: decodedToken.name,
+      foto: decodedToken.picture,
+    };
 
     next();
   } catch (error) {

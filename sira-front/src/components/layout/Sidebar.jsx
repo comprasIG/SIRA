@@ -1,57 +1,58 @@
+// C:\SIRA\sira-front\src\components\layout\Sidebar.jsx
 // src/components/layout/Sidebar.jsx
 import { Link } from "react-router-dom";
-import { useEffect } from "react"; // 1. Importamos useEffect
+import { useAuth } from "../../context/authContext";
+import clsx from "clsx";
 
-// 2. Recibimos la nueva prop 'onClose'
-export default function Sidebar({ isOpen, onClose }) {
-  
-  // 3. Hook para manejar el cierre automático
-  useEffect(() => {
-    let timer;
-    // Si el sidebar está abierto, iniciamos el temporizador
-    if (isOpen) {
-      timer = setTimeout(() => {
-        console.log("Cerrando sidebar por tiempo...");
-        onClose(); // Llama a la función de cierre después de 10 segundos
-      }, 10000); // 10000 milisegundos = 10 segundos
-    }
+export default function Sidebar({ isOpen, toggleSidebar }) {
+  const { funcionesPermitidas, usuario } = useAuth();
 
-    // Función de limpieza: se ejecuta si el sidebar se cierra antes de los 10s
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [isOpen, onClose]); // Se ejecuta cada vez que 'isOpen' o 'onClose' cambian
+  const menuItems = [
+    { label: "Generar Requisición", to: "/G_REQ", permiso: "G_REQ" },
+    { label: "Orden de Compra", to: "/G_OC", permiso: "G_OC" },
+    { label: "Registrar Ingreso", to: "/ING_OC", permiso: "ING_OC" },
+    { label: "Validar OC", to: "/VB_OC", permiso: "VB_OC" },
+    { label: "Registrar Pago", to: "/PAY_OC", permiso: "PAY_OC" },
+    { label: "Recibir OC", to: "/REC_OC", permiso: "REC_OC" },
+    { label: "Validar Requisición", to: "/VB_REQ", permiso: "VB_REQ" },
+    { label: "Generar RFQ", to: "/G_RFQ", permiso: "G_RFQ" },
+    { label: "Validar RFQ", to: "/VB_RFQ", permiso: "VB_RFQ" },
+    { label: "Usuarios", to: "/USUARIOS", permiso: "USUARIOS" },
+  ];
 
   return (
     <aside
-      className={`${
-        isOpen ? "w-64" : "w-0"
-      } overflow-hidden bg-gray-800 text-white transition-all duration-300 ease-in-out`}
+      className={clsx(
+        "fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-gray-800 text-white shadow-lg z-40 transform transition-transform duration-300 ease-in-out",
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )}
     >
-      <div className="p-4 text-2xl font-bold">SIRA</div>
-      <nav className="px-2">
-        <ul className="space-y-1">
-          <li>
-            {/* 4. Añadimos el evento onClick para cerrar el menú */}
-            <Link
-              to="/dashboard"
-              className="block px-4 py-2 rounded hover:bg-gray-700"
-              onClick={onClose}
-            >
-              Dashboard
-            </Link>
-          </li>
-          <li>
-            {/* 4. Añadimos el evento onClick para cerrar el menú */}
-            <Link
-              to="/G_REQ"
-              className="block px-4 py-2 rounded hover:bg-gray-700"
-              onClick={onClose}
-            >
-              Generar Requisición
-            </Link>
-          </li>
-        </ul>
+      <nav className="p-4 space-y-2 overflow-y-auto max-h-full">
+
+          <Link
+    to="/dashboard"
+    onClick={() => setTimeout(toggleSidebar, 100)}
+    className="block px-4 py-2 rounded hover:bg-gray-700 transition duration-200 font-bold text-indigo-300"
+  >
+    🏠 Dashboard
+  </Link>
+
+
+        {funcionesPermitidas.map((codigo) => {
+          const item = menuItems.find((i) => i.permiso === codigo);
+          return (
+            item && (
+              <Link
+                key={item.permiso}
+                to={item.to}
+                onClick={() => setTimeout(toggleSidebar, 100)}
+                className="block px-4 py-2 rounded hover:bg-gray-700 transition duration-200"
+              >
+                {item.label}
+              </Link>
+            )
+          );
+        })}
       </nav>
     </aside>
   );

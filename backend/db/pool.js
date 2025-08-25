@@ -1,4 +1,4 @@
-// db/pool.js
+// C:\SIRA\backend\db\pool.js
 const { Pool } = require('pg');
 require('dotenv').config();
 

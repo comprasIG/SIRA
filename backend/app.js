@@ -29,6 +29,20 @@ app.use('/api/sitios', sitiosRoutes);
 const materialesRoutes = require('./routes/materiales.routes');
 app.use('/api/materiales', materialesRoutes);
 
+// Rutas de usuarios
+const usuariosRoutes = require("./routes/usuarios.routes");
+app.use("/api/usuarios", usuariosRoutes);
+
+// Rutas de roles
+const rolesRoutes = require("./routes/roles.routes");
+app.use("/api/roles", rolesRoutes);
+
+// Rutas de departamentos
+const departamentosRoutes = require("./routes/departamentos.routes");
+app.use("/api/departamentos", departamentosRoutes);
+
+
+
 // Ruta base de prueba
 app.get('/', (req, res) => {
   res.send('Backend SIRA funcionando');

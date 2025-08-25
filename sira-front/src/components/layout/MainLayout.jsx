@@ -1,30 +1,30 @@
-// C:\SIRA\sira-front\src\components\layout\MainLayout.jsx
+//C:\SIRA\sira-front\src\components\layout\MainLayout.jsx src/components/layout/MainLayout.jsx
 import { useState } from "react";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 
-export default function MainLayout({ children, userName }) {
+export default function MainLayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // 1. Creamos la función para cerrar el sidebar
-  const closeSidebar = () => {
-    setIsSidebarOpen(false);
-  };
-
   return (
-    <div className="flex h-screen">
-      {/* 2. Pasamos la función como la prop 'onClose' */}
-      <Sidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
-
-      <div className="flex flex-col flex-1">
-        <Header
-          userName={userName}
+    <div className="flex h-screen overflow-hidden">
+      {/* Sidebar con posición relativa y transición */}
+      <div className="relative z-30">
+        <Sidebar
+          isOpen={isSidebarOpen}
           toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         />
-        <main className="pt-16 p-6 bg-gray-100 flex-1 overflow-auto">
+      </div>
+
+      {/* Contenedor principal con Header y contenido */}
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <Header
+          toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        />
+        <main className="pt-16 p-4 bg-gray-100 flex-1 overflow-y-auto">
           {children}
         </main>
       </div>
     </div>
   );
-}
+}  
