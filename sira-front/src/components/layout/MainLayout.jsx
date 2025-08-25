@@ -1,4 +1,4 @@
-// src/components/layout/MainLayout.jsx
+// C:\SIRA\sira-front\src\components\layout\MainLayout.jsx
 import { useState } from "react";
 import Sidebar from "./Sidebar";
 import Header from "./Header";

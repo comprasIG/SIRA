@@ -44,11 +44,11 @@ export default function Sidebar({ isOpen, onClose }) {
           <li>
             {/* 4. Añadimos el evento onClick para cerrar el menú */}
             <Link
-              to="/requisiciones"
+              to="/G_REQ"
               className="block px-4 py-2 rounded hover:bg-gray-700"
               onClick={onClose}
             >
-              Requisiciones
+              Generar Requisición
             </Link>
           </li>
         </ul>

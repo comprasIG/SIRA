@@ -25,7 +25,14 @@ const crearRequisicion = async (req, res) => {
       return res.status(400).json({ error: 'El campo adjuntos debe ser un array si se incluye.' });
     }
 
-    const correoGoogle = "compras.biogas@gmail.com"; // Temporal
+    //const correoGoogle = "compras.biogas@gmail.com"; // Temporal
+    const correoGoogle = req?.firebaseUser?.email;
+    if (!correoGoogle) {
+    return res.status(401).json({ error: 'No se pudo obtener el correo del usuario autenticado.' });
+    }
+
+
+
 
     // Validación previa a la transacción (usuario, proyecto, sitio)
     const userResult = await pool.query(

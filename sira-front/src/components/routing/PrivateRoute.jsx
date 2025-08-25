@@ -1,4 +1,5 @@
-// src/components/routing/PrivateRoute.jsx
+// C:\SIRA\sira-front\src\components\routing\PrivateRoute.jsx
+
 import React from "react";
 import { Navigate } from "react-router-dom";
 

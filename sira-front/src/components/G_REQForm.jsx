@@ -4,6 +4,7 @@ import { useForm, Controller, useFieldArray } from "react-hook-form";
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
+import api from "../api/api";
 
 // --- Hook de Debounce para optimizar la búsqueda ---
 function useDebounce(value, delay) {
@@ -22,7 +23,7 @@ function useDebounce(value, delay) {
 // --- Constante para evitar "números mágicos" ---
 const ALMACEN_ID = "21";
 
-function RequisicionForm() {
+function G_REQForm() {
   const [materialesOptions, setMaterialesOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [proyectos, setProyectos] = useState([]);
@@ -152,6 +153,7 @@ function RequisicionForm() {
     
     console.log("Payload enviado al backend:", payload);
     try {
+      /*
       const res = await fetch("http://localhost:3001/api/requisiciones", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -159,7 +161,7 @@ function RequisicionForm() {
       });
       const data = await res.json();
       if (!res.ok) throw data;
-
+*/      const data = await api.post("/api/requisiciones", payload);
       alert(`Requisición creada: ${data.numero_requisicion} (ID ${data.requisicion_id})`);
       reset(defaultFormValues);
       setMaterialesOptions([]);
@@ -350,4 +352,4 @@ function RequisicionForm() {
   );
 }
 
-export default RequisicionForm;
+export default G_REQForm;

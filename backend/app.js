@@ -1,3 +1,5 @@
+//C:\SIRA\backend\app.js
+
 const express = require('express');
 
 
@@ -31,6 +33,11 @@ app.use('/api/materiales', materialesRoutes);
 app.get('/', (req, res) => {
   res.send('Backend SIRA funcionando');
 });
+
+// Rutas de autenticación y usuario
+const authRoutes = require('./routes/auth.routes');
+app.use('/api/auth', authRoutes);
+
 
 // Inicia el servidor
 app.listen(PORT, () => {

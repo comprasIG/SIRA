@@ -1,11 +1,10 @@
+// C:\SIRA\backend\routes\requisiciones.routes.js
 const express = require('express');
 const router = express.Router();
-const requisicionesController = require('../controllers/requisiciones.controller');
+const verifyFirebaseToken = require("../middleware/verifyFirebaseToken");
+const { crearRequisicion } = require('../controllers/requisiciones.controller');
 
-// Endpoint para crear una requisición (POST)
-router.post('/', requisicionesController.crearRequisicion);
-
-// Aquí puedes agregar más endpoints relacionados a requisiciones (listar, aprobar, etc.)
-// Ejemplo: router.get('/', requisicionesController.listarRequisiciones);
+// Ruta protegida única
+router.post("/", verifyFirebaseToken, crearRequisicion);
 
 module.exports = router;

@@ -11,7 +11,7 @@ import { auth } from "./firebase/firebase";
 
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import Requisiciones from "./pages/Requisiciones";
+import G_REQ from "./pages/G_REQ";
 import MainLayout from "./components/layout/MainLayout";
 import PrivateRoute from "./components/routing/PrivateRoute";
 
@@ -55,11 +55,11 @@ export default function App() {
 
         {/* Requisiciones protegido */}
         <Route
-          path="/requisiciones"
+          path="/G_REQ"
           element={
             <PrivateRoute user={user}>
               <MainLayout userName={user?.displayName || user?.email || ""}>
-                <Requisiciones />
+                <G_REQ />
               </MainLayout>
             </PrivateRoute>
           }

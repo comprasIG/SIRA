@@ -1,4 +1,4 @@
-// src/components/layout/Header.jsx
+// C:\SIRA\sira-front\src\components\layout\Header.jsx
 import { signOut } from "firebase/auth";
 import { auth } from "../../firebase/firebase";
 
