@@ -62,16 +62,19 @@ const getUsuarioActual = async (req, res) => {
 
   try {
     const result = await pool.query(`
-      SELECT 
-        u.id, u.nombre, u.correo, u.correo_google,
-        u.whatsapp, u.activo, u.es_superusuario,
-        r.nombre AS rol,
-        d.nombre AS departamento
-      FROM usuarios u
-      JOIN roles r ON u.role_id = r.id
-      JOIN departamentos d ON u.departamento_id = d.id
-      WHERE u.correo_google = $1
-      LIMIT 1
+    SELECT 
+  u.id, u.nombre, u.correo, u.correo_google,
+  u.whatsapp, u.activo, u.es_superusuario,
+  u.departamento_id,
+  d.codigo AS abreviatura,
+  r.nombre AS rol,
+  d.nombre AS departamento
+FROM usuarios u
+JOIN roles r ON u.role_id = r.id
+JOIN departamentos d ON u.departamento_id = d.id
+WHERE u.correo_google = $1
+LIMIT 1;
+
     `, [correo_google]);
 
     if (result.rows.length === 0) {
