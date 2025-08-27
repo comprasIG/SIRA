@@ -1,19 +1,22 @@
 // C:\SIRA\sira-front\src\api\api.js
 // src/api/api.js
+// C:\SIRA\sira-front\src\api\api.js
 import { auth } from "../firebase/firebase";
 
-/** Obtiene el idToken del usuario autenticado */
+// Obtenemos la URL del backend desde las variables de entorno de Vite
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 async function getIdToken() {
   const user = auth.currentUser;
   if (!user) throw new Error("Usuario no autenticado");
   return await user.getIdToken();
 }
 
-/** Wrapper base para llamadas al backend SIRA */
 async function request(path, { method = "GET", body, headers = {} } = {}) {
-  const idToken = await getIdToken(); // 🔐
+  const idToken = await getIdToken();
 
-  const res = await fetch(`http://localhost:3001${path}`, {
+  // Usamos la variable para construir la URL completa
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     method,
     headers: {
       "Content-Type": "application/json",

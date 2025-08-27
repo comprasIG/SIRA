@@ -1,7 +1,7 @@
 # /SIRA/docker-compose.yml
 
 services:
-  # Servicio para el backend
+  # Servicio para el backend (sin cambios)
   backend:
     build:
       context: ./backend
@@ -12,12 +12,16 @@ services:
       - ./backend/.env
     restart: unless-stopped
 
-  # Servicio para el frontend en modo desarrollo
+  # Servicio para el frontend en modo desarrollo (ACTUALIZADO)
   frontend-dev:
     build:
-      # CAMBIO CLAVE: El contexto ahora apunta explícitamente a la carpeta del frontend
       context: ./sira-front
       dockerfile: Dockerfile.dev
+    # --- LÍNEA AÑADIDA ---
+    # Carga las variables de entorno específicas para Docker
+    env_file:
+      - ./sira-front/.env.docker
+    # ----------------------
     volumes:
       - ./sira-front:/app
       - /app/node_modules
