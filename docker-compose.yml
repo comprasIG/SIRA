@@ -1,0 +1,57 @@
+
+  #            version: '3.8'
+#
+ #             services:
+  #              # Producción: build estático servido con Nginx en el puerto 3000
+   #             web:
+    #              build:
+     #               context: .
+      #              dockerfile: Dockerfile   # este nuevo archivo
+     #             ports:
+     #               - "3000:80"
+     #             environment:
+     #               - NODE_ENV=production
+#
+#                # Desarrollo: Vite + hot-reload en el puerto 5173
+#                dev:
+#                  build:
+#                    context: .
+#                    dockerfile: Dockerfile.dev
+#                  volumes:
+#                    - .:/app
+#                    - /app/node_modules
+#                  ports:
+#                    - "5173:5173"
+#                  environment:
+#                    - NODE_ENV=development
+#                    - CHOKIDAR_USEPOLLING=true
+#                  command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+# docker-compose.yml (actualizado)
+version: '3.8'
+
+services:
+  # Servicio para el backend
+  backend:
+    build:
+      context: ./backend  # Le dice que construya usando el Dockerfile de la carpeta backend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"       # Mapea el puerto del contenedor al de tu máquina
+    env_file:
+      - ./backend/.env    # Carga las variables de entorno desde tu archivo .env
+    restart: unless-stopped
+
+  # Tu configuración de frontend para desarrollo (como la tenías)
+  frontend-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - .:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+    # El comando ya no es necesario aquí si está en el Dockerfile.dev
