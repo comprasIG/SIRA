@@ -1,3 +1,5 @@
+// C:\SIRA\SIRA\sira-front\src\components\G_REQForm.jsx
+
 import React, { useEffect, useState, useMemo } from "react";
 import { Autocomplete, TextField, Button, IconButton, CircularProgress } from '@mui/material';
 import { useForm, Controller, useFieldArray } from "react-hook-form";
@@ -5,8 +7,8 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import api from "../api/api";
+import { useAuth } from "../context/authContext"; // 👈 Nuevo
 
-// --- Hook de Debounce para optimizar la búsqueda ---
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value);
   useEffect(() => {
@@ -20,10 +22,10 @@ function useDebounce(value, delay) {
   return debouncedValue;
 }
 
-// --- Constante para evitar "números mágicos" ---
 const ALMACEN_ID = "21";
 
 function G_REQForm() {
+  const { usuario } = useAuth(); // 👈 Nuevo
   const [materialesOptions, setMaterialesOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [proyectos, setProyectos] = useState([]);
@@ -51,7 +53,6 @@ function G_REQForm() {
     name: "items"
   });
 
-  // Cargar proyectos y sitios al inicio
   useEffect(() => {
     fetch("http://localhost:3001/api/proyectos")
       .then(res => res.json())
@@ -78,7 +79,6 @@ function G_REQForm() {
     return proyectos.filter(p => String(p.sitio_id) === String(selectedSitioId));
   }, [selectedSitioId, proyectos]);
 
-  // Reseteo de dependencias
   useEffect(() => {
     if (selectedProyectoId && selectedSitioId) {
       const proyecto = proyectos.find(p => String(p.id) === String(selectedProyectoId));
@@ -142,6 +142,13 @@ function G_REQForm() {
       return;
     }
 
+    // --- Validación de usuario SIRA antes de enviar ---
+    if (!usuario) {
+      alert("No se pudo obtener el usuario autenticado.");
+      return;
+    }
+
+    // --- Payload incluyendo usuario_id ---
     const payload = {
       proyecto_id: Number(form.proyecto_id),
       sitio_id: Number(form.sitio_id),
@@ -149,19 +156,12 @@ function G_REQForm() {
       lugar_entrega: lugarEntregaTexto,
       comentario: form.comentario?.trim() || undefined,
       materiales,
+      usuario_id: usuario.id, // <--- Obligatorio
     };
     
     console.log("Payload enviado al backend:", payload);
     try {
-      /*
-      const res = await fetch("http://localhost:3001/api/requisiciones", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) throw data;
-*/      const data = await api.post("/api/requisiciones", payload);
+      const data = await api.post("/api/requisiciones", payload);
       alert(`Requisición creada: ${data.numero_requisicion} (ID ${data.requisicion_id})`);
       reset(defaultFormValues);
       setMaterialesOptions([]);
@@ -201,7 +201,17 @@ function G_REQForm() {
       <div className="bg-white p-6 rounded-xl shadow-lg transition-shadow duration-300 hover:shadow-2xl">
         <h2 className="text-2xl font-bold text-gray-800 border-b-2 border-gray-200 pb-3 mb-6">Datos Generales</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-          
+
+          {/* PRIMERO Sitio, después Proyecto */}
+          <div>
+            <label htmlFor="sitio_id" className="block text-sm font-medium text-gray-700">Sitio</label>
+            <select id="sitio_id" {...register("sitio_id", { required: "Selecciona un sitio" })} className={inputStyle}>
+              <option value="">Selecciona un sitio...</option>
+              {sitios.map(sitio => (<option key={sitio.id} value={sitio.id}>{sitio.nombre}</option>))}
+            </select>
+            {errors.sitio_id && <span className="text-red-600 text-xs mt-1">{errors.sitio_id.message}</span>}
+          </div>
+
           <div>
             <label htmlFor="proyecto_id" className="block text-sm font-medium text-gray-700">Proyecto</label>
             <select id="proyecto_id" {...register("proyecto_id", { required: "Selecciona un proyecto" })} className={inputStyle}>
@@ -209,15 +219,6 @@ function G_REQForm() {
               {proyectosFiltrados.map(proy => (<option key={proy.id} value={proy.id}>{proy.nombre}</option>))}
             </select>
             {errors.proyecto_id && <span className="text-red-600 text-xs mt-1">{errors.proyecto_id.message}</span>}
-          </div>
-
-          <div>
-            <label htmlFor="sitio_id" className="block text-sm font-medium text-gray-700">Sitio</label>
-            <select id="sitio_id" {...register("sitio_id", { required: "Selecciona un sitio" })} className={inputStyle}>
-              <option value="">Selecciona un sitio...</option>
-              {sitiosFiltrados.map(sitio => (<option key={sitio.id} value={sitio.id}>{sitio.nombre}</option>))}
-            </select>
-            {errors.sitio_id && <span className="text-red-600 text-xs mt-1">{errors.sitio_id.message}</span>}
           </div>
 
           <div>
@@ -247,7 +248,6 @@ function G_REQForm() {
       <div className="bg-white p-6 rounded-xl shadow-lg transition-shadow duration-300 hover:shadow-2xl">
         <div className="flex justify-between items-center border-b-2 border-gray-200 pb-3 mb-6">
             <h2 className="text-2xl font-bold text-gray-800">Materiales Requeridos</h2>
-            {/* --- MEJORA UX: Botón movido a la parte superior de la sección --- */}
             <Button
                 type="button"
                 onClick={() => prepend({ material: null, cantidad: '', comentario: '', unidad: '' })}
@@ -258,8 +258,6 @@ function G_REQForm() {
                 Agregar
             </Button>
         </div>
-        
-        {/* El contenedor de la lista ahora tiene un espacio superior */}
         <div className="space-y-4">
             {fields.map((field, index) => (
             <div key={field.id} className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg bg-gray-50/50 transition-all duration-300">
@@ -353,3 +351,4 @@ function G_REQForm() {
 }
 
 export default G_REQForm;
+0
