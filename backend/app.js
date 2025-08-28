@@ -41,7 +41,13 @@ app.use("/api/roles", rolesRoutes);
 const departamentosRoutes = require("./routes/departamentos.routes");
 app.use("/api/departamentos", departamentosRoutes);
 
+// Rutas de RFQ 
+const rfqRoutes = require("./routes/rfq.routes");
+app.use("/api/rfq", rfqRoutes);
 
+// Rutas de Proveedores
+const proveedoresRoutes = require("./routes/proveedores.routes");
+app.use("/api/proveedores", proveedoresRoutes);
 
 // Ruta base de prueba
 app.get('/', (req, res) => {
