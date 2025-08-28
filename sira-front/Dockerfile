@@ -1,3 +1,4 @@
+#C:\SIRA\sira-front\Dockerfile
 # Dockerfile
 # 1) Build: compila tu app con Vite
 FROM node:18-alpine AS build

@@ -1,3 +1,4 @@
+#C:\SIRA\backend\Dockerfile
 # backend/Dockerfile
 
 # 1. Usar una imagen oficial de Node.js como base. 'alpine' es una versión muy ligera.
