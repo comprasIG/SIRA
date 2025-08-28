@@ -19,5 +19,9 @@ COPY . .
 # Exponer el puerto de Vite
 EXPOSE 5173
 
+# Forzar modo "docker" para que lea .env.docker
+ENV VITE_API_URL=http://localhost:3001
+
+
 # Arrancar el dev server de Vite escuchando en todas las interfaces
 CMD ["npm", "run", "dev", "--", "--host"]
