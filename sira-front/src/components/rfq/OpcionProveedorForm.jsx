@@ -1,4 +1,4 @@
-// C:\SIRA\sira-front\src\components\rfq\OpcionProveedorForm.jsx
+// C:\SIRA\sira-front\src/components/rfq/OpcionProveedorForm.jsx
 
 import React, { useState, useEffect } from 'react';
 import { Controller, useWatch } from 'react-hook-form';
@@ -134,7 +134,6 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
         />
       </div>
 
-      {/* Fila inferior para opciones adicionales */}
       <div className="col-span-12 grid grid-cols-12 gap-x-4 items-center">
           <div className="col-span-12 sm:col-span-7 flex flex-wrap items-center">
               <Controller
@@ -183,6 +182,20 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
                   </span>
               </Tooltip>
           </div>
+      </div>
+      
+      {/* <-- CORRECCIÓN: Fila inferior para checkboxes de Neto e Importación --> */}
+      <div className="col-span-12 flex flex-wrap gap-x-4 -mt-2">
+        <Controller
+          name={`materiales.${materialIndex}.opciones.${opcionIndex}.es_precio_neto`}
+          control={control}
+          render={({ field }) => <FormControlLabel control={<Checkbox {...field} checked={!!field.value} />} label="Precio Neto (IVA Incluido)" />}
+        />
+        <Controller
+          name={`materiales.${materialIndex}.opciones.${opcionIndex}.es_importacion`}
+          control={control}
+          render={({ field }) => <FormControlLabel control={<Checkbox {...field} checked={!!field.value} />} label="Importación" />}
+        />
       </div>
     </div>
   );

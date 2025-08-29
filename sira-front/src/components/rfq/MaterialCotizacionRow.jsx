@@ -1,11 +1,11 @@
 // C:\SIRA\sira-front\src\components\rfq\MaterialCotizacionRow.jsx
-// C:\SIRA\sira-front\src\components\rfq\MaterialCotizacionRow.jsx
+
 import React from 'react';
 import { useFieldArray, useWatch } from 'react-hook-form';
 import OpcionProveedorForm from './OpcionProveedorForm';
 import { Button, IconButton, Tooltip } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import MoreVertIcon from '@mui/icons-material/MoreVert'; // Placeholder for 3-dot menu
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import clsx from 'clsx';
 
 export default function MaterialCotizacionRow({ control, materialIndex, setValue }) {
@@ -19,12 +19,19 @@ export default function MaterialCotizacionRow({ control, materialIndex, setValue
     name: `materiales.${materialIndex}`
   });
 
+  const cantidadAsignada = material.opciones.reduce((acc, opt) => {
+    return opt.seleccionado ? acc + Number(opt.cantidad_cotizada || 0) : acc;
+  }, 0);
+
+  const cantidadRestante = material.cantidad - cantidadAsignada;
+
   const handleSplitPurchase = () => {
     if (fields.length < 3) {
       append({
         proveedor: null,
-        precio_unitario: '',
-        cantidad_cotizada: 0,
+        precio_unitario: 0, // Inicia en 0 para evitar errores
+        // <-- CORRECCIÓN: La nueva opción toma la cantidad restante por defecto
+        cantidad_cotizada: cantidadRestante > 0 ? cantidadRestante : 0,
         seleccionado: false,
         es_entrega_inmediata: true,
         es_precio_neto: false,
@@ -35,13 +42,6 @@ export default function MaterialCotizacionRow({ control, materialIndex, setValue
     }
   };
   
-  // Calcula la cantidad total ya asignada en las opciones seleccionadas
-  const cantidadAsignada = material.opciones.reduce((acc, opt) => {
-    return opt.seleccionado ? acc + Number(opt.cantidad_cotizada || 0) : acc;
-  }, 0);
-  
-  const cantidadRestante = material.cantidad - cantidadAsignada;
-
   return (
     <div className="bg-gray-50 p-4 rounded-lg shadow-sm mb-6">
       <div className="flex justify-between items-center mb-3">
@@ -61,7 +61,7 @@ export default function MaterialCotizacionRow({ control, materialIndex, setValue
                         startIcon={<AddCircleOutlineIcon />}
                         disabled={fields.length >= 3}
                     >
-                        Añadir Opción
+                         Añadir Opción
                     </Button>
                 </span>
             </Tooltip>
