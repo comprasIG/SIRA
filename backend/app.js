@@ -49,6 +49,10 @@ app.use("/api/rfq", rfqRoutes);
 const proveedoresRoutes = require("./routes/proveedores.routes");
 app.use("/api/proveedores", proveedoresRoutes);
 
+// Rutas de Dashboard
+const dashboardRoutes = require('./routes/dashboard.routes');
+app.use('/api/dashboard', dashboardRoutes);
+
 // Ruta base de prueba
 app.get('/', (req, res) => {
   res.send('Backend SIRA funcionando');
