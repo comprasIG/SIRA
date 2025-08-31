@@ -1,32 +1,23 @@
-# /SIRA/docker-compose.yml
+# /SIRA/docker-compose.yml (Para Producción)
 
 services:
-  # Servicio para el backend (sin cambios)
+  # Servicio del backend para producción
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "3001:3001"
     env_file:
       - ./backend/.env
     restart: unless-stopped
+    ports:
+      - "3001:3001"
 
-  # Servicio para el frontend en modo desarrollo (ACTUALIZADO)
-  frontend-dev:
+  # Servicio del frontend para producción
+  frontend:
     build:
       context: ./sira-front
-      dockerfile: Dockerfile.dev
-    # --- LÍNEA AÑADIDA ---
-    # Carga las variables de entorno específicas para Docker
-    env_file:
-      - ./sira-front/.env.docker
-    # ----------------------
-    volumes:
-      - ./sira-front:/app
-      - /app/node_modules
+      dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
-      - "5173:5173"
-    environment:
-      - NODE_ENV=development
-      - CHOKIDAR_USEPOLLING=true
+      # Expone el puerto 80 de Nginx al puerto 80 del host
+      - "80:80"
