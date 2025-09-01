@@ -1,5 +1,7 @@
 // C:\SIRA\backend\routes\requisiciones.routes.js
 
+// C:\SIRA\backend\routes\requisiciones.routes.js
+
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
@@ -11,33 +13,38 @@ const {
   getRequisicionesPorAprobar,
   getRequisicionDetalle,
   aprobarRequisicion,
-  rechazarRequisicion
+  rechazarRequisicion,
+  actualizarRequisicion // <-- Se importa la nueva función
 } = require('../controllers/requisiciones.controller');
 
-// Configuración de Multer (sin cambios) [cite: 3]
+// Configuración de Multer para manejar la subida de archivos
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 50 * 1024 * 1024 }, // Límite de 50MB
 });
 
-// Aplicamos los middlewares a todas las rutas (sin cambios) [cite: 4]
+// Se aplican los middlewares de autenticación a todas las rutas de este archivo
 router.use(verifyFirebaseToken, loadSiraUser);
 
-// --- Rutas ---
+// --- RUTAS DEL MÓDULO DE REQUISICIONES ---
 
-// 👈 CAMBIO: Añadimos el middleware de Multer para que acepte hasta 5 archivos
+// POST /api/requisiciones/ -> Crear una nueva requisición (con hasta 5 archivos adjuntos)
 router.post("/", upload.array('archivosAdjuntos', 5), crearRequisicion);
 
-// GET /api/requisiciones/por-aprobar -> Obtiene requisiciones para el VB del depto. [cite: 6]
+// GET /api/requisiciones/por-aprobar -> Obtiene las requisiciones pendientes para el Visto Bueno
 router.get("/por-aprobar", getRequisicionesPorAprobar);
 
-// GET /api/requisiciones/:id -> Obtiene el detalle de una requisición [cite: 7]
+// GET /api/requisiciones/:id -> Obtiene el detalle de una requisición específica
 router.get("/:id", getRequisicionDetalle);
 
-// POST /api/requisiciones/:id/aprobar -> Aprueba y genera RFQ [cite: 7]
+// --- CORRECCIÓN: Se añade la nueva ruta PUT para actualizar una requisición ---
+// PUT /api/requisiciones/:id -> Actualiza una requisición existente
+router.put("/:id", actualizarRequisicion);
+
+// POST /api/requisiciones/:id/aprobar -> Aprueba una requisición y genera el RFQ
 router.post("/:id/aprobar", aprobarRequisicion);
 
-// POST /api/requisiciones/:id/rechazar -> Rechaza (cancela) una requisición [cite: 8]
+// POST /api/requisiciones/:id/rechazar -> Rechaza (cancela) una requisición
 router.post("/:id/rechazar", rechazarRequisicion);
 
 module.exports = router;
