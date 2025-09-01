@@ -2,6 +2,7 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/authContext";
 
+
 export default function RutaProtegida({ permiso, children }) {
   const { funcionesPermitidas, cargandoUsuario } = useAuth();
 

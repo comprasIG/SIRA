@@ -17,7 +17,8 @@ import PriceCheckIcon from '@mui/icons-material/PriceCheck';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import GroupIcon from '@mui/icons-material/Group';
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
-
+import AddBusinessOutlinedIcon from '@mui/icons-material/AddBusinessOutlined';
+import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 export default function Sidebar({ isOpen, toggleSidebar }) {
   const { funcionesPermitidas, usuario } = useAuth();
 
@@ -40,6 +41,8 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
       title: "Administración",
       items: [
         { label: "Usuarios", to: "/USUARIOS", permiso: "USUARIOS", icon: <GroupIcon sx={{ fontSize: 20 }} /> },
+        { label: "Agregar Producto", to: "/agregar-producto", permiso: "AGREGAR_PRODUCTO", icon: <AddBusinessOutlinedIcon sx={{ fontSize: 20 }} /> },
+        { label: "Ver Productos", to: "/lista-producto", permiso: "AGREGAR_PRODUCTO", icon: <FactCheckOutlinedIcon sx={{ fontSize: 20 }} /> },
       ],
     },
   ];

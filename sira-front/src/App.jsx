@@ -105,6 +105,11 @@ import ING_OC from "./pages/ING_OC";
 import USUARIOS from "./pages/USUARIOS";
 import Error403 from "./pages/Error403";
 import Error404 from "./pages/Error404";
+import AgregarProducto from "./pages/AgregarProducto";
+import ListaProductos from "./pages/ListaProductos";
+
+
+
 
 // Tus importaciones de layout y rutas
 import MainLayout from "./components/layout/MainLayout";
@@ -141,7 +146,10 @@ export default function App() {
           <Route path="/G_RFQ" element={<RutaProtegida permiso="G_RFQ"><MainLayout><G_RFQ /></MainLayout></RutaProtegida>} />
           <Route path="/VB_RFQ" element={<RutaProtegida permiso="VB_RFQ"><MainLayout><VB_RFQ /></MainLayout></RutaProtegida>} />
           <Route path="/USUARIOS" element={<RutaProtegida permiso="USUARIOS"><MainLayout><USUARIOS /></MainLayout></RutaProtegida>} />
+          <Route path="/agregar-producto" element={<RutaProtegida permiso="AGREGAR_PRODUCTO"><MainLayout><AgregarProducto /></MainLayout></RutaProtegida>} />
+          <Route path="/lista-producto" element={<RutaProtegida permiso="AGREGAR_PRODUCTO"><MainLayout><ListaProductos /></MainLayout></RutaProtegida>}
           
+/>
           {/* Redirección y página no encontrada */}
           <Route path="/" element={<Navigate to={usuario ? "/dashboard" : "/login"} replace />} />
           <Route path="*" element={<Error404 />} />

@@ -1,0 +1,2 @@
+- Para levanta el front end escribir en gitbash o en terminal npm run dev
+- Para levantar el backend escribir en gitbash o en terminal nodemon app.js

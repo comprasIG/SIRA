@@ -52,6 +52,10 @@ app.get('/', (req, res) => {
 const authRoutes = require('./routes/auth.routes');
 app.use('/api/auth', authRoutes);
 
+// Rutas de Agregar MAteriales
+const catalogoMaterialesRoutes = require('./routes/catalogo_materiales.routes');
+app.use('/api/catalogo_materiales', catalogoMaterialesRoutes);
+
 
 // Inicia el servidor
 app.listen(PORT, () => {
