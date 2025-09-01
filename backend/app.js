@@ -1,7 +1,6 @@
 //C:\SIRA\backend\app.js
-
+require('dotenv').config();
 const express = require('express');
-
 
 const app = express();
 const PORT = 3001; // o el puerto que quieras
@@ -41,7 +40,17 @@ app.use("/api/roles", rolesRoutes);
 const departamentosRoutes = require("./routes/departamentos.routes");
 app.use("/api/departamentos", departamentosRoutes);
 
+// Rutas de RFQ 
+const rfqRoutes = require("./routes/rfq.routes");
+app.use("/api/rfq", rfqRoutes);
 
+// Rutas de Proveedores
+const proveedoresRoutes = require("./routes/proveedores.routes");
+app.use("/api/proveedores", proveedoresRoutes);
+
+// Rutas de Dashboard
+const dashboardRoutes = require('./routes/dashboard.routes');
+app.use('/api/dashboard', dashboardRoutes);
 
 // Ruta base de prueba
 app.get('/', (req, res) => {
@@ -55,6 +64,10 @@ app.use('/api/auth', authRoutes);
 // Rutas de Agregar MAteriales
 const catalogoMaterialesRoutes = require('./routes/catalogo_materiales.routes');
 app.use('/api/catalogo_materiales', catalogoMaterialesRoutes);
+// Rutas de subida de archivos
+// Importa las nuevas rutas de subida
+const uploadRoutes = require('./routes/uploadRoutes'); // Asegúrate de que la ruta al archivo sea correcta
+app.use('/api/uploads', uploadRoutes); // Usa las rutas de subida bajo el prefijo /api/uploads
 
 
 // Inicia el servidor

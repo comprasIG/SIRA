@@ -117,7 +117,7 @@ import RutaProtegida from "./routes/RutaProtegida";
 
 export default function App() {
   const { usuario, cargandoUsuario } = useAuth();
-
+console.log(import.meta.env.VITE_API_URL); // Verifica que la variable de entorno se está leyendo correctamente
   if (cargandoUsuario) {
     return (
       <div className="flex items-center justify-center h-screen">Cargando...</div>

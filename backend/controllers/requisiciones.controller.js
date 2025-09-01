@@ -1,13 +1,14 @@
-// src/controllers/requisiciones.controller.js
-
 const pool = require('../db/pool');
+const { uploadRequisitionFiles } = require('../services/googleDrive'); // 👈 Importa tu helper de Drive
 
 /**
  * Crea una nueva requisición y sus detalles.
- * Espera en el body: usuario_id, proyecto_id, sitio_id, fecha_requerida, lugar_entrega, comentario, materiales[]
+ * Recibe datos por FormData (multipart), así que todos los campos llegan como string.
+ * Espera en el body: usuario_id, proyecto_id, sitio_id, fecha_requerida, lugar_entrega, comentario, materiales (stringificado)
  */
 const crearRequisicion = async (req, res) => {
-  const {
+  // --- RECUPERA CAMPOS DEL BODY ---
+  let {
     usuario_id,
     proyecto_id,
     sitio_id,
@@ -17,6 +18,21 @@ const crearRequisicion = async (req, res) => {
     materiales
   } = req.body;
 
+  // --- AJUSTE: Convierte strings a número ---
+  usuario_id = Number(usuario_id);
+  proyecto_id = Number(proyecto_id);
+  sitio_id = Number(sitio_id);
+
+  // --- AJUSTE: Parsea materiales si viene como string ---
+  if (typeof materiales === "string") {
+    try {
+      materiales = JSON.parse(materiales);
+    } catch {
+      materiales = [];
+    }
+  }
+
+  // --- VALIDACIÓN ---
   if (!usuario_id || !proyecto_id || !sitio_id || !fecha_requerida || !materiales || materiales.length === 0) {
     return res.status(400).json({ error: "Faltan datos obligatorios para la requisición." });
   }
@@ -38,7 +54,7 @@ const crearRequisicion = async (req, res) => {
     // (2) Obtener el departamento_id del usuario
     const departamento_id = userResult.rows[0].departamento_id;
 
-    // (3) Insertar en la tabla requisiciones, incluyendo departamento_id
+    // (3) Insertar la requisición
     const reqInsert = await client.query(
       `INSERT INTO requisiciones (
         usuario_id, departamento_id, proyecto_id, sitio_id, fecha_requerida, lugar_entrega, comentario, status, fecha_creacion
@@ -58,6 +74,31 @@ const crearRequisicion = async (req, res) => {
       );
     }
 
+    // (5) ARCHIVOS ADJUNTOS: sube a Drive y guarda en la base
+    const archivosAdjuntos = req.files;
+    if (archivosAdjuntos && archivosAdjuntos.length > 0) {
+      // Trae el código del departamento
+      const departamentoResult = await client.query(
+        "SELECT d.codigo FROM usuarios u JOIN departamentos d ON u.departamento_id = d.id WHERE u.id = $1",
+        [usuario_id]
+      );
+      const depto_codigo = departamentoResult.rows[0]?.codigo || 'SINDEPTO';
+
+      // Sube archivos a Drive y guarda links
+      const driveResponses = await uploadRequisitionFiles(
+        archivosAdjuntos,
+        depto_codigo,
+        numero_requisicion
+      );
+      for (const driveFile of driveResponses) {
+        await client.query(
+          `INSERT INTO requisiciones_adjuntos (requisicion_id, nombre_archivo, ruta_archivo)
+           VALUES ($1, $2, $3)`,
+          [requisicion_id, driveFile.name, driveFile.webViewLink]
+        );
+      }
+    }
+
     await client.query('COMMIT');
     res.status(201).json({ requisicion_id, numero_requisicion });
   } catch (error) {
@@ -69,9 +110,8 @@ const crearRequisicion = async (req, res) => {
   }
 };
 
-/**
- * Obtiene las requisiciones pendientes de aprobación para el departamento del usuario logueado.
- */
+// ...el resto de funciones no cambia...
+
 const getRequisicionesPorAprobar = async (req, res) => {
   const departamentoId = req.usuarioSira?.departamento_id;
 
@@ -106,9 +146,6 @@ const getRequisicionesPorAprobar = async (req, res) => {
   }
 };
 
-/**
- * Obtiene el detalle completo de una requisición específica, incluyendo sus materiales.
- */
 const getRequisicionDetalle = async (req, res) => {
   const { id } = req.params;
   try {
@@ -155,9 +192,6 @@ const getRequisicionDetalle = async (req, res) => {
   }
 };
 
-/**
- * Aprueba una requisición, cambiando su estado a 'COTIZANDO' y generando un RFQ code.
- */
 const aprobarRequisicion = async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect();
@@ -204,9 +238,6 @@ const aprobarRequisicion = async (req, res) => {
   }
 };
 
-/**
- * Rechaza una requisición, cambiando su estado a 'CANCELADA'.
- */
 const rechazarRequisicion = async (req, res) => {
   const { id } = req.params;
   try {

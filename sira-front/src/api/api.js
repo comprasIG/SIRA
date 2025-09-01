@@ -1,6 +1,4 @@
 // C:\SIRA\sira-front\src\api\api.js
-// src/api/api.js
-// C:\SIRA\sira-front\src\api\api.js
 import { auth } from "../firebase/firebase";
 
 // Obtenemos la URL del backend desde las variables de entorno de Vite
@@ -15,15 +13,22 @@ async function getIdToken() {
 async function request(path, { method = "GET", body, headers = {} } = {}) {
   const idToken = await getIdToken();
 
-  // Usamos la variable para construir la URL completa
+  // Si body es FormData, NO poner content-type ni serializar
+  let fetchHeaders = {
+    Authorization: `Bearer ${idToken}`,
+    ...headers,
+  };
+  let fetchBody = body;
+
+  if (!(body instanceof FormData) && body !== undefined) {
+    fetchHeaders["Content-Type"] = "application/json";
+    fetchBody = JSON.stringify(body);
+  }
+
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${idToken}`,
-      ...headers,
-    },
-    body: body ? JSON.stringify(body) : undefined,
+    headers: fetchHeaders,
+    body: fetchBody,
   });
 
   let payload = null;

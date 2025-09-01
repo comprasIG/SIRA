@@ -1,10 +1,9 @@
 // C:\SIRA\sira-front\src\components\layout\Sidebar.jsx
-// src/components/layout/Sidebar.jsx
 
-// src/components/layout/Sidebar.jsx
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../context/authContext";
 import clsx from "clsx";
+import React, { useEffect, useRef } from 'react'; // <-- Se importa useEffect y useRef
 
 // Importamos los íconos de Material-UI
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -21,8 +20,31 @@ import AddBusinessOutlinedIcon from '@mui/icons-material/AddBusinessOutlined';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 export default function Sidebar({ isOpen, toggleSidebar }) {
   const { funcionesPermitidas, usuario } = useAuth();
+  const timerRef = useRef(null); // <-- Referencia para guardar el ID del temporizador
 
-  // Reestructuramos el menú en grupos y añadimos íconos
+  // Lógica para el cierre automático
+  const startTimer = () => {
+    clearTimeout(timerRef.current); // Limpia cualquier temporizador anterior
+    timerRef.current = setTimeout(() => {
+      toggleSidebar();
+    }, 5000); // 5000 milisegundos = 5 segundos
+  };
+
+  const stopTimer = () => {
+    clearTimeout(timerRef.current);
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      startTimer(); // Inicia el temporizador cuando el sidebar se abre
+    } else {
+      stopTimer(); // Detiene el temporizador si el sidebar se cierra por otra razón
+    }
+
+    // Limpieza al desmontar el componente
+    return () => clearTimeout(timerRef.current);
+  }, [isOpen]); // Este efecto se ejecuta cada vez que 'isOpen' cambia
+
   const menuGroups = [
     {
       title: "Procesos",
@@ -33,7 +55,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
         { label: "Validar Cotización (RFQ)", to: "/VB_RFQ", permiso: "VB_RFQ", icon: <PlaylistAddCheckIcon sx={{ fontSize: 20 }} /> },
         { label: "Generar Orden Compra", to: "/G_OC", permiso: "G_OC", icon: <ShoppingCartIcon sx={{ fontSize: 20 }} /> },
         { label: "Validar Orden Compra", to: "/VB_OC", permiso: "VB_OC", icon: <FactCheckIcon sx={{ fontSize: 20 }} /> },
-        { label: "Recibir Mercancía", to: "/REC_OC", permiso: "REC_OC", icon: <InventoryIcon sx={{ fontSize: 20 }} /> },
+        { label: "Recolectar OC", to: "/REC_OC", permiso: "REC_OC", icon: <InventoryIcon sx={{ fontSize: 20 }} /> },
         { label: "Registrar Pago", to: "/PAY_OC", permiso: "PAY_OC", icon: <PriceCheckIcon sx={{ fontSize: 20 }} /> },
       ],
     },
@@ -46,18 +68,20 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
       ],
     },
   ];
-  
-  // Estilos para los NavLink
+
   const linkBaseStyle = "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors duration-200";
   const linkInactiveStyle = "text-gray-300 hover:bg-gray-700 hover:text-white";
   const linkActiveStyle = "bg-indigo-600 text-white font-semibold shadow-inner";
+  
+  const handleLinkClick = () => {
+    stopTimer(); // Detiene el timer de cierre automático
+    setTimeout(toggleSidebar, 150); // Cierra el sidebar después de un breve delay
+  };
 
   const renderMenuItems = (group) => {
-    // Si es superusuario, muestra todos los items del grupo
     if (usuario?.es_superusuario) {
       return group.items.map(renderLink);
     }
-    // Si no, filtra los items por los permisos que tiene
     return group.items
       .filter(item => funcionesPermitidas.includes(item.permiso))
       .map(renderLink);
@@ -67,7 +91,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
     <NavLink
       key={item.to}
       to={item.to}
-      onClick={() => setTimeout(toggleSidebar, 150)} // Pequeño delay para que se vea el click en mobile
+      onClick={handleLinkClick} // <-- Se usa la nueva función
       className={({ isActive }) =>
         clsx(linkBaseStyle, isActive ? linkActiveStyle : linkInactiveStyle)
       }
@@ -83,12 +107,14 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
         "fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-gray-800 text-white shadow-lg z-40 transform transition-transform duration-300 ease-in-out",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}
+      // <-- Se añaden los manejadores de eventos del mouse -->
+      onMouseEnter={stopTimer} // Detiene el temporizador si el mouse está encima
+      onMouseLeave={startTimer} // Reinicia el temporizador cuando el mouse sale
     >
       <nav className="p-4 space-y-2 overflow-y-auto max-h-full">
-        {/* Enlace principal al Dashboard */}
         <NavLink
           to="/dashboard"
-          onClick={() => setTimeout(toggleSidebar, 150)}
+          onClick={handleLinkClick} // <-- Se usa la nueva función
           className={({ isActive }) =>
             clsx(linkBaseStyle, isActive ? linkActiveStyle : linkInactiveStyle)
           }
@@ -96,11 +122,10 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
           <DashboardIcon sx={{ fontSize: 20 }} />
           <span>Dashboard</span>
         </NavLink>
-
-        {/* Renderizado de los grupos de menú */}
+        
         {menuGroups.map((group) => {
           const itemsToRender = renderMenuItems(group);
-          if (itemsToRender.length === 0) return null; // No renderiza el grupo si no tiene items permitidos
+          if (itemsToRender.length === 0) return null;
           
           return (
             <div key={group.title} className="pt-4">

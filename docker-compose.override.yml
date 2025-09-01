@@ -1,0 +1,32 @@
+# /SIRA/docker-compose.override.yml (ACTUALIZADO)
+
+services:
+  backend:
+    # --- AÑADIDO ---
+    # Le dice a Docker que use el Dockerfile de desarrollo para el backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    # ---------------
+    command: npm run dev
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  frontend:
+    build:
+      context: ./sira-front
+      dockerfile: Dockerfile.dev
+    env_file:
+      - ./sira-front/.env.docker
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./sira-front:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+
+      # Levantar Development con: docker-compose up --build
+      # Levantar Producción con: docker-compose -f docker-compose.yml up --build
