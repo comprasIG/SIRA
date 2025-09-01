@@ -1,4 +1,3 @@
-// src/pages/Login.jsx
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { auth } from "../firebase/firebase";
 import { useAuth } from "../context/authContext";
@@ -16,7 +15,6 @@ export default function Login() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       alert(`¡Hola, ${user.displayName}!`);
-      // El contexto se actualiza automáticamente después
     } catch (error) {
       console.error("Error al iniciar sesión:", error);
       alert("Hubo un problema con el login");
@@ -25,27 +23,54 @@ export default function Login() {
 
   return (
     <div
-      className="min-h-screen w-full flex items-center justify-center bg-cover bg-center"
-      style={{ backgroundImage: "url('/public/grupoig.jpg')" }}
+  className="relative min-h-screen w-full flex items-center justify-center bg-cover bg-center"
+  style={{ backgroundImage: "url('/grupoig.jpg')" }}
+>
+  {/* Overlay oscuro */}
+  <div className="absolute inset-0 bg-black/50"></div>
+
+  {/* Card */}
+  <div className="relative bg-white/80 backdrop-blur-md p-10 rounded-2xl shadow-2xl w-full max-w-md text-center space-y-6">
+    {/* Logo */}
+    <img
+      src="/logo.png" // coloca tu logo en public/logo.png
+      alt="Logo Grupo IG"
+      className="mx-auto w-20 h-20 mb-4"
+    />
+
+    {/* Título */}
+    <h1 className="text-3xl font-bold text-gray-900">
+      Bienvenido a <span className="text-green-600">SIRA</span>
+    </h1>
+
+    {/* Tagline */}
+    <p className="text-gray-600 text-sm">
+      Sistema Administrativo Grupo IG <br />
+      <span className="text-gray-500 italic">
+        “Eficiencia y control en un solo lugar”
+      </span>
+    </p>
+
+    {/* Botón de Google */}
+    <button
+      onClick={handleLogin}
+      className="w-full flex items-center justify-center gap-3 border border-gray-300 bg-white text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 transition duration-200 shadow-sm"
+      aria-label="Iniciar sesión con Google"
     >
-      <div className="bg-white bg-opacity-90 p-10 rounded-xl shadow-lg w-full max-w-md text-center space-y-6">
-        <h1 className="text-2xl font-semibold text-gray-800">Iniciar sesión en SIRA</h1>
+      <img
+        src="https://www.svgrepo.com/show/355037/google.svg"
+        alt="Google"
+        className="w-5 h-5"
+      />
+      <span className="font-medium">Iniciar sesión con Google</span>
+    </button>
 
-        <button
-          onClick={handleLogin}
-          className="w-full flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition duration-200 transform motion-safe:hover:scale-110"
-          aria-label="Iniciar sesión con Google"
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M21.35 11.1h-9.18v2.92h5.3c-.23 1.24-1.4 3.63-5.3 3.63-3.19 0-5.8-2.63-5.8-5.87s2.61-5.87 5.8-5.87c1.82 0 3.04.77 3.74 1.43l2.56-2.48C17.3 3.9 15.02 3 12.17 3 6.97 3 2.9 7.03 2.9 12s4.07 9 9.27 9c5.36 0 8.89-3.76 8.89-9 0-.61-.07-1.22-.21-1.9z" />
-          </svg>
-          Iniciar sesión con Google
-        </button>
+    {/* Footer */}
+    <p className="text-xs text-gray-500 mt-6">
+      © {new Date().getFullYear()} Grupo IG — Todos los derechos reservados
+    </p>
+  </div>
+</div>
 
-        <p className="text-sm text-gray-500">
-          Sistema Administrativo Grupo IG
-        </p>
-      </div>
-    </div>
   );
 }
