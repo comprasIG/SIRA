@@ -1,3 +1,5 @@
+//D:\SIRA\SIRA\sira-front\src\components\AgregarProductoForm.jsx
+
 import { useState } from "react";
 import axios from "axios";
 import { useEffect } from "react";
@@ -56,7 +58,9 @@ const AgregarProductoForm = () => {
   const handleSubmit = async (e) => {
   e.preventDefault();
   try {
-    const {nombre, ...payload } = formData; // excluye 'nombre'
+   const payload = { ...formData };
+delete payload.nombre;
+
     await axios.post("http://localhost:3001/api/catalogo_materiales", payload);
     toast.success("Producto agregado correctamente");
     setFormData({
