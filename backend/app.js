@@ -1,7 +1,6 @@
 //C:\SIRA\backend\app.js
-
+require('dotenv').config();
 const express = require('express');
-
 
 const app = express();
 const PORT = 3001; // o el puerto que quieras
@@ -61,6 +60,11 @@ app.get('/', (req, res) => {
 // Rutas de autenticación y usuario
 const authRoutes = require('./routes/auth.routes');
 app.use('/api/auth', authRoutes);
+
+// Rutas de subida de archivos
+// Importa las nuevas rutas de subida
+const uploadRoutes = require('./routes/uploadRoutes'); // Asegúrate de que la ruta al archivo sea correcta
+app.use('/api/uploads', uploadRoutes); // Usa las rutas de subida bajo el prefijo /api/uploads
 
 
 // Inicia el servidor

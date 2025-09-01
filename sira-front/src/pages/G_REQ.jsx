@@ -1,3 +1,5 @@
+//C:\SIRA\sira-front\src\pages\G_REQ.jsx
+
 import G_REQForm from '../components/G_REQForm';
 
 export default function G_REQ() {
