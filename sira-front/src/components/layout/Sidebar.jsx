@@ -3,9 +3,9 @@
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../context/authContext";
 import clsx from "clsx";
-import React, { useEffect, useRef } from 'react'; // <-- Se importa useEffect y useRef
+import React, { useEffect, useRef } from 'react';
 
-// Importamos los íconos de Material-UI
+// Iconos de Material-UI
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import DescriptionIcon from '@mui/icons-material/Description';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
@@ -18,16 +18,21 @@ import GroupIcon from '@mui/icons-material/Group';
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
 import AddBusinessOutlinedIcon from '@mui/icons-material/AddBusinessOutlined';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
+
 export default function Sidebar({ isOpen, toggleSidebar }) {
   const { funcionesPermitidas, usuario } = useAuth();
-  const timerRef = useRef(null); // <-- Referencia para guardar el ID del temporizador
+  const timerRef = useRef(null);
 
-  // Lógica para el cierre automático
+  // Lógica de temporizador mejorada
   const startTimer = () => {
-    clearTimeout(timerRef.current); // Limpia cualquier temporizador anterior
+    // Siempre limpia el temporizador anterior antes de iniciar uno nuevo
+    clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      toggleSidebar();
-    }, 5000); // 5000 milisegundos = 5 segundos
+      // Solo cierra si todavía está abierto
+      if (isOpen) {
+        toggleSidebar();
+      }
+    }, 5000); // 5 segundos
   };
 
   const stopTimer = () => {
@@ -35,15 +40,16 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
   };
 
   useEffect(() => {
+    // Este efecto ahora solo reacciona a la apertura del sidebar
     if (isOpen) {
-      startTimer(); // Inicia el temporizador cuando el sidebar se abre
+      startTimer();
     } else {
-      stopTimer(); // Detiene el temporizador si el sidebar se cierra por otra razón
+      stopTimer(); // Si se cierra por cualquier motivo, se detiene el timer.
     }
 
     // Limpieza al desmontar el componente
     return () => clearTimeout(timerRef.current);
-  }, [isOpen]); // Este efecto se ejecuta cada vez que 'isOpen' cambia
+  }, [isOpen]); // Dependencia explícita en isOpen
 
   const menuGroups = [
     {
@@ -74,8 +80,10 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
   const linkActiveStyle = "bg-indigo-600 text-white font-semibold shadow-inner";
   
   const handleLinkClick = () => {
-    stopTimer(); // Detiene el timer de cierre automático
-    setTimeout(toggleSidebar, 150); // Cierra el sidebar después de un breve delay
+    // Al hacer clic, simplemente cierra el sidebar (si está abierto)
+    if (isOpen) {
+      toggleSidebar();
+    }
   };
 
   const renderMenuItems = (group) => {
@@ -91,7 +99,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
     <NavLink
       key={item.to}
       to={item.to}
-      onClick={handleLinkClick} // <-- Se usa la nueva función
+      onClick={handleLinkClick}
       className={({ isActive }) =>
         clsx(linkBaseStyle, isActive ? linkActiveStyle : linkInactiveStyle)
       }
@@ -104,17 +112,19 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
   return (
     <aside
       className={clsx(
-        "fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-gray-800 text-white shadow-lg z-40 transform transition-transform duration-300 ease-in-out",
+        "fixed left-0 top-0 h-full w-64 bg-gray-800 text-white shadow-lg z-40 transform transition-transform duration-300 ease-in-out",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}
-      // <-- Se añaden los manejadores de eventos del mouse -->
-      onMouseEnter={stopTimer} // Detiene el temporizador si el mouse está encima
-      onMouseLeave={startTimer} // Reinicia el temporizador cuando el mouse sale
+      onMouseEnter={stopTimer}
+      onMouseLeave={isOpen ? startTimer : undefined} // Solo inicia el timer si el sidebar está abierto
     >
-      <nav className="p-4 space-y-2 overflow-y-auto max-h-full">
+      <div className="h-16 flex items-center px-4">
+        {/* Espacio para el header que ahora es parte del layout principal */}
+      </div>
+      <nav className="p-4 space-y-2 overflow-y-auto" style={{height: 'calc(100vh - 4rem)'}}>
         <NavLink
           to="/dashboard"
-          onClick={handleLinkClick} // <-- Se usa la nueva función
+          onClick={handleLinkClick}
           className={({ isActive }) =>
             clsx(linkBaseStyle, isActive ? linkActiveStyle : linkInactiveStyle)
           }
