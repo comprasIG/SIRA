@@ -48,11 +48,10 @@ const ALMACEN_ID = "21";
 const ALMACEN_NOMBRE = "ALMACÉN IG";
 
 // ----------- COMPONENTE PRINCIPAL -----------
-// --- CORRECCIÓN: El componente ahora acepta props para el modo edición ---
 function G_REQForm({ requisicionId, onFinish }) {
   const { usuario } = useAuth();
   const navigate = useNavigate();
-  const isEditMode = !!requisicionId; // Determina si estamos en modo edición
+  const isEditMode = !!requisicionId;
 
   // ----------- Estados principales -----------
   const [materialesOptions, setMaterialesOptions] = useState([]);
@@ -81,7 +80,7 @@ function G_REQForm({ requisicionId, onFinish }) {
   });
   const { fields, prepend, remove } = useFieldArray({ control, name: "items" });
 
-  // --- CORRECCIÓN: useEffect ahora maneja la carga de datos para ambos modos ---
+  // --- useEffect para cargar datos (Crear y Editar) ---
   useEffect(() => {
     const loadInitialData = async () => {
         setIsSubmitting(true);
@@ -95,11 +94,18 @@ function G_REQForm({ requisicionId, onFinish }) {
 
             if (isEditMode) {
                 const reqData = await api.get(`/api/requisiciones/${requisicionId}`);
-                // Mapeamos los datos para que coincidan con la estructura del formulario de Autocomplete
+                
+                const formattedDate = new Date(reqData.fecha_requerida).toISOString().split('T')[0];
+                const lugarEntregaValue = reqData.lugar_entrega === ALMACEN_NOMBRE ? ALMACEN_ID : reqData.sitio_id;
+
                 const mappedData = {
-                    ...reqData,
+                    proyecto_id: reqData.proyecto_id,
+                    sitio_id: reqData.sitio_id,
+                    fecha_requerida: formattedDate,
+                    lugar_entrega: lugarEntregaValue,
+                    comentario: reqData.comentario_general,
                     items: reqData.materiales.map(m => ({
-                        material: { id: m.material_id, nombre: m.material }, // Objeto para el Autocomplete
+                        material: { id: m.material_id, nombre: m.material },
                         cantidad: m.cantidad,
                         comentario: m.comentario,
                         unidad: m.unidad,
@@ -131,6 +137,17 @@ function G_REQForm({ requisicionId, onFinish }) {
     return proyectos.filter(p => String(p.sitio_id) === String(selectedSitioId));
   }, [selectedSitioId, proyectos]);
   
+  const lugarEntregaOptions = useMemo(() => {
+    const options = [{ id: ALMACEN_ID, nombre: 'ALMACÉN IG' }];
+    if (selectedSitioId && selectedSitioId !== ALMACEN_ID) {
+        const sitioSeleccionado = sitios.find(s => String(s.id) === String(selectedSitioId));
+        if (sitioSeleccionado) {
+            options.push({ id: sitioSeleccionado.id, nombre: sitioSeleccionado.nombre });
+        }
+    }
+    return options;
+  }, [selectedSitioId, sitios]);
+
   const handleSitioChange = (e) => {
     sitioRegister.onChange(e);
     const newSitioId = e.target.value;
@@ -186,10 +203,8 @@ function G_REQForm({ requisicionId, onFinish }) {
     }
   }, [debouncedSearchTerm]);
 
-  // --- CORRECCIÓN: onSubmit ahora maneja ambos casos: crear y actualizar ---
   const onSubmit = async (form) => {
     setIsSubmitting(true);
-    // Validaciones
     if (!form.proyecto_id || !form.sitio_id || !form.fecha_requerida) {
       toast.error("Debes seleccionar sitio, proyecto y fecha requerida.");
       setIsSubmitting(false);
@@ -220,7 +235,6 @@ function G_REQForm({ requisicionId, onFinish }) {
       return;
     }
 
-    // Prepara el payload de datos (sin los archivos, que se manejan aparte si es necesario)
     const payload = {
         proyecto_id: form.proyecto_id,
         sitio_id: form.sitio_id,
@@ -274,23 +288,6 @@ function G_REQForm({ requisicionId, onFinish }) {
       setValue(`items.${index}.unidad`, '');
     }
   };
-  const renderLugarEntregaOptions = () => {
-    if (String(selectedSitioId) === ALMACEN_ID) {
-      return (
-        <option value={ALMACEN_ID}>{ALMACEN_NOMBRE}</option>
-      );
-    }
-    return (
-      <>
-        <option value={ALMACEN_ID}>{ALMACEN_NOMBRE}</option>
-        {selectedSitioId && (
-          <option value={selectedSitioId}>
-            {sitios.find(s => String(s.id) === String(selectedSitioId))?.nombre || "Sitio"}
-          </option>
-        )}
-      </>
-    );
-  };
 
   return (
     <fieldset disabled={isSubmitting}>
@@ -325,11 +322,12 @@ function G_REQForm({ requisicionId, onFinish }) {
                         id="lugar_entrega"
                         {...register("lugar_entrega", { required: "Selecciona el lugar" })}
                         className={inputStyle}
-                        value={lugarEntregaSeleccionado || ALMACEN_ID}
-                        onChange={e => setValue("lugar_entrega", e.target.value, { shouldValidate: true })}
+                        value={lugarEntregaSeleccionado || ''}
                         >
                         <option value="">Selecciona el lugar...</option>
-                        {renderLugarEntregaOptions()}
+                        {lugarEntregaOptions.map(opt => (
+                            <option key={opt.id} value={opt.id}>{opt.nombre}</option>
+                        ))}
                         </select>
                         {errors.lugar_entrega && <span className="text-red-600 text-xs mt-1">{errors.lugar_entrega.message}</span>}
                     </div>
@@ -340,10 +338,11 @@ function G_REQForm({ requisicionId, onFinish }) {
                     <div className="md:col-span-2">
                         <label htmlFor="archivo" className="block text-sm font-medium text-gray-700">Adjuntar Archivos (máx. 5)</label>
                         <div className="mt-1 flex flex-col items-start gap-4">
-                        <Button variant="outlined" component="label" startIcon={<AttachFileIcon />} disabled={archivosAdjuntos.length >= 5}>
+                        <Button variant="outlined" component="label" startIcon={<AttachFileIcon />} disabled={archivosAdjuntos.length >= 5 || isEditMode}>
                             Seleccionar Archivos
-                            <input type="file" multiple hidden onChange={handleFileChange} />
+                            <input type="file" multiple hidden onChange={handleFileChange} disabled={isEditMode} />
                         </Button>
+                        {isEditMode && <p className="text-xs text-gray-500">La carga de nuevos adjuntos en modo edición no está implementada.</p>}
                         {archivosAdjuntos.length > 0 && (
                             <div className="w-full p-3 border border-gray-200 rounded-md bg-gray-50">
                             <p className="text-sm font-semibold mb-2">Archivos seleccionados:</p>
@@ -451,7 +450,6 @@ function G_REQForm({ requisicionId, onFinish }) {
                 </div>
             </div>
             <div className="flex flex-col md:flex-row items-center justify-end gap-4 pt-4 border-t-2 border-gray-200">
-                {/* --- CORRECCIÓN: Botones dinámicos según el modo --- */}
                 {isEditMode ? (
                     <Button
                         type="button"
