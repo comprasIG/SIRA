@@ -1,12 +1,22 @@
 // C:/SIRA/backend/controllers/rfq.controller.js
+// C:/SIRA/backend/controllers/rfq.controller.js
 
 const pool = require('../db/pool');
 
-// ... (las otras funciones como getRequisicionesCotizando, etc., se mantienen sin cambios) ...
+/**
+ * Obtiene todas las requisiciones con estatus 'COTIZANDO'.
+ */
 const getRequisicionesCotizando = async (req, res) => {
   try {
     const query = `
-      SELECT r.id, r.rfq_code, r.fecha_creacion, u.nombre AS usuario_creador, p.nombre AS proyecto, s.nombre AS sitio, r.lugar_entrega
+      SELECT
+        r.id,
+        r.rfq_code,
+        r.fecha_creacion,
+        u.nombre AS usuario_creador,
+        p.nombre AS proyecto,
+        s.nombre AS sitio,
+        r.lugar_entrega
       FROM requisiciones r
       JOIN usuarios u ON r.usuario_id = u.id
       JOIN proyectos p ON r.proyecto_id = p.id
@@ -22,9 +32,13 @@ const getRequisicionesCotizando = async (req, res) => {
   }
 };
 
+/**
+ * Obtiene el detalle completo de un RFQ, incluyendo materiales, opciones y adjuntos.
+ */
 const getRfqDetalle = async (req, res) => {
     const { id } = req.params;
     try {
+        // 1. Obtener datos de la cabecera
         const reqResult = await pool.query(`
             SELECT r.id, r.numero_requisicion, r.rfq_code, r.fecha_creacion, r.fecha_requerida, r.lugar_entrega, r.status, r.comentario AS comentario_general, u.nombre AS usuario_creador, p.nombre AS proyecto, s.nombre AS sitio
             FROM requisiciones r
@@ -35,6 +49,7 @@ const getRfqDetalle = async (req, res) => {
         `, [id]);
         if (reqResult.rows.length === 0) return res.status(404).json({ error: 'Requisición no encontrada.' });
 
+        // 2. Obtener materiales
         const materialesResult = await pool.query(`
             SELECT rd.id, rd.cantidad, rd.comentario, cm.id as material_id, cm.nombre AS material, cu.simbolo AS unidad
             FROM requisiciones_detalle rd
@@ -43,6 +58,7 @@ const getRfqDetalle = async (req, res) => {
             WHERE rd.requisicion_id = $1 ORDER BY cm.nombre;
         `, [id]);
 
+        // 3. Obtener opciones de cotización
         const opcionesResult = await pool.query(`
             SELECT ro.id, ro.requisicion_detalle_id, ro.proveedor_id, p.marca as proveedor_nombre, p.razon_social as proveedor_razon_social, ro.precio_unitario, ro.cantidad_cotizada, ro.moneda, ro.plazo_entrega, ro.condiciones_pago, ro.comentario, ro.seleccionado, ro.es_precio_neto, ro.es_importacion, ro.es_entrega_inmediata, ro.tiempo_entrega
             FROM requisiciones_opciones ro
@@ -50,18 +66,32 @@ const getRfqDetalle = async (req, res) => {
             WHERE ro.requisicion_id = $1;
         `, [id]);
 
+        // 4. Obtener archivos adjuntos
+        const adjuntosResult = await pool.query(
+            `SELECT id, nombre_archivo, ruta_archivo FROM requisiciones_adjuntos WHERE requisicion_id = $1`,
+            [id]
+        );
+
+        // 5. Ensamblar la respuesta completa
         const materialesConOpciones = materialesResult.rows.map(material => ({
             ...material,
             opciones: opcionesResult.rows.filter(op => op.requisicion_detalle_id === material.id)
         }));
         
-        res.json({ ...reqResult.rows[0], materiales: materialesConOpciones });
+        res.json({ 
+            ...reqResult.rows[0], 
+            materiales: materialesConOpciones,
+            adjuntos: adjuntosResult.rows
+        });
     } catch (error) {
         console.error(`Error al obtener detalle de RFQ ${id}:`, error);
         res.status(500).json({ error: "Error interno del servidor." });
     }
 };
 
+/**
+ * Guarda o actualiza las opciones de cotización para un RFQ.
+ */
 const guardarOpcionesRfq = async (req, res) => {
     const { id: requisicion_id } = req.params;
     const { opciones } = req.body;
@@ -89,6 +119,9 @@ const guardarOpcionesRfq = async (req, res) => {
     }
 };
 
+/**
+ * Cambia el estado de un RFQ a 'POR_APROBAR'.
+ */
 const enviarRfqAprobacion = async (req, res) => {
     const { id } = req.params;
     try {
@@ -101,6 +134,9 @@ const enviarRfqAprobacion = async (req, res) => {
     }
 };
 
+/**
+ * Obtiene la lista de RFQs pendientes de Visto Bueno ('POR_APROBAR').
+ */
 const getRfqsPorAprobar = async (req, res) => {
   try {
     const query = `
@@ -119,6 +155,9 @@ const getRfqsPorAprobar = async (req, res) => {
   }
 };
 
+/**
+ * Rechaza un RFQ (lo devuelve a 'COTIZANDO').
+ */
 const rechazarRfq = async (req, res) => {
     const { id } = req.params;
     try {
@@ -133,6 +172,9 @@ const rechazarRfq = async (req, res) => {
     }
 };
 
+/**
+ * Aprueba un RFQ, genera Órdenes de Compra y cambia el estado de la requisición.
+ */
 const aprobarRfqYGenerarOC = async (req, res) => {
     const { id: rfqId } = req.params;
     const { id: usuarioId } = req.usuarioSira;
@@ -141,12 +183,14 @@ const aprobarRfqYGenerarOC = async (req, res) => {
     try {
         await client.query('BEGIN');
 
+        // 1. Validar RFQ
         const reqInfoQuery = await client.query(`SELECT usuario_id, sitio_id, proyecto_id, lugar_entrega FROM requisiciones WHERE id = $1 AND status = 'POR_APROBAR'`, [rfqId]);
         if (reqInfoQuery.rowCount === 0) {
             throw new Error('El RFQ no existe o no está en estado para ser aprobado.');
         }
         const reqInfo = reqInfoQuery.rows[0];
 
+        // 2. Obtener Opciones Seleccionadas
         const opcionesQuery = await client.query(`
             SELECT ro.*, rd.material_id
             FROM requisiciones_opciones ro
@@ -159,6 +203,7 @@ const aprobarRfqYGenerarOC = async (req, res) => {
             throw new Error('No hay opciones de proveedor seleccionadas para este RFQ.');
         }
 
+        // 3. Agrupar por Proveedor
         const comprasPorProveedor = {};
         for (const opt of opcionesSeleccionadas) {
             if (!comprasPorProveedor[opt.proveedor_id]) {
@@ -167,6 +212,7 @@ const aprobarRfqYGenerarOC = async (req, res) => {
             comprasPorProveedor[opt.proveedor_id].push(opt);
         }
 
+        // 4. Crear una OC por cada Proveedor
         for (const proveedorId in comprasPorProveedor) {
             const items = comprasPorProveedor[proveedorId];
             
@@ -177,7 +223,6 @@ const aprobarRfqYGenerarOC = async (req, res) => {
             const iva = subTotal * 0.16;
             const total = subTotal + iva;
 
-            // <-- CORRECCIÓN: Se elimina la columna 'status' del INSERT para que la DB aplique el DEFAULT 'POR_AUTORIZAR'
             const ocInsertResult = await client.query(
                 `INSERT INTO ordenes_compra (numero_oc, usuario_id, rfq_id, sitio_id, proyecto_id, lugar_entrega, sub_total, iva, total)
                  VALUES ('OC-' || nextval('ordenes_compra_id_seq'), $1, $2, $3, $4, $5, $6, $7, $8)
@@ -195,8 +240,10 @@ const aprobarRfqYGenerarOC = async (req, res) => {
             }
         }
 
+        // 5. Actualizar estado de la Requisición
         await client.query(`UPDATE requisiciones SET status = 'ESPERANDO_ENTREGA' WHERE id = $1`, [rfqId]);
 
+        // 6. Finalizar transacción
         await client.query('COMMIT');
         res.status(200).json({ mensaje: `RFQ aprobado y ${Object.keys(comprasPorProveedor).length} Órdenes de Compra generadas.` });
 
@@ -209,6 +256,9 @@ const aprobarRfqYGenerarOC = async (req, res) => {
     }
 };
 
+/**
+ * Cancela un RFQ (lo cambia a 'CANCELADA').
+ */
 const cancelarRfq = async (req, res) => {
     const { id } = req.params;
     try {

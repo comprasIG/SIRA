@@ -1,17 +1,19 @@
 // C:\SIRA\sira-front\src\components\G_RFQ_List.jsx
+// C:\SIRA\sira-front\src\components\G_RFQ_List.jsx
 
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/api';
 import { toast } from 'react-toastify';
 import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  Button, CircularProgress, Tooltip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Typography
+  Button, CircularProgress, Tooltip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Typography, Box, Link
 } from '@mui/material';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import InfoIcon from '@mui/icons-material/Info';
 import CancelIcon from '@mui/icons-material/Cancel';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 
-// Modal de Información Mejorado
+// El modal ya está preparado para mostrar los adjuntos.
 const InfoModal = ({ open, onClose, rfqId }) => {
     const [details, setDetails] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -44,7 +46,7 @@ const InfoModal = ({ open, onClose, rfqId }) => {
                             )}
                         </div>
                         <h4 className="font-semibold text-lg mb-2">Materiales Solicitados:</h4>
-                        <TableContainer component={Paper} variant="outlined">
+                        <TableContainer component={Paper} variant="outlined" className='mb-4'>
                             <Table size="small">
                                 <TableHead>
                                     <TableRow>
@@ -64,6 +66,21 @@ const InfoModal = ({ open, onClose, rfqId }) => {
                                 </TableBody>
                             </Table>
                         </TableContainer>
+
+                        {/* Esta sección ahora recibirá los datos del backend y se mostrará */}
+                        {details.adjuntos && details.adjuntos.length > 0 && (
+                            <>
+                                <h4 className="font-semibold text-lg mb-2">Archivos Adjuntos:</h4>
+                                <Box>
+                                    {details.adjuntos.map(file => (
+                                        <Link href={file.ruta_archivo} target="_blank" rel="noopener noreferrer" key={file.id} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                            <AttachFileIcon sx={{ mr: 1, fontSize: '1rem' }} />
+                                            {file.nombre_archivo}
+                                        </Link>
+                                    ))}
+                                </Box>
+                            </>
+                        )}
                     </>
                 )}
             </DialogContent>
