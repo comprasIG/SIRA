@@ -1,13 +1,14 @@
-//C:\SIRA\SIRA\backend\controllers\requisiciones.controller.js
 // C:/SIRA/backend/controllers/requisiciones.controller.js
 
 const pool = require('../db/pool');
+const { uploadRequisitionFiles } = require('../services/googleDrive');
 
 /**
  * Crea una nueva requisición y sus detalles.
  * Maneja tanto JSON como FormData (para archivos).
  */
 const crearRequisicion = async (req, res) => {
+  const archivos = req.files;
   let { usuario_id, proyecto_id, sitio_id, fecha_requerida, lugar_entrega, comentario, materiales } = req.body;
   
   // Conversión y validación de datos
@@ -23,31 +24,49 @@ const crearRequisicion = async (req, res) => {
 
   const client = await pool.connect();
   try {
-    // Inicia transacción
     await client.query('BEGIN');
 
-    // Valida usuario y obtiene departamento
-    const userResult = await client.query("SELECT id, departamento_id FROM usuarios WHERE id = $1 AND activo = true", [usuario_id]);
-    if (userResult.rowCount === 0) throw new Error("Usuario no autorizado o inactivo.");
+    const userQuery = `
+      SELECT u.id, u.departamento_id, d.codigo AS depto_codigo 
+      FROM usuarios u
+      JOIN departamentos d ON u.departamento_id = d.id
+      WHERE u.id = $1 AND u.activo = true
+    `;
+    const userResult = await client.query(userQuery, [usuario_id]);
+    if (userResult.rowCount === 0) {
+      throw new Error("Usuario no autorizado o inactivo.");
+    }
     
-    // Inserta la cabecera de la requisición
-    const departamento_id = userResult.rows[0].departamento_id;
+    const { departamento_id, depto_codigo } = userResult.rows[0];
+
+    // 1. Primero, ejecuta la consulta y guarda el resultado en reqInsert
     const reqInsert = await client.query(
       `INSERT INTO requisiciones (usuario_id, departamento_id, proyecto_id, sitio_id, fecha_requerida, lugar_entrega, comentario, status) VALUES ($1, $2, $3, $4, $5, $6, $7, 'ABIERTA') RETURNING id, numero_requisicion`,
       [usuario_id, departamento_id, proyecto_id, sitio_id, fecha_requerida, lugar_entrega, comentario]
     );
+
+    // 2. Ahora que reqInsert existe, ya puedes leer sus valores
     const requisicion_id = reqInsert.rows[0].id;
+    const numero_requisicion = reqInsert.rows[0].numero_requisicion;
 
     // Inserta el detalle de materiales
     for (const mat of materiales) {
       await client.query(`INSERT INTO requisiciones_detalle (requisicion_id, material_id, cantidad, comentario) VALUES ($1, $2, $3, $4)`, [requisicion_id, mat.material_id, mat.cantidad, mat.comentario || null]);
     }
 
-    // (Aquí iría la lógica para subir archivos a Google Drive/S3 y guardar las rutas en 'requisiciones_adjuntos' si existieran)
+    // Lógica para subir archivos
+     if (archivos && archivos.length > 0) {
+      const archivosSubidos = await uploadRequisitionFiles(archivos, depto_codigo, numero_requisicion);
+      for (const archivo of archivosSubidos) {
+        await client.query(
+          `INSERT INTO requisiciones_adjuntos (requisicion_id, nombre_archivo, ruta_archivo) VALUES ($1, $2, $3)`,
+          [requisicion_id, archivo.name, archivo.webViewLink]
+        );
+      }
+    }
 
-    // Finaliza la transacción
     await client.query('COMMIT');
-    res.status(201).json({ requisicion_id, numero_requisicion: reqInsert.rows[0].numero_requisicion });
+    res.status(201).json({ requisicion_id, numero_requisicion: numero_requisicion });
 
   } catch (error) {
     await client.query('ROLLBACK');
@@ -115,7 +134,6 @@ const getRequisicionDetalle = async (req, res) => {
     `;
     const materialesResult = await pool.query(materialesQuery, [id]);
 
-    // --- CORRECCIÓN: Se añade la consulta para obtener los archivos adjuntos ---
     const adjuntosQuery = `
       SELECT id, nombre_archivo, ruta_archivo 
       FROM requisiciones_adjuntos 
@@ -127,7 +145,7 @@ const getRequisicionDetalle = async (req, res) => {
     const requisicionCompleta = {
       ...reqResult.rows[0],
       materiales: materialesResult.rows,
-      adjuntos: adjuntosResult.rows // <-- Se añaden los adjuntos al objeto de respuesta
+      adjuntos: adjuntosResult.rows
     };
 
     res.json(requisicionCompleta);
@@ -143,10 +161,14 @@ const getRequisicionDetalle = async (req, res) => {
  */
 const actualizarRequisicion = async (req, res) => {
     const { id: requisicionId } = req.params;
-    let { materiales, ...otrosCampos } = req.body;
+    const archivosNuevos = req.files;
+    let { materiales, adjuntosExistentes, ...otrosCampos } = req.body;
 
     if (typeof materiales === "string") {
         try { materiales = JSON.parse(materiales); } catch { materiales = []; }
+    }
+    if (typeof adjuntosExistentes === "string") {
+        try { adjuntosExistentes = JSON.parse(adjuntosExistentes); } catch { adjuntosExistentes = []; }
     }
     
     if (!materiales || materiales.length === 0) {
@@ -157,7 +179,7 @@ const actualizarRequisicion = async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        // 1. Actualizar la cabecera de la requisición
+        // 1. Actualizar la cabecera
         await client.query(
             `UPDATE requisiciones 
              SET proyecto_id = $1, sitio_id = $2, fecha_requerida = $3, lugar_entrega = $4, comentario = $5
@@ -165,10 +187,8 @@ const actualizarRequisicion = async (req, res) => {
             [otrosCampos.proyecto_id, otrosCampos.sitio_id, otrosCampos.fecha_requerida, otrosCampos.lugar_entrega, otrosCampos.comentario, requisicionId]
         );
 
-        // 2. Borrar los detalles de materiales existentes para reemplazarlos
+        // 2. Reemplazar los materiales
         await client.query('DELETE FROM requisiciones_detalle WHERE requisicion_id = $1', [requisicionId]);
-
-        // 3. Insertar los nuevos detalles de materiales
         for (const mat of materiales) {
             await client.query(
                 `INSERT INTO requisiciones_detalle (requisicion_id, material_id, cantidad, comentario) VALUES ($1, $2, $3, $4)`,
@@ -176,7 +196,34 @@ const actualizarRequisicion = async (req, res) => {
             );
         }
 
-        // (La lógica para manejar la actualización de archivos adjuntos iría aquí)
+        // 3. Borrar los adjuntos que el usuario eliminó
+        const placeholders = adjuntosExistentes.map((_, i) => `$${i + 2}`).join(',');
+        if (adjuntosExistentes.length > 0) {
+          await client.query(
+            `DELETE FROM requisiciones_adjuntos WHERE requisicion_id = $1 AND id NOT IN (${placeholders})`,
+            [requisicionId, ...adjuntosExistentes]
+          );
+        } else {
+          await client.query('DELETE FROM requisiciones_adjuntos WHERE requisicion_id = $1', [requisicionId]);
+        }
+
+        // 4. Subir y registrar los nuevos archivos adjuntos si existen
+        if (archivosNuevos && archivosNuevos.length > 0) {
+            const reqData = await client.query(
+                `SELECT r.numero_requisicion, d.codigo as depto_codigo 
+                 FROM requisiciones r JOIN departamentos d ON r.departamento_id = d.id 
+                 WHERE r.id = $1`, [requisicionId]);
+            const { numero_requisicion, depto_codigo } = reqData.rows[0];
+
+            const archivosSubidos = await uploadRequisitionFiles(archivosNuevos, depto_codigo, numero_requisicion);
+
+            for (const archivo of archivosSubidos) {
+                await client.query(
+                    `INSERT INTO requisiciones_adjuntos (requisicion_id, nombre_archivo, ruta_archivo) VALUES ($1, $2, $3)`,
+                    [requisicionId, archivo.name, archivo.webViewLink]
+                );
+            }
+        }
 
         await client.query('COMMIT');
         res.status(200).json({ mensaje: 'Requisición actualizada correctamente.' });
@@ -236,7 +283,7 @@ const rechazarRequisicion = async (req, res) => {
   }
 };
 
-// Se exportan todas las funciones, incluyendo la nueva
+// Se exportan todas las funciones
 module.exports = {
   crearRequisicion,
   getRequisicionesPorAprobar,

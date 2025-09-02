@@ -1,7 +1,5 @@
 // C:\SIRA\backend\routes\requisiciones.routes.js
 
-// C:\SIRA\backend\routes\requisiciones.routes.js
-
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
@@ -14,7 +12,7 @@ const {
   getRequisicionDetalle,
   aprobarRequisicion,
   rechazarRequisicion,
-  actualizarRequisicion // <-- Se importa la nueva función
+  actualizarRequisicion
 } = require('../controllers/requisiciones.controller');
 
 // Configuración de Multer para manejar la subida de archivos
@@ -37,9 +35,8 @@ router.get("/por-aprobar", getRequisicionesPorAprobar);
 // GET /api/requisiciones/:id -> Obtiene el detalle de una requisición específica
 router.get("/:id", getRequisicionDetalle);
 
-// --- CORRECCIÓN: Se añade la nueva ruta PUT para actualizar una requisición ---
 // PUT /api/requisiciones/:id -> Actualiza una requisición existente
-router.put("/:id", actualizarRequisicion);
+router.put("/:id", upload.array('archivosNuevos', 5), actualizarRequisicion);
 
 // POST /api/requisiciones/:id/aprobar -> Aprueba una requisición y genera el RFQ
 router.post("/:id/aprobar", aprobarRequisicion);
