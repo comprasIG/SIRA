@@ -1,11 +1,14 @@
 // C:\SIRA\sira-front\src/components/rfq/OpcionProveedorForm.jsx
+ // C:\SIRA\sira-front\src/components/rfq/OpcionProveedorForm.jsx
 
 import React, { useState, useEffect } from 'react';
 import { Controller, useWatch } from 'react-hook-form';
-import { Autocomplete, TextField, Checkbox, FormControlLabel, Select, MenuItem, InputAdornment, IconButton, Tooltip } from '@mui/material';
+import { Autocomplete, TextField, Checkbox, FormControlLabel, Select, MenuItem, InputAdornment, IconButton, Tooltip, Button, Chip, Box } from '@mui/material';
 import api from '../../api/api';
 import DeleteIcon from '@mui/icons-material/Delete';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 import clsx from 'clsx';
+import { toast } from 'react-toastify';
 
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -16,26 +19,24 @@ function useDebounce(value, delay) {
   return debouncedValue;
 }
 
-export default function OpcionProveedorForm({ materialIndex, opcionIndex, control, setValue, removeOpcion, totalOpciones }) {
+// --- Se añade 'onFilesChange' para comunicar la selección de archivos al padre ---
+export default function OpcionProveedorForm({ materialIndex, opcionIndex, control, setValue, removeOpcion, totalOpciones, onFilesChange }) {
+  // --- Estados ---
   const [proveedorOptions, setProveedorOptions] = useState([]);
   const [loadingProveedores, setLoadingProveedores] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  const [archivos, setArchivos] = useState([]);
 
-  const esEntregaInmediata = useWatch({
-    control,
-    name: `materiales.${materialIndex}.opciones.${opcionIndex}.es_entrega_inmediata`,
-    defaultValue: true
-  });
-  
+  // --- Watchers de React Hook Form ---
+  const esEntregaInmediata = useWatch({ control, name: `materiales.${materialIndex}.opciones.${opcionIndex}.es_entrega_inmediata`, defaultValue: true });
   const allOpciones = useWatch({ control, name: `materiales.${materialIndex}.opciones` });
   const currentPrecio = useWatch({ control, name: `materiales.${materialIndex}.opciones.${opcionIndex}.precio_unitario` });
   
+  // --- Lógica de Negocio ---
   const esPrecioMasBajo = React.useMemo(() => {
     if (!currentPrecio) return false;
-    const preciosValidos = allOpciones
-      .map(op => parseFloat(op.precio_unitario))
-      .filter(p => !isNaN(p) && p > 0);
+    const preciosValidos = allOpciones.map(op => parseFloat(op.precio_unitario)).filter(p => !isNaN(p) && p > 0);
     if (preciosValidos.length <= 1) return false;
     return parseFloat(currentPrecio) === Math.min(...preciosValidos);
   }, [allOpciones, currentPrecio]);
@@ -58,12 +59,31 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
     };
     buscarProveedores();
   }, [debouncedSearchTerm]);
+  
+  // --- Manejadores de Eventos ---
+  const handleFileChange = (e) => {
+    const nuevosArchivos = Array.from(e.target.files);
+    if (archivos.length + nuevosArchivos.length > 2) {
+      toast.warn("Puedes adjuntar un máximo de 2 archivos por proveedor.");
+      return;
+    }
+    const archivosActualizados = [...archivos, ...nuevosArchivos];
+    setArchivos(archivosActualizados);
+    onFilesChange(opcionIndex, archivosActualizados);
+  };
+
+  const handleRemoveFile = (fileName) => {
+    const archivosActualizados = archivos.filter(f => f.name !== fileName);
+    setArchivos(archivosActualizados);
+    onFilesChange(opcionIndex, archivosActualizados);
+  };
 
   return (
     <div className={clsx("grid grid-cols-12 gap-x-4 gap-y-3 p-3 border rounded-md transition-all", {
-        'border-green-300 bg-green-50': esPrecioMasBajo,
-        'border-gray-200': !esPrecioMasBajo
+        'border-green-300 bg-green-50': esPrecioMasBajo, 'border-gray-200': !esPrecioMasBajo
     })}>
+      
+      {/* --- Campo: Proveedor (Autocomplete) --- */}
       <div className="col-span-12 md:col-span-5">
         <Controller
           name={`materiales.${materialIndex}.opciones.${opcionIndex}.proveedor`}
@@ -89,6 +109,7 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
         />
       </div>
 
+      {/* --- Campo: Cantidad Cotizada --- */}
       <div className="col-span-6 md:col-span-3">
         <Controller
           name={`materiales.${materialIndex}.opciones.${opcionIndex}.cantidad_cotizada`}
@@ -109,6 +130,8 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
           )}
         />
       </div>
+
+      {/* --- Campo: Precio Unitario --- */}
       <div className="col-span-6 md:col-span-4">
         <Controller
           name={`materiales.${materialIndex}.opciones.${opcionIndex}.precio_unitario`}
@@ -134,6 +157,7 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
         />
       </div>
 
+      {/* --- Fila: Opciones de Entrega y Selección --- */}
       <div className="col-span-12 grid grid-cols-12 gap-x-4 items-center">
           <div className="col-span-12 sm:col-span-7 flex flex-wrap items-center">
               <Controller
@@ -184,7 +208,7 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
           </div>
       </div>
       
-      {/* <-- CORRECCIÓN: Fila inferior para checkboxes de Neto e Importación --> */}
+      {/* --- Fila: Checkboxes Neto e Importación --- */}
       <div className="col-span-12 flex flex-wrap gap-x-4 -mt-2">
         <Controller
           name={`materiales.${materialIndex}.opciones.${opcionIndex}.es_precio_neto`}
@@ -196,6 +220,32 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
           control={control}
           render={({ field }) => <FormControlLabel control={<Checkbox {...field} checked={!!field.value} />} label="Importación" />}
         />
+      </div>
+
+      {/* --- Nueva Sección para Adjuntar Archivos --- */}
+      <div className="col-span-12">
+        <Button
+            variant="outlined"
+            size="small"
+            component="label"
+            startIcon={<AttachFileIcon />}
+            disabled={archivos.length >= 2}
+        >
+            Adjuntar Cotización (Máx. 2)
+            <input type="file" multiple hidden onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png,.xlsx,.doc,.docx" />
+        </Button>
+        {archivos.length > 0 && (
+            <Box className="mt-2 flex flex-wrap gap-1">
+                {archivos.map((file, index) => (
+                    <Chip
+                        key={index}
+                        label={file.name}
+                        size="small"
+                        onDelete={() => handleRemoveFile(file.name)}
+                    />
+                ))}
+            </Box>
+        )}
       </div>
     </div>
   );

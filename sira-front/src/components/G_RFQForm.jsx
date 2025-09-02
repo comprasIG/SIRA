@@ -1,4 +1,5 @@
 // C:\SIRA\sira-front\src\components\G_RFQForm.jsx
+// C:\SIRA\sira-front\src\components\G_RFQForm.jsx
 
 import React, { useEffect, useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
@@ -41,13 +42,11 @@ export default function G_RFQForm({ requisicionId, onBack }) {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDataReady, setIsDataReady] = useState(false);
+  const [archivosOpciones, setArchivosOpciones] = useState({});
 
   const { control, handleSubmit, reset, watch, setValue } = useForm({
-    defaultValues: {
-      materiales: []
-    }
+    defaultValues: { materiales: [] }
   });
-
   const formValues = watch();
   
   const resumenPorProveedor = useMemo(() => {
@@ -91,21 +90,45 @@ export default function G_RFQForm({ requisicionId, onBack }) {
     fetchData();
   }, [requisicionId, reset]);
 
+  const handleFilesChange = (materialIndex, opcionIndex, files) => {
+    const uniqueKey = `${materialIndex}-${opcionIndex}`;
+    setArchivosOpciones(prev => ({
+        ...prev,
+        [uniqueKey]: files
+    }));
+  };
+
   const onSaveSubmit = async (data) => {
     setIsSaving(true);
-    const opcionesPayload = data.materiales.flatMap(m =>
-      m.opciones
-        .filter(o => o.proveedor && o.proveedor.id)
-        .map(o => ({
-          ...o,
-          proveedor_id: o.proveedor.id,
-          requisicion_id: requisicionId,
-          requisicion_detalle_id: m.id
-        }))
+    const formData = new FormData();
+    
+    const opcionesPayload = data.materiales.flatMap(m => 
+        m.opciones
+         .filter(o => o.proveedor && o.proveedor.id)
+         .map(o => ({...o, proveedor_id: o.proveedor.id, requisicion_id: requisicionId, requisicion_detalle_id: m.id}))
     );
+    formData.append('opciones', JSON.stringify(opcionesPayload));
+    formData.append('rfq_code', requisicion.rfq_code);
+
+    data.materiales.forEach((material, matIndex) => {
+        material.opciones.forEach((opcion, opIndex) => {
+            if (opcion.proveedor && opcion.proveedor.id) {
+                const uniqueKey = `${matIndex}-${opIndex}`;
+                const archivos = archivosOpciones[uniqueKey];
+                if (archivos && archivos.length > 0) {
+                    archivos.forEach(file => {
+                        formData.append(`cotizacion-${opcion.proveedor.id}`, file, file.name);
+                    });
+                }
+            }
+        });
+    });
+
     try {
-      await api.post(`/api/rfq/${requisicionId}/opciones`, { opciones: opcionesPayload });
-      toast.success("Comparativa guardada con éxito.");
+      await api.post(`/api/rfq/${requisicionId}/opciones`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      toast.success("Comparativa y archivos guardados con éxito.");
     } catch (err) {
       toast.error(err.error || "Error al guardar la comparativa.");
     } finally {
@@ -155,6 +178,8 @@ export default function G_RFQForm({ requisicionId, onBack }) {
                         control={control}
                         materialIndex={index}
                         setValue={setValue}
+                        // --- CORRECCIÓN: Se pasa la función al componente intermedio ---
+                        onFilesChange={handleFilesChange}
                     />
                 ))}
             </div>
@@ -173,7 +198,6 @@ export default function G_RFQForm({ requisicionId, onBack }) {
                                     <ul className='list-disc pl-5 text-sm'>
                                         {items.map((item, idx) => (
                                             <li key={idx}>
-                                                {/* <-- CORRECCIÓN: Se ajusta a 2 decimales para el resumen --> */}
                                                 {(Number(item.cantidad) || 0)} {item.unidad} de {item.material} @ ${(Number(item.precio) || 0).toFixed(2)} = <strong>${(Number(item.subtotal) || 0).toFixed(2)}</strong>
                                             </li>
                                         ))}

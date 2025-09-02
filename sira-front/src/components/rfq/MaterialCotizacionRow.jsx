@@ -1,14 +1,16 @@
 // C:\SIRA\sira-front\src\components\rfq\MaterialCotizacionRow.jsx
 
+// C:\SIRA\sira-front\src\components\rfq\MaterialCotizacionRow.jsx
+
 import React from 'react';
 import { useFieldArray, useWatch } from 'react-hook-form';
 import OpcionProveedorForm from './OpcionProveedorForm';
-import { Button, IconButton, Tooltip } from '@mui/material';
+import { Button, Tooltip } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
 import clsx from 'clsx';
 
-export default function MaterialCotizacionRow({ control, materialIndex, setValue }) {
+// --- CORRECCIÓN: Se añade 'onFilesChange' a las props que recibe el componente ---
+export default function MaterialCotizacionRow({ control, materialIndex, setValue, onFilesChange }) {
   const { fields, append, remove } = useFieldArray({
     control,
     name: `materiales.${materialIndex}.opciones`
@@ -29,8 +31,7 @@ export default function MaterialCotizacionRow({ control, materialIndex, setValue
     if (fields.length < 3) {
       append({
         proveedor: null,
-        precio_unitario: 0, // Inicia en 0 para evitar errores
-        // <-- CORRECCIÓN: La nueva opción toma la cantidad restante por defecto
+        precio_unitario: 0,
         cantidad_cotizada: cantidadRestante > 0 ? cantidadRestante : 0,
         seleccionado: false,
         es_entrega_inmediata: true,
@@ -39,6 +40,16 @@ export default function MaterialCotizacionRow({ control, materialIndex, setValue
       });
     } else {
         alert("Se permite un máximo de 3 proveedores por material.");
+    }
+  };
+  
+  // --- CORRECCIÓN: Esta función intermediaria es clave ---
+  // Recibe la llamada del hijo (OpcionProveedorForm) y le añade el materialIndex
+  // antes de pasarla al padre (G_RFQForm).
+  const handleChildFilesChange = (opcionIndex, files) => {
+    // Asegurarse de que la función exista antes de llamarla
+    if (onFilesChange) {
+      onFilesChange(materialIndex, opcionIndex, files);
     }
   };
   
@@ -77,6 +88,8 @@ export default function MaterialCotizacionRow({ control, materialIndex, setValue
             setValue={setValue}
             removeOpcion={remove}
             totalOpciones={fields.length}
+            // --- CORRECCIÓN: Se pasa la función intermediaria al hijo ---
+            onFilesChange={handleChildFilesChange}
           />
         ))}
       </div>
