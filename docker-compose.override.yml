@@ -1,4 +1,4 @@
-# /SIRA/docker-compose.override.yml (ACTUALIZADO)
+# C:\SIRA\docker-compose.override.yml (Para Desarrollo)
 
 services:
   backend:

@@ -1,4 +1,4 @@
-# /SIRA/docker-compose.yml (Para Producción)
+# C:\SIRA\docker-compose.yml (Para Producción)
 
 services:
   # Servicio del backend para producción

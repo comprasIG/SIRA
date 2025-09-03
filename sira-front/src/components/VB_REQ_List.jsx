@@ -1,6 +1,4 @@
 // C:\SIRA\SIRA\sira-front\src\components\VB_REQ_List.jsx
-// C:\SIRA\sira-front\src\components\VB_REQ_List.jsx
-
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/api';
 import { toast } from 'react-toastify';
@@ -11,17 +9,21 @@ import {
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import InfoIcon from '@mui/icons-material/Info';
-import EditIcon from '@mui/icons-material/Edit'; // <-- Se importa el ícono de edición
-import AttachFileIcon from '@mui/icons-material/AttachFile'; // <-- Ícono para adjuntos
+import EditIcon from '@mui/icons-material/Edit';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 
-// Helper para truncar texto (sin cambios)
+// --- NUEVAS IMPORTACIONES ---
+import { useAuth } from '../context/authContext'; // 1. Importamos el hook de autenticación
+import { generateRequisitionPdf } from '../utils/pdfGenerator'; // Importamos el generador de PDF
+
+// Helper para truncar texto
 const truncateText = (text, maxLength = 30) => {
   if (!text) return 'N/A';
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength) + '...';
 };
 
-// --- Componente de Fila actualizado con el botón de edición ---
+// Componente de Fila
 const RequisicionRow = ({ req, onApprove, onReject, onViewDetails, onEdit }) => (
   <TableRow hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
     <TableCell>
@@ -43,79 +45,79 @@ const RequisicionRow = ({ req, onApprove, onReject, onViewDetails, onEdit }) => 
       <Tooltip title="Aprobar y Enviar a Compras"><IconButton onClick={() => onApprove(req.id)} color="success"><CheckCircleIcon /></IconButton></Tooltip>
       <Tooltip title="Rechazar Requisición"><IconButton onClick={() => onReject(req.id)} color="error"><CancelIcon /></IconButton></Tooltip>
       <Tooltip title="Ver Detalles"><IconButton onClick={() => onViewDetails(req.id)} color="default"><InfoIcon /></IconButton></Tooltip>
-      {/* <-- CORRECCIÓN: Se añade el nuevo botón de Editar --> */}
       <Tooltip title="Editar Requisición"><IconButton onClick={() => onEdit(req.id)} color="primary"><EditIcon /></IconButton></Tooltip>
     </TableCell>
   </TableRow>
 );
 
-// --- Modal de detalles actualizado para mostrar adjuntos ---
+// Modal de detalles
 const DetalleRequisicionModal = ({ requisicion, open, onClose }) => {
-  if (!requisicion) return null;
+    if (!requisicion) return null;
 
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>Detalle de Requisición: <strong>{requisicion.numero_requisicion}</strong></DialogTitle>
-      <DialogContent dividers>
-        <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-            <p><strong>Creador:</strong> {requisicion.usuario_creador}</p>
-            <p><strong>Proyecto:</strong> {requisicion.proyecto}</p>
-            <p><strong>Fecha Requerida:</strong> {new Date(requisicion.fecha_requerida).toLocaleDateString()}</p>
-            <p><strong>Lugar de Entrega:</strong> {requisicion.lugar_entrega}</p>
-            {requisicion.comentario_general && (<p className="col-span-2"><strong>Comentario General:</strong> {requisicion.comentario_general}</p>)}
-        </div>
+    return (
+        <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+        <DialogTitle>Detalle de Requisición: <strong>{requisicion.numero_requisicion}</strong></DialogTitle>
+        <DialogContent dividers>
+            <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                <p><strong>Creador:</strong> {requisicion.usuario_creador}</p>
+                <p><strong>Proyecto:</strong> {requisicion.proyecto}</p>
+                <p><strong>Fecha Requerida:</strong> {new Date(requisicion.fecha_requerida).toLocaleDateString()}</p>
+                <p><strong>Lugar de Entrega:</strong> {requisicion.lugar_entrega}</p>
+                {requisicion.comentario_general && (<p className="col-span-2"><strong>Comentario General:</strong> {requisicion.comentario_general}</p>)}
+            </div>
 
-        <h4 className="font-semibold text-lg mb-2">Materiales:</h4>
-        <TableContainer component={Paper} variant="outlined" className='mb-4'>
-            <Table size="small">
-                <TableHead>
-                    <TableRow>
-                        <TableCell>Material</TableCell>
-                        <TableCell align="right">Cantidad</TableCell>
-                        <TableCell>Unidad</TableCell>
-                        <TableCell>Comentario</TableCell>
-                    </TableRow>
-                </TableHead>
-                <TableBody>
-                {requisicion.materiales?.map(mat => (
-                    <TableRow key={mat.id}>
-                        <TableCell>{mat.material}</TableCell>
-                        <TableCell align="right">{mat.cantidad}</TableCell>
-                        <TableCell>{mat.unidad}</TableCell>
-                        <TableCell>{mat.comentario || 'N/A'}</TableCell>
-                    </TableRow>
-                ))}
-                </TableBody>
-            </Table>
-        </TableContainer>
-
-        {/* --- CORRECCIÓN: Nueva sección para mostrar archivos adjuntos --- */}
-        {requisicion.adjuntos && requisicion.adjuntos.length > 0 && (
-            <>
-                <h4 className="font-semibold text-lg mb-2">Archivos Adjuntos:</h4>
-                <Box>
-                    {requisicion.adjuntos.map(file => (
-                        <Link href={file.ruta_archivo} target="_blank" rel="noopener noreferrer" key={file.id} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                            <AttachFileIcon sx={{ mr: 1, fontSize: '1rem' }} />
-                            {file.nombre_archivo}
-                        </Link>
+            <h4 className="font-semibold text-lg mb-2">Materiales:</h4>
+            <TableContainer component={Paper} variant="outlined" className='mb-4'>
+                <Table size="small">
+                    <TableHead>
+                        <TableRow>
+                            <TableCell>Material</TableCell>
+                            <TableCell align="right">Cantidad</TableCell>
+                            <TableCell>Unidad</TableCell>
+                            <TableCell>Comentario</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                    {requisicion.materiales?.map(mat => (
+                        <TableRow key={mat.id}>
+                            <TableCell>{mat.material}</TableCell>
+                            <TableCell align="right">{mat.cantidad}</TableCell>
+                            <TableCell>{mat.unidad}</TableCell>
+                            <TableCell>{mat.comentario || 'N/A'}</TableCell>
+                        </TableRow>
                     ))}
-                </Box>
-            </>
-        )}
-      </DialogContent>
-      <DialogActions><Button onClick={onClose}>Cerrar</Button></DialogActions>
-    </Dialog>
-  );
+                    </TableBody>
+                </Table>
+            </TableContainer>
+
+            {requisicion.adjuntos && requisicion.adjuntos.length > 0 && (
+                <>
+                    <h4 className="font-semibold text-lg mb-2">Archivos Adjuntos:</h4>
+                    <Box>
+                        {requisicion.adjuntos.map(file => (
+                            <Link href={file.ruta_archivo} target="_blank" rel="noopener noreferrer" key={file.id} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                <AttachFileIcon sx={{ mr: 1, fontSize: '1rem' }} />
+                                {file.nombre_archivo}
+                            </Link>
+                        ))}
+                    </Box>
+                </>
+            )}
+        </DialogContent>
+        <DialogActions><Button onClick={onClose}>Cerrar</Button></DialogActions>
+        </Dialog>
+    );
 };
 
-// --- Componente principal actualizado para recibir la función onEdit ---
+// --- Componente principal con la lógica final ---
 export default function VB_REQ_List({ onEdit }) {
   const [requisiciones, setRequisiciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedReq, setSelectedReq] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const { usuario } = useAuth(); // 2. Usamos el hook para obtener los datos del usuario
 
   const fetchRequisiciones = useCallback(async () => {
     try {
@@ -135,20 +137,47 @@ export default function VB_REQ_List({ onEdit }) {
   useEffect(() => {
     fetchRequisiciones();
   }, [fetchRequisiciones]);
-
+  
   const handleAction = async (action, id, successMsg) => {
     if (!window.confirm(`¿Estás seguro de que deseas ${successMsg.split(' ')[1]} esta requisición?`)) return;
     try {
       await action(id);
       toast.success(successMsg);
-      fetchRequisiciones(); // Recargar la lista para reflejar los cambios
+      fetchRequisiciones();
     } catch (err) {
       console.error(err);
       toast.error(err.error || `Error al procesar la requisición.`);
     }
   };
 
-  const handleApprove = (id) => handleAction(() => api.post(`/api/requisiciones/${id}/aprobar`), id, 'Requisición aprobada con éxito.');
+  const handleApprove = async (id) => {
+    if (!window.confirm(`¿Estás seguro de que deseas APROBAR esta requisición?`)) return;
+    
+    if (!usuario) {
+        toast.error("No se pudo identificar al usuario. Por favor, recarga la página.");
+        return;
+    }
+
+    try {
+      toast.info('Generando PDF...');
+      const fullReqData = await api.get(`/api/requisiciones/${id}`);
+
+      // Nota: Asegúrate que tu objeto 'usuario' desde el context tenga una propiedad 'nombre'.
+      const approverName = usuario.nombre || 'Usuario del Sistema';
+
+      generateRequisitionPdf(fullReqData, approverName);
+      
+      await api.post(`/api/requisiciones/${id}/aprobar`);
+      
+      toast.success('Requisición aprobada con éxito.');
+      fetchRequisiciones();
+
+    } catch (err) {
+      console.error(err);
+      toast.error(err.error || `Error al procesar la requisición.`);
+    }
+  };
+
   const handleReject = (id) => handleAction(() => api.post(`/api/requisiciones/${id}/rechazar`), id, 'Requisición rechazada con éxito.');
 
   const handleViewDetails = async (id) => {
@@ -190,7 +219,7 @@ export default function VB_REQ_List({ onEdit }) {
                     onApprove={handleApprove}
                     onReject={handleReject}
                     onViewDetails={handleViewDetails}
-                    onEdit={onEdit} // <-- Se pasa la nueva función onEdit
+                    onEdit={onEdit}
                   />
                 ))
               ) : (
