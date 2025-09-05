@@ -1,9 +1,10 @@
 // C:/SIRA/backend/controllers/rfq.controller.js
-// C:/SIRA/backend/controllers/rfq.controller.js
- // C:/SIRA/backend/controllers/rfq.controller.js
-
+/**
+ * Controlador para toda la lógica de negocio relacionada con
+ * las Solicitudes de Cotización (RFQs), desde su creación hasta la
+ * generación de Órdenes de Compra.
+ */
 const pool = require('../db/pool');
-// --- Se importa el servicio de Google Drive ---
 const { uploadQuoteFiles } = require('../services/googleDrive');
 
 // =================================================================================================
@@ -110,7 +111,9 @@ const getRfqDetalle = async (req, res) => {
 // =================================================================================================
 
 /**
- * Guarda o actualiza las opciones de cotización, ahora incluyendo archivos.
+ * Guarda o actualiza las opciones de cotización, incluyendo archivos.
+ * NOTA: Esta función no requiere cambios, ya que 'es_importacion' ya se guarda
+ * correctamente en la tabla 'requisiciones_opciones'.
  */
 const guardarOpcionesRfq = async (req, res) => {
     const { id: requisicion_id } = req.params;
@@ -138,7 +141,6 @@ const guardarOpcionesRfq = async (req, res) => {
             );
         }
 
-        // --- LÓGICA PARA MANEJAR ARCHIVOS ADJUNTOS ---
         if (req.files && req.files.length > 0) {
             const filesByProvider = req.files.reduce((acc, file) => {
                 const providerId = file.fieldname.split('-')[1];
@@ -151,7 +153,6 @@ const guardarOpcionesRfq = async (req, res) => {
                 const providerFiles = filesByProvider[providerId];
                 const proveedorResult = await client.query('SELECT marca FROM proveedores WHERE id = $1', [providerId]);
                 const providerName = proveedorResult.rows[0]?.marca || `prov${providerId}`;
-
                 const uploadedFiles = await uploadQuoteFiles(providerFiles, rfq_code, providerName);
 
                 for (const uploadedFile of uploadedFiles) {
@@ -234,6 +235,7 @@ const aprobarRfqYGenerarOC = async (req, res) => {
         if (reqInfoQuery.rowCount === 0) throw new Error('El RFQ no existe o no está en estado para ser aprobado.');
         const reqInfo = reqInfoQuery.rows[0];
 
+        // Se leen las opciones, incluyendo el campo 'es_importacion'
         const opcionesQuery = await client.query(`SELECT ro.*, rd.material_id FROM requisiciones_opciones ro JOIN requisiciones_detalle rd ON ro.requisicion_detalle_id = rd.id WHERE ro.requisicion_id = $1 AND ro.seleccionado = TRUE AND ro.cantidad_cotizada > 0`, [rfqId]);
         if (opcionesQuery.rows.length === 0) throw new Error('No hay opciones de proveedor seleccionadas para este RFQ.');
         
@@ -246,12 +248,20 @@ const aprobarRfqYGenerarOC = async (req, res) => {
         for (const proveedorId in comprasPorProveedor) {
             const items = comprasPorProveedor[proveedorId];
             let subTotal = items.reduce((sum, item) => sum + (Number(item.cantidad_cotizada) * Number(item.precio_unitario)), 0);
-            const iva = subTotal * 0.16;
+            const iva = subTotal * 0.16; // Este cálculo podría ser más complejo en el futuro
             const total = subTotal + iva;
+            
+            // ------------------------------------------------------------------
+            // CAMBIO 1/3: Determinar si la orden de compra completa es de importación.
+            // Si al menos UN item de este proveedor está marcado, toda la OC lo estará.
+            const esOrdenDeImportacion = items.some(item => item.es_importacion === true);
+            // ------------------------------------------------------------------
 
+            // CAMBIO 2/3: Se añade la nueva columna 'impo' al INSERT.
             const ocInsertResult = await client.query(
-                `INSERT INTO ordenes_compra (numero_oc, usuario_id, rfq_id, sitio_id, proyecto_id, lugar_entrega, sub_total, iva, total) VALUES ('OC-' || nextval('ordenes_compra_id_seq'), $1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-                [usuarioId, rfqId, reqInfo.sitio_id, reqInfo.proyecto_id, reqInfo.lugar_entrega, subTotal, iva, total]
+                `INSERT INTO ordenes_compra (numero_oc, usuario_id, rfq_id, sitio_id, proyecto_id, lugar_entrega, sub_total, iva, total, impo) VALUES ('OC-' || nextval('ordenes_compra_id_seq'), $1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+                // CAMBIO 3/3: Se pasa el nuevo valor 'esOrdenDeImportacion' a la consulta.
+                [usuarioId, rfqId, reqInfo.sitio_id, reqInfo.proyecto_id, reqInfo.lugar_entrega, subTotal, iva, total, esOrdenDeImportacion]
             );
             const ordenCompraId = ocInsertResult.rows[0].id;
 

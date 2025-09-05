@@ -1,16 +1,22 @@
 // C:\SIRA\sira-front\src\components\rfq\MaterialCotizacionRow.jsx
-
-// C:\SIRA\sira-front\src\components\rfq\MaterialCotizacionRow.jsx
-
+/**
+ * Componente: MaterialCotizacionRow
+ * Propósito:
+ * Contenedor para un material específico y sus múltiples opciones de cotización.
+ * Permite añadir nuevas opciones de proveedor y autocompleta con el último
+ * proveedor utilizado.
+ */
 import React from 'react';
 import { useFieldArray, useWatch } from 'react-hook-form';
-import OpcionProveedorForm from './OpcionProveedorForm';
-import { Button, Tooltip } from '@mui/material';
+import { Button, Tooltip, Typography, Paper, Box } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import clsx from 'clsx';
+import { toast } from 'react-toastify';
+import OpcionProveedorForm from './OpcionProveedorForm';
 
-// --- CORRECCIÓN: Se añade 'onFilesChange' a las props que recibe el componente ---
-export default function MaterialCotizacionRow({ control, materialIndex, setValue, onFilesChange }) {
+// Se reciben 'lastUsedProvider' y 'setLastUsedProvider' de las props
+export default function MaterialCotizacionRow({ control, materialIndex, setValue, onFilesChange, lastUsedProvider, setLastUsedProvider }) {
+  // --- Hooks de Formulario ---
   const { fields, append, remove } = useFieldArray({
     control,
     name: `materiales.${materialIndex}.opciones`
@@ -21,17 +27,20 @@ export default function MaterialCotizacionRow({ control, materialIndex, setValue
     name: `materiales.${materialIndex}`
   });
 
+  // --- Lógica de Cálculo ---
   const cantidadAsignada = material.opciones.reduce((acc, opt) => {
     return opt.seleccionado ? acc + Number(opt.cantidad_cotizada || 0) : acc;
   }, 0);
 
   const cantidadRestante = material.cantidad - cantidadAsignada;
 
+  // --- Manejadores de Eventos ---
   const handleSplitPurchase = () => {
     if (fields.length < 3) {
       append({
-        proveedor: null,
-        precio_unitario: 0,
+        proveedor: lastUsedProvider,
+        proveedor_id: lastUsedProvider?.id || null,
+        precio_unitario: '',
         cantidad_cotizada: cantidadRestante > 0 ? cantidadRestante : 0,
         seleccionado: false,
         es_entrega_inmediata: true,
@@ -39,46 +48,44 @@ export default function MaterialCotizacionRow({ control, materialIndex, setValue
         es_importacion: false,
       });
     } else {
-        alert("Se permite un máximo de 3 proveedores por material.");
+        toast.warn("Se permite un máximo de 3 proveedores por material.");
     }
   };
   
-  // --- CORRECCIÓN: Esta función intermediaria es clave ---
-  // Recibe la llamada del hijo (OpcionProveedorForm) y le añade el materialIndex
-  // antes de pasarla al padre (G_RFQForm).
   const handleChildFilesChange = (opcionIndex, files) => {
-    // Asegurarse de que la función exista antes de llamarla
     if (onFilesChange) {
       onFilesChange(materialIndex, opcionIndex, files);
     }
   };
   
+  // --- Renderizado ---
   return (
-    <div className="bg-gray-50 p-4 rounded-lg shadow-sm mb-6">
-      <div className="flex justify-between items-center mb-3">
-        <div>
-          <h3 className="font-bold text-lg text-indigo-700">{material.material}</h3>
-          <p className="text-sm text-gray-600">
-            Cantidad Requerida: <span className="font-semibold">{material.cantidad} {material.unidad}</span> | 
+    <Paper elevation={1} sx={{ bgcolor: 'grey.50', p: 2, borderRadius: 2, mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Box>
+          <Typography variant="h6" component="h3" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+            {material.material}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Cantidad Requerida: <span style={{ fontWeight: 'bold' }}>{material.cantidad} {material.unidad}</span> | 
             Restante por asignar: <span className={clsx("font-bold", cantidadRestante < 0 ? 'text-red-500' : 'text-green-600')}>{cantidadRestante.toFixed(2)}</span>
-          </p>
-          {cantidadRestante < 0 && <p className='text-xs text-red-500'>La cantidad asignada supera la requerida.</p>}
-        </div>
-        <div>
-            <Tooltip title="Dividir compra entre otro proveedor">
-                <span>
-                    <Button
-                        onClick={handleSplitPurchase}
-                        startIcon={<AddCircleOutlineIcon />}
-                        disabled={fields.length >= 3}
-                    >
-                         Añadir Opción
-                    </Button>
-                </span>
-            </Tooltip>
-        </div>
-      </div>
-      <div className="space-y-3">
+          </Typography>
+          {cantidadRestante < 0 && <Typography variant="caption" color="error">La cantidad asignada supera la requerida.</Typography>}
+        </Box>
+        <Tooltip title="Dividir compra entre otro proveedor">
+          <span>
+              <Button
+                  onClick={handleSplitPurchase}
+                  startIcon={<AddCircleOutlineIcon />}
+                  disabled={fields.length >= 3}
+                  size="small"
+              >
+                   Añadir Opción
+              </Button>
+          </span>
+        </Tooltip>
+      </Box>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {fields.map((field, index) => (
           <OpcionProveedorForm
             key={field.id}
@@ -88,11 +95,13 @@ export default function MaterialCotizacionRow({ control, materialIndex, setValue
             setValue={setValue}
             removeOpcion={remove}
             totalOpciones={fields.length}
-            // --- CORRECCIÓN: Se pasa la función intermediaria al hijo ---
             onFilesChange={handleChildFilesChange}
+            onProviderSelect={setLastUsedProvider}
+            // CAMBIO: Se pasa también el último proveedor al componente hijo
+            lastUsedProvider={lastUsedProvider}
           />
         ))}
-      </div>
-    </div>
+      </Box>
+    </Paper>
   );
 }
