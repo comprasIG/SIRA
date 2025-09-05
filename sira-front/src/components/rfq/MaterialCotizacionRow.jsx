@@ -3,8 +3,7 @@
  * Componente: MaterialCotizacionRow
  * Propósito:
  * Contenedor para un material específico y sus múltiples opciones de cotización.
- * Permite añadir nuevas opciones de proveedor y autocompleta con el último
- * proveedor utilizado.
+ * Permite añadir nuevas opciones de proveedor.
  */
 import React from 'react';
 import { useFieldArray, useWatch } from 'react-hook-form';
@@ -14,7 +13,7 @@ import clsx from 'clsx';
 import { toast } from 'react-toastify';
 import OpcionProveedorForm from './OpcionProveedorForm';
 
-// Se reciben 'lastUsedProvider' y 'setLastUsedProvider' de las props
+// Se reciben las props necesarias
 export default function MaterialCotizacionRow({ control, materialIndex, setValue, onFilesChange, lastUsedProvider, setLastUsedProvider }) {
   // --- Hooks de Formulario ---
   const { fields, append, remove } = useFieldArray({
@@ -38,8 +37,9 @@ export default function MaterialCotizacionRow({ control, materialIndex, setValue
   const handleSplitPurchase = () => {
     if (fields.length < 3) {
       append({
-        proveedor: lastUsedProvider,
-        proveedor_id: lastUsedProvider?.id || null,
+        // CAMBIO: Se establece el proveedor como 'null' para que la nueva fila aparezca vacía.
+        proveedor: null,
+        proveedor_id: null,
         precio_unitario: '',
         cantidad_cotizada: cantidadRestante > 0 ? cantidadRestante : 0,
         seleccionado: false,
@@ -97,7 +97,6 @@ export default function MaterialCotizacionRow({ control, materialIndex, setValue
             totalOpciones={fields.length}
             onFilesChange={handleChildFilesChange}
             onProviderSelect={setLastUsedProvider}
-            // CAMBIO: Se pasa también el último proveedor al componente hijo
             lastUsedProvider={lastUsedProvider}
           />
         ))}

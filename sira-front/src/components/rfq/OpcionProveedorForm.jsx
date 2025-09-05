@@ -3,9 +3,10 @@
  * Componente: OpcionProveedorForm
  * Propósito:
  * Formulario para una única opción de cotización de un material.
- * Ahora también autocompleta el proveedor al marcar 'Elegir' si el campo está vacío.
+ * Resalta la opción con el precio más bajo y autocompleta el proveedor
+ * al marcar 'Elegir' si el campo está vacío.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Controller, useWatch } from 'react-hook-form';
 import { Autocomplete, TextField, Checkbox, FormControlLabel, Select, MenuItem, InputAdornment, IconButton, Tooltip, Button, Chip, Box, Paper } from '@mui/material';
 import api from '../../api/api';
@@ -15,7 +16,6 @@ import clsx from 'clsx';
 import { toast } from 'react-toastify';
 import useDebounce from './useDebounce';
 
-// CAMBIO: Se añade 'lastUsedProvider' a las props
 export default function OpcionProveedorForm({ materialIndex, opcionIndex, control, setValue, removeOpcion, totalOpciones, onFilesChange, onProviderSelect, lastUsedProvider }) {
   // --- Estados ---
   const [proveedorOptions, setProveedorOptions] = useState([]);
@@ -31,14 +31,17 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
   const formState = useWatch({ control });
   
   // --- Lógica de Negocio ---
-  const esPrecioMasBajo = React.useMemo(() => {
+  const esPrecioMasBajo = useMemo(() => {
     if (!currentPrecio) return false;
-    const preciosValidos = allOpciones.map(op => parseFloat(op.precio_unitario)).filter(p => !isNaN(p) && p > 0);
+    const preciosValidos = allOpciones
+      .map(op => parseFloat(op.precio_unitario))
+      .filter(p => !isNaN(p) && p > 0);
     if (preciosValidos.length <= 1) return false;
     return parseFloat(currentPrecio) === Math.min(...preciosValidos);
   }, [allOpciones, currentPrecio]);
 
-  // --- Efectos ---
+  // --- Efectos y Handlers ---
+  // (El resto de la lógica de negocio y manejadores de eventos no cambia)
   useEffect(() => {
     const buscarProveedores = async () => {
       if (!debouncedSearchTerm) { setProveedorOptions([]); return; }
@@ -52,7 +55,6 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
     buscarProveedores();
   }, [debouncedSearchTerm]);
   
-  // --- Manejadores de Eventos ---
   const handleFileChange = (e) => {
     const nuevosArchivos = Array.from(e.target.files);
     if (archivos.length + nuevosArchivos.length > 2) {
@@ -89,20 +91,15 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
     }
   };
 
-  // CAMBIO: Nuevo handler para la casilla 'Elegir'
   const handleSeleccionadoChange = (onChange) => (e) => {
     const isChecked = e.target.checked;
     const currentOption = formState.materiales[materialIndex].opciones[opcionIndex];
-
-    // Condición: Si se está marcando la casilla, no hay proveedor y sí existe un 'último proveedor'
     if (isChecked && !currentOption.proveedor && lastUsedProvider) {
       const path = `materiales.${materialIndex}.opciones.${opcionIndex}`;
       setValue(`${path}.proveedor`, lastUsedProvider);
       setValue(`${path}.proveedor_id`, lastUsedProvider.id);
-      if (onProviderSelect) onProviderSelect(lastUsedProvider); // Actualiza el estado global también
+      if (onProviderSelect) onProviderSelect(lastUsedProvider);
     }
-    
-    // Finalmente, se actualiza el valor de la propia casilla
     onChange(isChecked);
   };
 
@@ -111,33 +108,29 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
     <Paper 
       elevation={0}
       variant="outlined"
-      className={clsx("grid grid-cols-12 gap-x-4 gap-y-3 p-3 rounded-md transition-all", {
-        'border-green-400 bg-green-50': esPrecioMasBajo, 
-        'border-gray-200': !esPrecioMasBajo
-    })}>
+      // CAMBIO: Se mantienen solo las clases de estructura en 'className'
+      className="grid grid-cols-12 gap-x-4 gap-y-3 p-3 rounded-md transition-all"
+      // CAMBIO: Los estilos condicionales ahora se aplican con la prop 'sx'
+      sx={{
+        // Si es el precio más bajo, aplica estos estilos...
+        ...(esPrecioMasBajo && {
+          backgroundColor: '#f0fdf4', // Equivalente a bg-green-50
+          borderColor: '#4ade80',     // Equivalente a border-green-400
+        }),
+      }}
+    >
       
       {/* --- Campo: Proveedor (Autocomplete) --- */}
       <div className="col-span-12 md:col-span-5">
-        <Controller
-          name={`materiales.${materialIndex}.opciones.${opcionIndex}.proveedor`}
-          control={control}
-          rules={{ required: "El proveedor es requerido" }}
+        <Controller name={`materiales.${materialIndex}.opciones.${opcionIndex}.proveedor`} control={control} rules={{ required: "El proveedor es requerido" }}
           render={({ field, fieldState: { error } }) => (
-            <Autocomplete
-              {...field}
-              options={proveedorOptions}
-              getOptionLabel={(option) => option.nombre || ''}
-              isOptionEqualToValue={(option, value) => option.id === value.id}
-              loading={loadingProveedores}
-              onInputChange={(_, val) => setSearchTerm(val)}
+            <Autocomplete {...field} options={proveedorOptions} getOptionLabel={(option) => option.nombre || ''} isOptionEqualToValue={(option, value) => option.id === value.id} loading={loadingProveedores} onInputChange={(_, val) => setSearchTerm(val)}
               onChange={(_, data) => {
                 setValue(`materiales.${materialIndex}.opciones.${opcionIndex}.proveedor_id`, data?.id || null);
                 field.onChange(data);
                 if (onProviderSelect) onProviderSelect(data);
               }}
-              renderInput={(params) => (
-                <TextField {...params} label="Proveedor (Marca)" size="small" error={!!error} helperText={error?.message} />
-              )}
+              renderInput={(params) => (<TextField {...params} label="Proveedor (Marca)" size="small" error={!!error} helperText={error?.message} /> )}
             />
           )}
         />
@@ -145,20 +138,14 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
 
       {/* --- Campo: Cantidad Cotizada --- */}
       <div className="col-span-6 md:col-span-3">
-        <Controller
-          name={`materiales.${materialIndex}.opciones.${opcionIndex}.cantidad_cotizada`}
-          control={control}
-          rules={{ required: "Req.", min: { value: 0.01, message: "> 0" } }}
+        <Controller name={`materiales.${materialIndex}.opciones.${opcionIndex}.cantidad_cotizada`} control={control} rules={{ required: "Req.", min: { value: 0.01, message: "> 0" } }}
           render={({ field, fieldState: { error } }) => ( <TextField {...field} value={field.value ?? 0} onChange={e => field.onChange(e.target.valueAsNumber || 0)} type="number" label="Cantidad" size="small" fullWidth error={!!error} helperText={error?.message} /> )}
         />
       </div>
 
       {/* --- Campo: Precio Unitario --- */}
       <div className="col-span-6 md:col-span-4">
-        <Controller
-          name={`materiales.${materialIndex}.opciones.${opcionIndex}.precio_unitario`}
-          control={control}
-          rules={{ required: "Req.", min: { value: 0, message: ">= 0" } }}
+        <Controller name={`materiales.${materialIndex}.opciones.${opcionIndex}.precio_unitario`} control={control} rules={{ required: "Req.", min: { value: 0, message: ">= 0" } }}
           render={({ field, fieldState: { error } }) => ( <TextField {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value)} type="number" label="Precio Unitario" size="small" fullWidth error={!!error} helperText={error?.message} InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} inputProps={{ step: "0.0001" }} /> )}
         />
       </div>
@@ -179,10 +166,7 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
               )}
           </div>
           <div className="col-span-12 sm:col-span-5 flex items-center justify-between">
-              {/* CAMBIO: Se aplica el nuevo handler a la casilla 'Elegir' */}
-              <Controller
-                name={`materiales.${materialIndex}.opciones.${opcionIndex}.seleccionado`}
-                control={control}
+              <Controller name={`materiales.${materialIndex}.opciones.${opcionIndex}.seleccionado`} control={control}
                 render={({ field }) => (
                    <Tooltip title="Seleccionar esta opción como la ganadora para el resumen">
                       <FormControlLabel control={<Checkbox {...field} checked={!!field.value} onChange={handleSeleccionadoChange(field.onChange)} />} label="Elegir" />
