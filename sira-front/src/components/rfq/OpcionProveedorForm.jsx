@@ -1,5 +1,4 @@
 // C:\SIRA\sira-front\src/components/rfq/OpcionProveedorForm.jsx
- // C:\SIRA\sira-front\src/components/rfq/OpcionProveedorForm.jsx
 
 import React, { useState, useEffect } from 'react';
 import { Controller, useWatch } from 'react-hook-form';
@@ -9,15 +8,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import clsx from 'clsx';
 import { toast } from 'react-toastify';
-
-function useDebounce(value, delay) {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const handler = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-  return debouncedValue;
-}
+import useDebounce from './useDebounce';
 
 // --- Se añade 'onFilesChange' para comunicar la selección de archivos al padre ---
 export default function OpcionProveedorForm({ materialIndex, opcionIndex, control, setValue, removeOpcion, totalOpciones, onFilesChange }) {
@@ -119,7 +110,7 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
             <TextField
                 {...field}
                 value={field.value ?? 0}
-                onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                onChange={e => field.onChange(e.target.valueAsNumber || 0)}
                 type="number"
                 label="Cantidad"
                 size="small"
@@ -131,7 +122,7 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
         />
       </div>
 
-      {/* --- Campo: Precio Unitario --- */}
+       {/* --- Campo: Precio Unitario --- */}
       <div className="col-span-6 md:col-span-4">
         <Controller
           name={`materiales.${materialIndex}.opciones.${opcionIndex}.precio_unitario`}
@@ -140,9 +131,12 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
           render={({ field, fieldState: { error } }) => (
             <TextField
                 {...field}
-                value={field.value ?? 0}
-                onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
-                type="number"
+                // CORRECCIÓN 1/2: Se cambia el valor por defecto a un string vacío.
+                value={field.value ?? ''}
+                // CORRECCIÓN 2/2: El handler ahora guarda el texto tal cual lo escribe el usuario.
+                // La validación se hará al momento de usar el número, no al escribirlo.
+                onChange={e => field.onChange(e.target.value)}
+                type="number" // Mantenemos type="number" para el teclado numérico en móviles.
                 label="Precio Unitario"
                 size="small"
                 fullWidth
@@ -150,6 +144,8 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
                 helperText={error?.message}
                 InputProps={{
                     startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                }}
+                inputProps={{
                     step: "0.0001"
                 }}
             />
@@ -193,7 +189,7 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
                 name={`materiales.${materialIndex}.opciones.${opcionIndex}.seleccionado`}
                 control={control}
                 render={({ field }) => (
-                   <Tooltip title="Seleccionar esta opción como la ganadora">
+                   <Tooltip title="Seleccionar esta opción como la ganadora para el resumen">
                       <FormControlLabel control={<Checkbox {...field} checked={!!field.value} />} label="Elegir" />
                    </Tooltip>
                 )}
@@ -222,7 +218,7 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
         />
       </div>
 
-      {/* --- Nueva Sección para Adjuntar Archivos --- */}
+      {/* --- Sección para Adjuntar Archivos --- */}
       <div className="col-span-12">
         <Button
             variant="outlined"

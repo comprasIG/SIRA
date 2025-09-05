@@ -1,102 +1,33 @@
 // C:\SIRA\sira-front\src\components\G_RFQ_List.jsx
-// C:\SIRA\sira-front\src\components\G_RFQ_List.jsx
-
+/**
+ * Componente: G_RFQ_List
+ * * Propósito:
+ * Muestra una lista de las Solicitudes de Cotización (RFQ) que están pendientes.
+ * Permite al usuario ver detalles, iniciar el proceso de cotización o cancelar un RFQ.
+ * * Props:
+ * - onSelectRequisicion (function): Callback que se ejecuta cuando el usuario
+ * selecciona un RFQ para cotizar, pasando el ID del RFQ.
+ */
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/api';
 import { toast } from 'react-toastify';
 import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  Button, CircularProgress, Tooltip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Typography, Box, Link
+  Button, CircularProgress, Tooltip, IconButton
 } from '@mui/material';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import InfoIcon from '@mui/icons-material/Info';
 import CancelIcon from '@mui/icons-material/Cancel';
-import AttachFileIcon from '@mui/icons-material/AttachFile';
-
-// El modal ya está preparado para mostrar los adjuntos.
-const InfoModal = ({ open, onClose, rfqId }) => {
-    const [details, setDetails] = useState(null);
-    const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        if (open && rfqId) {
-            setLoading(true);
-            api.get(`/api/rfq/${rfqId}`)
-                .then(data => setDetails(data))
-                .catch(() => toast.error("No se pudo cargar el detalle."))
-                .finally(() => setLoading(false));
-        }
-    }, [open, rfqId]);
-
-    if (!details) return null;
-
-    return (
-        <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-            <DialogTitle>Detalle RFQ: <strong>{details.rfq_code}</strong></DialogTitle>
-            <DialogContent dividers>
-                {loading ? <CircularProgress /> : (
-                    <>
-                        <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-                            <p><strong>Proyecto:</strong> {details.proyecto}</p>
-                            <p><strong>Sitio:</strong> {details.sitio}</p>
-                            <p><strong>Creador:</strong> {details.usuario_creador}</p>
-                            <p><strong>Se entrega en:</strong> {details.lugar_entrega}</p>
-                            {details.comentario_general && (
-                                <p className="col-span-2"><strong>Comentario General:</strong> {details.comentario_general}</p>
-                            )}
-                        </div>
-                        <h4 className="font-semibold text-lg mb-2">Materiales Solicitados:</h4>
-                        <TableContainer component={Paper} variant="outlined" className='mb-4'>
-                            <Table size="small">
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell>Material</TableCell>
-                                        <TableCell align="right">Cantidad</TableCell>
-                                        <TableCell>Unidad</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {details.materiales?.map(mat => (
-                                        <TableRow key={mat.id}>
-                                            <TableCell>{mat.material}</TableCell>
-                                            <TableCell align="right">{mat.cantidad}</TableCell>
-                                            <TableCell>{mat.unidad}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-
-                        {/* Esta sección ahora recibirá los datos del backend y se mostrará */}
-                        {details.adjuntos && details.adjuntos.length > 0 && (
-                            <>
-                                <h4 className="font-semibold text-lg mb-2">Archivos Adjuntos:</h4>
-                                <Box>
-                                    {details.adjuntos.map(file => (
-                                        <Link href={file.ruta_archivo} target="_blank" rel="noopener noreferrer" key={file.id} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                                            <AttachFileIcon sx={{ mr: 1, fontSize: '1rem' }} />
-                                            {file.nombre_archivo}
-                                        </Link>
-                                    ))}
-                                </Box>
-                            </>
-                        )}
-                    </>
-                )}
-            </DialogContent>
-            <DialogActions>
-                <Button onClick={onClose}>Cerrar</Button>
-            </DialogActions>
-        </Dialog>
-    );
-};
+import RFQInfoModal from './rfq/RFQInfoModal'; // <-- MODIFICACIÓN: Importación del nuevo componente
 
 export default function G_RFQ_List({ onSelectRequisicion }) {
+  // --- Estados ---
   const [requisiciones, setRequisiciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRfqId, setSelectedRfqId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // --- Carga de Datos ---
   const fetchRequisiciones = useCallback(async () => {
     setLoading(true);
     try {
@@ -113,6 +44,7 @@ export default function G_RFQ_List({ onSelectRequisicion }) {
     fetchRequisiciones();
   }, [fetchRequisiciones]);
 
+  // --- Manejadores de Eventos ---
   const handleCancel = async (id) => {
     if (window.confirm("¿Estás seguro de que deseas cancelar este RFQ? Esta acción cambiará su estado a 'CANCELADA'.")) {
         try {
@@ -130,6 +62,7 @@ export default function G_RFQ_List({ onSelectRequisicion }) {
     setIsModalOpen(true);
   };
 
+  // --- Renderizado ---
   if (loading) {
     return <div className="flex justify-center mt-10"><CircularProgress /></div>;
   }
@@ -175,7 +108,8 @@ export default function G_RFQ_List({ onSelectRequisicion }) {
           </Table>
         </TableContainer>
       </Paper>
-      <InfoModal open={isModalOpen} onClose={() => setIsModalOpen(false)} rfqId={selectedRfqId} />
+      {/* --- MODIFICACIÓN: Se usa el componente importado --- */}
+      <RFQInfoModal open={isModalOpen} onClose={() => setIsModalOpen(false)} rfqId={selectedRfqId} />
     </>
   );
 }

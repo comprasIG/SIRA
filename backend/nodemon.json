@@ -1,0 +1,8 @@
+{
+  "watch": ["."],
+  "ext": "js,json",
+  "ignore": ["node_modules", ".git", "logs", "tmp", "storage"],
+  "exec": "node --inspect=0.0.0.0:9229 app.js",
+  "legacyWatch": true,
+  "delay": "200"
+}

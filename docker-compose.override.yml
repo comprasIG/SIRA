@@ -1,17 +1,22 @@
-# C:\SIRA\docker-compose.override.yml (Para Desarrollo)
-
+#C:\SIRA\SIRA\docker-compose.override.yml
+# docker-compose.override.yml (Desarrollo)
 services:
   backend:
-    # --- AÑADIDO ---
-    # Le dice a Docker que use el Dockerfile de desarrollo para el backend
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
-    # ---------------
     command: npm run dev
+    ports:
+      - "3001:3001"
+      - "9229:9229"
     volumes:
       - ./backend:/app
       - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+      - TZ=America/Mexico_City
 
   frontend:
     build:
@@ -27,6 +32,6 @@ services:
     environment:
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true
-
-      # Levantar Development con: docker-compose up --build
-      # Levantar Producción con: docker-compose -f docker-compose.yml up --build
+      - TZ=America/Mexico_City
+    # depends_on:
+    #   - backend
