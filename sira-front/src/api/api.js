@@ -1,7 +1,6 @@
 // C:\SIRA\sira-front\src\api\api.js
 import { auth } from "../firebase/firebase";
 
-// Obtenemos la URL del backend desde las variables de entorno de Vite
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 async function getIdToken() {
@@ -10,10 +9,10 @@ async function getIdToken() {
   return await user.getIdToken();
 }
 
-async function request(path, { method = "GET", body, headers = {} } = {}) {
+// CAMBIO: La función ahora acepta un objeto de opciones, incluyendo 'responseType'
+async function request(path, { method = "GET", body, headers = {}, responseType = 'json' } = {}) {
   const idToken = await getIdToken();
 
-  // Si body es FormData, NO poner content-type ni serializar
   let fetchHeaders = {
     Authorization: `Bearer ${idToken}`,
     ...headers,
@@ -31,22 +30,44 @@ async function request(path, { method = "GET", body, headers = {} } = {}) {
     body: fetchBody,
   });
 
-  let payload = null;
-  try { payload = await res.json(); } catch { /* puede venir 204 */ }
-
+  // Si la respuesta no es OK, manejamos el error primero.
   if (!res.ok) {
-    const msg = payload?.error || `Error ${res.status} en ${path}`;
-    throw { ...payload, error: msg, status: res.status };
+    let errorPayload = null;
+    try {
+      errorPayload = await res.json();
+    } catch {
+      // El cuerpo del error puede no ser JSON
+    }
+    const msg = errorPayload?.error || `Error ${res.status} en la petición a ${path}`;
+    throw { ...errorPayload, error: msg, status: res.status };
   }
 
-  return payload;
+  // Si la respuesta es OK (2xx), procesamos el cuerpo según lo esperado.
+  if (responseType === 'blob') {
+    // Si esperamos un blob, lo devolvemos junto con los encabezados (para el nombre del archivo)
+    const blob = await res.blob();
+    return { data: blob, headers: res.headers };
+  }
+  
+  if (res.status === 204) { // No Content
+    return null;
+  }
+  
+  // Por defecto, intentamos parsear como JSON
+  try {
+    return await res.json();
+  } catch {
+    // Si falla el parseo de JSON en una respuesta OK, puede ser un error inesperado.
+    throw new Error("La respuesta del servidor no es un JSON válido.");
+  }
 }
 
+// CAMBIO: Las funciones ahora aceptan un tercer parámetro 'options'
 const api = {
-  get: (path) => request(path, { method: "GET" }),
-  post: (path, body) => request(path, { method: "POST", body }),
-  put: (path, body) => request(path, { method: "PUT", body }),
-  del: (path, body) => request(path, { method: "DELETE", body }),
+  get: (path, options) => request(path, { method: "GET", ...options }),
+  post: (path, body, options) => request(path, { method: "POST", body, ...options }),
+  put: (path, body, options) => request(path, { method: "PUT", body, ...options }),
+  del: (path, body, options) => request(path, { method: "DELETE", body, ...options }),
 };
 
 export default api;

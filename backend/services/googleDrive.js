@@ -1,6 +1,4 @@
 // C:\SIRA\backend\services\googleDrive.js
-// C:\SIRA\backend\services\googleDrive.js
-
 const { google } = require('googleapis');
 const stream = require('stream');
 
@@ -14,29 +12,22 @@ const REDIRECT_URI = 'https://developers.google.com/oauthplayground';
 const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 oauth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
 
+// --- FUNCIONES INTERNAS (HELPERS) ---
+
 const findOrCreateFolder = async (driveService, parentFolderId, folderName) => {
   const escapedFolderName = folderName.replace(/'/g, "\\'");
   const query = `name = '${escapedFolderName}' and mimeType = 'application/vnd.google-apps.folder' and '${parentFolderId}' in parents and trashed = false`;
-
   try {
     const res = await driveService.files.list({
       q: query,
       fields: 'files(id, name)',
       spaces: 'drive',
     });
-
     if (res.data.files.length > 0) {
       return res.data.files[0].id;
     } else {
-      const fileMetadata = {
-        name: folderName,
-        mimeType: 'application/vnd.google-apps.folder',
-        parents: [parentFolderId],
-      };
-      const newFolder = await driveService.files.create({
-        requestBody: fileMetadata,
-        fields: 'id',
-      });
+      const fileMetadata = { name: folderName, mimeType: 'application/vnd.google-apps.folder', parents: [parentFolderId] };
+      const newFolder = await driveService.files.create({ requestBody: fileMetadata, fields: 'id' });
       return newFolder.data.id;
     }
   } catch (error) {
@@ -45,17 +36,20 @@ const findOrCreateFolder = async (driveService, parentFolderId, folderName) => {
   }
 };
 
+// --- FUNCIONES EXPORTADAS ---
+
+/**
+ * Sube archivos que provienen de una petición de Multer.
+ */
 const uploadRequisitionFiles = async (files, departmentAbbreviation, requisitionNumber) => {
   try {
     const drive = google.drive({ version: 'v3', auth: oauth2Client });
     const requisicionesFolderId = await findOrCreateFolder(drive, DRIVE_FOLDER_ID, 'REQUISICIONES');
     const departmentFolderId = await findOrCreateFolder(drive, requisicionesFolderId, departmentAbbreviation);
     const targetFolderId = await findOrCreateFolder(drive, departmentFolderId, requisitionNumber);
-
     const uploadPromises = files.map(fileObject => {
       const bufferStream = new stream.PassThrough();
       bufferStream.end(fileObject.buffer);
-
       return drive.files.create({
         media: { mimeType: fileObject.mimetype, body: bufferStream },
         requestBody: { name: fileObject.originalname, parents: [targetFolderId] },
@@ -70,12 +64,14 @@ const uploadRequisitionFiles = async (files, departmentAbbreviation, requisition
   }
 };
 
+/**
+ * Sube archivos de cotizaciones que provienen de Multer.
+ */
 const uploadQuoteFiles = async (files, rfqCode, providerName) => {
     try {
         const drive = google.drive({ version: 'v3', auth: oauth2Client });
         const quotesFolderId = await findOrCreateFolder(drive, DRIVE_FOLDER_ID, 'COTIZACIONES');
         const rfqFolderId = await findOrCreateFolder(drive, quotesFolderId, rfqCode);
-        
         const uploadPromises = files.map(fileObject => {
             const bufferStream = new stream.PassThrough();
             bufferStream.end(fileObject.buffer);
@@ -86,25 +82,58 @@ const uploadQuoteFiles = async (files, rfqCode, providerName) => {
                 fields: 'id, name, webViewLink',
             });
         });
-
         const results = await Promise.all(uploadPromises);
-        
-        // --- CORRECCIÓN: Se asocia el resultado con el archivo original por su índice ---
         const uploadedFilesData = results.map((res, index) => ({
             ...res.data,
-            originalName: files[index].originalname // Ahora se accede al nombre original correctamente
+            originalName: files[index].originalname
         }));
-
         console.log(`Archivos de cotización subidos para ${rfqCode}:`, uploadedFilesData);
         return uploadedFilesData;
-
     } catch (error) {
         console.error(`Error durante el proceso de subida de archivos de cotización para ${rfqCode}:`, error);
         throw error;
     }
 };
 
+// --- NUEVA FUNCIÓN ---
+/**
+ * Sube un PDF generado en memoria (Buffer) a Google Drive.
+ * @param {Buffer} pdfBuffer - El contenido del PDF.
+ * @param {string} fileName - El nombre que tendrá el archivo en Drive.
+ * @param {string} departmentAbbreviation - Siglas del depto. para crear la carpeta.
+ * @param {string} requisitionNumber - Número de requisición para la subcarpeta.
+ * @returns {Promise<object>} - Datos del archivo subido (id, name, webViewLink).
+ */
+const uploadPdfBuffer = async (pdfBuffer, fileName, departmentAbbreviation, requisitionNumber) => {
+  try {
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+    // Se reutiliza la misma estructura de carpetas que la subida de adjuntos
+    const requisicionesFolderId = await findOrCreateFolder(drive, DRIVE_FOLDER_ID, 'REQUISICIONES');
+    const departmentFolderId = await findOrCreateFolder(drive, requisicionesFolderId, departmentAbbreviation);
+    const targetFolderId = await findOrCreateFolder(drive, departmentFolderId, requisitionNumber);
+
+    // Se convierte el Buffer a un stream legible para la API
+    const bufferStream = new stream.PassThrough();
+    bufferStream.end(pdfBuffer);
+
+    const result = await drive.files.create({
+      media: { mimeType: 'application/pdf', body: bufferStream },
+      requestBody: { name: fileName, parents: [targetFolderId] },
+      fields: 'id, name, webViewLink',
+    });
+
+    console.log(`PDF de requisición subido a Drive: ${fileName}`);
+    return result.data;
+
+  } catch (error) {
+    console.error(`Error durante la subida del PDF ${fileName}:`, error);
+    // No lanzamos el error para no detener el proceso, pero lo registramos.
+    // En un futuro, se podría implementar un sistema de reintentos.
+  }
+};
+
 module.exports = { 
     uploadRequisitionFiles,
-    uploadQuoteFiles
+    uploadQuoteFiles,
+    uploadPdfBuffer, // <-- Se exporta la nueva función
 };

@@ -1,3 +1,4 @@
+//C:\SIRA\sira-front\src\components\VB_REQ_List.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/api';
 import { toast } from 'react-toastify';
@@ -12,16 +13,14 @@ import EditIcon from '@mui/icons-material/Edit';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { useAuth } from '../context/authContext';
 
-// --- Helper sin cambios ---
+// --- Componentes Helper y de Fila (sin cambios) ---
 const truncateText = (text, maxLength = 30) => {
   if (!text) return 'N/A';
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + '...';
+  return text.length <= maxLength ? text : text.substring(0, maxLength) + '...';
 };
 
-// --- Componente de Fila sin cambios ---
 const RequisicionRow = ({ req, onApprove, onReject, onViewDetails, onEdit }) => (
-    <TableRow hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+    <TableRow hover>
         <TableCell><Chip label={req.numero_requisicion} color="primary" variant="outlined" size="small" /></TableCell>
         <TableCell>{req.usuario_creador}</TableCell>
         <TableCell>{req.sitio}</TableCell>
@@ -38,15 +37,13 @@ const RequisicionRow = ({ req, onApprove, onReject, onViewDetails, onEdit }) => 
     </TableRow>
 );
 
-// --- Modal de detalles CON CORRECCIÓN DE 'key' ---
 const DetalleRequisicionModal = ({ requisicion, open, onClose }) => {
     if (!requisicion) return null;
-
     return (
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
             <DialogTitle>Detalle de Requisición: <strong>{requisicion.numero_requisicion}</strong></DialogTitle>
             <DialogContent dividers>
-                {/* ... (sección de info general sin cambios) ... */}
+                {/* Info General, etc. */}
                 <h4 className="font-semibold text-lg mb-2">Materiales:</h4>
                 <TableContainer component={Paper} variant="outlined" className='mb-4'>
                     <Table size="small">
@@ -60,8 +57,7 @@ const DetalleRequisicionModal = ({ requisicion, open, onClose }) => {
                         </TableHead>
                         <TableBody>
                             {requisicion.materiales?.map(mat => (
-                                // CORRECCIÓN 1: Se añade la prop 'key' a TableRow
-                                <TableRow key={mat.id}>
+                                <TableRow key={mat.material_id || mat.id}>
                                     <TableCell>{mat.material}</TableCell>
                                     <TableCell align="right">{mat.cantidad}</TableCell>
                                     <TableCell>{mat.unidad}</TableCell>
@@ -71,13 +67,11 @@ const DetalleRequisicionModal = ({ requisicion, open, onClose }) => {
                         </TableBody>
                     </Table>
                 </TableContainer>
-
                 {requisicion.adjuntos && requisicion.adjuntos.length > 0 && (
                     <>
                         <h4 className="font-semibold text-lg mb-2">Archivos Adjuntos:</h4>
                         <Box>
                             {requisicion.adjuntos.map(file => (
-                                // CORRECCIÓN 2: Se añade la prop 'key' a Link
                                 <Link href={file.ruta_archivo} target="_blank" rel="noopener noreferrer" key={file.id} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                                     <AttachFileIcon sx={{ mr: 1, fontSize: '1rem' }} />
                                     {file.nombre_archivo}
@@ -91,7 +85,6 @@ const DetalleRequisicionModal = ({ requisicion, open, onClose }) => {
         </Dialog>
     );
 };
-
 
 // --- Componente principal ---
 export default function VB_REQ_List({ onEdit }) {
@@ -109,7 +102,6 @@ export default function VB_REQ_List({ onEdit }) {
             setRequisiciones(data);
             setError(null);
         } catch (err) {
-            console.error(err);
             setError(err.error || 'Error al cargar las requisiciones.');
             toast.error(err.error || 'Error al cargar las requisiciones.');
         } finally {
@@ -121,31 +113,26 @@ export default function VB_REQ_List({ onEdit }) {
         fetchRequisiciones();
     }, [fetchRequisiciones]);
 
-    // --- FUNCIÓN handleApprove CON MANEJO DE ERRORES MEJORADO ---
     const handleApprove = async (id) => {
-        if (!window.confirm(`¿Estás seguro de que deseas APROBAR esta requisición? El PDF se descargará y se enviará una notificación por correo.`)) return;
-        if (!usuario) {
-            toast.error("No se pudo identificar al usuario. Por favor, recarga la página.");
-            return;
-        }
+        if (!window.confirm(`¿Estás seguro de APROBAR esta requisición? El PDF se descargará y se enviará una notificación.`)) return;
+        if (!usuario) return toast.error("No se pudo identificar al usuario. Por favor, recarga la página.");
 
         try {
-            const approverName = usuario.nombre || 'Usuario del Sistema';
-            toast.info('Procesando aprobación, generando PDF y enviando correos...');
-
+            toast.info('Procesando aprobación, por favor espera...');
             const response = await api.post(
                 `/api/requisiciones/${id}/aprobar-y-notificar`,
-                { approverName: approverName },
-                { responseType: 'blob' }
+                { approverName: usuario.nombre || 'Aprobador del Sistema' },
+                { responseType: 'blob' } // Esencial para recibir un archivo
             );
 
-            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+            // Lógica para descargar el archivo blob
+            const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
             const contentDisposition = response.headers['content-disposition'];
-            let fileName = `Requisicion_${id}.pdf`;
+            let fileName = `Requisicion_${id}.pdf`; // Fallback
             if (contentDisposition) {
-                const fileNameMatch = contentDisposition.match(/filename="?(.+)"?/);
+                const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
                 if (fileNameMatch && fileNameMatch.length === 2) fileName = fileNameMatch[1];
             }
             link.setAttribute('download', fileName);
@@ -155,33 +142,44 @@ export default function VB_REQ_List({ onEdit }) {
             window.URL.revokeObjectURL(url);
 
             toast.success('Requisición aprobada y notificada con éxito.');
-            fetchRequisiciones();
+            fetchRequisiciones(); // Recargar la lista
 
         } catch (err) {
-            console.error(err);
-            // --- BLOQUE CATCH CORREGIDO ---
-            // Esta lógica mejorada revisa si el error viene del servidor o de la red.
+            console.error("Error en el proceso de aprobación:", err);
+            // CAMBIO: Lógica de error mejorada para dar mensajes más claros
             if (err.response && err.response.data) {
-                // Si el error viene del backend y es un 'blob', no podemos leerlo como JSON.
-                // Lo más seguro es mostrar un mensaje genérico o intentar leer el blob.
-                // Por simplicidad, mostraremos un mensaje claro.
-                if (err.response.data instanceof Blob) {
-                    toast.error('El servidor respondió con un error al procesar la requisición.');
-                } else {
-                    toast.error(err.response.data.error || 'Error en la respuesta del servidor.');
-                }
+                // Si el backend nos manda un error JSON, lo mostramos
+                toast.error(err.response.data.error || 'Error del servidor al aprobar.');
             } else if (err.message) {
-                // Si es un error de red (ej. servidor caído) u otro error de cliente
+                // Si es un error de red
                 toast.error(err.message);
             } else {
-                // Un fallback por si el objeto de error es inesperado
-                toast.error('Ocurrió un error inesperado al procesar la requisición.');
+                // Fallback final
+                toast.error('Ocurrió un error inesperado al procesar la aprobación.');
             }
         }
     };
 
-    const handleReject = async (id) => { /* ... (sin cambios) ... */ };
-    const handleViewDetails = async (id) => { /* ... (sin cambios) ... */ };
+    const handleReject = async (id) => {
+        if (!window.confirm("¿Estás seguro de RECHAZAR esta requisición? Esta acción no se puede deshacer.")) return;
+        try {
+            await api.post(`/api/requisiciones/${id}/rechazar`);
+            toast.warn("Requisición rechazada.");
+            fetchRequisiciones();
+        } catch (err) {
+            toast.error(err.error || "Error al rechazar la requisición.");
+        }
+    };
+    
+    const handleViewDetails = async (id) => {
+        try {
+            const data = await api.get(`/api/requisiciones/${id}`);
+            setSelectedReq(data);
+            setIsModalOpen(true);
+        } catch (err) {
+            toast.error("No se pudo cargar el detalle de la requisición.");
+        }
+    };
 
     if (loading) return <div className="flex justify-center mt-10"><CircularProgress /></div>;
     if (error) return <p className="text-red-500 text-center mt-10">{error}</p>;
@@ -206,7 +204,6 @@ export default function VB_REQ_List({ onEdit }) {
                         <TableBody>
                             {requisiciones.length > 0 ? (
                                 requisiciones.map(req => (
-                                    // CORRECCIÓN 4: Se añade la prop 'key' al componente RequisicionRow
                                     <RequisicionRow
                                         key={req.id}
                                         req={req}
