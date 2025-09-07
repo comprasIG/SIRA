@@ -1,0 +1,34 @@
+// C:\SIRA\sira-front\src\components\G_REQForm\hooks\useFormValidation.js
+import { useMemo } from 'react';
+import { useWatch } from 'react-hook-form';
+
+/**
+ * Custom Hook para validaciones visuales del formulario, como la detección de duplicados.
+ * @param {object} control - El objeto de control de react-hook-form.
+ * @returns {object} - Un objeto que contiene la información de validación.
+ */
+export function useFormValidation(control) {
+  // Observamos el array 'items' para cualquier cambio en los materiales seleccionados.
+  const items = useWatch({ control, name: "items" });
+
+  // Calculamos la lista de IDs de materiales duplicados.
+  // useMemo asegura que este cálculo solo se ejecute cuando la lista de items cambie.
+  const duplicateMaterialIds = useMemo(() => {
+    const materialCounts = {};
+    // Contamos cuántas veces aparece cada ID de material.
+    items?.forEach(item => {
+      if (item?.material?.id) {
+        materialCounts[item.material.id] = (materialCounts[item.material.id] || 0) + 1;
+      }
+    });
+    
+    // Creamos un Set (una lista de valores únicos) con los IDs que aparecen más de una vez.
+    return new Set(
+      Object.keys(materialCounts).filter(id => materialCounts[id] > 1)
+    );
+  }, [items]);
+
+  return {
+    duplicateMaterialIds,
+  };
+}

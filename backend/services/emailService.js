@@ -1,12 +1,13 @@
 // C:\SIRA\backend\services\emailService.js
+
 const nodemailer = require('nodemailer');
 require('dotenv').config(); 
 
-// CAMBIO: Se usan las variables SMTP_* para que coincidan con tu archivo .env
+// --- Configuración del Transportador de Correo ---
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: process.env.SMTP_PORT,
-    secure: true, // true para el puerto 465
+    secure: true,
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASSWORD,
@@ -14,32 +15,51 @@ const transporter = nodemailer.createTransport({
 });
 
 /**
- * Envía un correo electrónico con un PDF adjunto.
+ * Envía un correo electrónico con un único PDF adjunto de forma segura.
+ * @param {string[]} recipients - Arreglo de correos de los destinatarios.
+ * @param {string} subject - Asunto del correo.
+ * @param {string} htmlBody - Cuerpo del correo en HTML.
+ * @param {Buffer} pdfBuffer - El PDF generado en memoria (Buffer).
+ * @param {string} fileName - Nombre del archivo adjunto.
  */
 const sendRequisitionEmail = async (recipients, subject, htmlBody, pdfBuffer, fileName) => {
+    
+    // --- Lógica Defensiva ---
+    // 1. Creamos un arreglo de adjuntos vacío.
+    const attachments = [];
+
+    // 2. Verificamos que el buffer del PDF y el nombre del archivo existan antes de añadirlo.
+    // Esto previene errores si la generación del PDF fallara silenciosamente.
+    if (pdfBuffer && fileName) {
+        attachments.push({
+            filename: fileName,
+            content: pdfBuffer,
+            contentType: 'application/pdf',
+        });
+    }
+
+    // --- Opciones del Correo ---
     const mailOptions = {
-        // CAMBIO: Se usa SMTP_USER para el remitente
         from: `"SIRA PROJECT" <${process.env.SMTP_USER}>`,
         to: recipients.join(', '),
         subject: subject,
         html: htmlBody,
-        attachments: [
-            {
-                filename: fileName,
-                content: pdfBuffer,
-                contentType: 'application/pdf',
-            },
-        ],
+        // 3. Asignamos nuestro arreglo de adjuntos construido de forma segura.
+        attachments: attachments,
     };
 
+    // --- Registro Detallado para Depuración ---
+    // Esta línea nos dirá en la consola del backend exactamente cuántos archivos se van a enviar.
+    console.log(`Preparando para enviar correo a [${recipients.join(', ')}] con ${attachments.length} archivo(s) adjunto(s).`);
+
+    // --- Lógica de Envío ---
     try {
         const info = await transporter.sendMail(mailOptions);
-        console.log('Correo enviado con éxito:', info.messageId);
+        console.log('Correo de notificación enviado con éxito:', info.messageId);
         return info;
     } catch (error) {
         console.error('Error CRÍTICO al intentar enviar el correo:', error);
-        // Lanzamos el error para que la función que llama (aprobarYNotificar) lo sepa
-        throw error; 
+        throw new Error("Fallo en el envío del correo de notificación."); 
     }
 };
 

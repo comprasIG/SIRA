@@ -13,13 +13,15 @@ import EditIcon from '@mui/icons-material/Edit';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { useAuth } from '../context/authContext';
 
-// --- Componentes Helper y de Fila (sin cambios) ---
+// --- Helper Component ---
 const truncateText = (text, maxLength = 30) => {
   if (!text) return 'N/A';
   return text.length <= maxLength ? text : text.substring(0, maxLength) + '...';
 };
 
-const RequisicionRow = ({ req, onApprove, onReject, onViewDetails, onEdit }) => (
+// --- Row Component ---
+// CHANGE: It now accepts an 'isProcessing' prop to disable its buttons.
+const RequisicionRow = ({ req, onApprove, onReject, onViewDetails, onEdit, isProcessing }) => (
     <TableRow hover>
         <TableCell><Chip label={req.numero_requisicion} color="primary" variant="outlined" size="small" /></TableCell>
         <TableCell>{req.usuario_creador}</TableCell>
@@ -29,21 +31,28 @@ const RequisicionRow = ({ req, onApprove, onReject, onViewDetails, onEdit }) => 
         <TableCell>{new Date(req.fecha_requerida).toLocaleDateString()}</TableCell>
         <TableCell><Chip label={req.status} color={req.status === 'ABIERTA' ? 'warning' : 'default'} size="small" /></TableCell>
         <TableCell align="right">
-            <Tooltip title="Aprobar y Enviar a Compras"><IconButton onClick={() => onApprove(req.id)} color="success"><CheckCircleIcon /></IconButton></Tooltip>
-            <Tooltip title="Rechazar Requisición"><IconButton onClick={() => onReject(req.id)} color="error"><CancelIcon /></IconButton></Tooltip>
-            <Tooltip title="Ver Detalles"><IconButton onClick={() => onViewDetails(req.id)} color="default"><InfoIcon /></IconButton></Tooltip>
-            <Tooltip title="Editar Requisición"><IconButton onClick={() => onEdit(req.id)} color="primary"><EditIcon /></IconButton></Tooltip>
+            {/* The buttons are now disabled if this specific row is being processed */}
+            <Tooltip title="Aprobar y Enviar a Compras">
+                <span>
+                    <IconButton onClick={() => onApprove(req.id)} color="success" disabled={isProcessing}>
+                        {isProcessing ? <CircularProgress size={24} color="inherit" /> : <CheckCircleIcon />}
+                    </IconButton>
+                </span>
+            </Tooltip>
+            <Tooltip title="Rechazar Requisición"><IconButton onClick={() => onReject(req.id)} color="error" disabled={isProcessing}><CancelIcon /></IconButton></Tooltip>
+            <Tooltip title="Ver Detalles"><IconButton onClick={() => onViewDetails(req.id)} color="default" disabled={isProcessing}><InfoIcon /></IconButton></Tooltip>
+            <Tooltip title="Editar Requisición"><IconButton onClick={() => onEdit(req.id)} color="primary" disabled={isProcessing}><EditIcon /></IconButton></Tooltip>
         </TableCell>
     </TableRow>
 );
 
+// --- Detail Modal Component ---
 const DetalleRequisicionModal = ({ requisicion, open, onClose }) => {
     if (!requisicion) return null;
     return (
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
             <DialogTitle>Detalle de Requisición: <strong>{requisicion.numero_requisicion}</strong></DialogTitle>
             <DialogContent dividers>
-                {/* Info General, etc. */}
                 <h4 className="font-semibold text-lg mb-2">Materiales:</h4>
                 <TableContainer component={Paper} variant="outlined" className='mb-4'>
                     <Table size="small">
@@ -86,15 +95,19 @@ const DetalleRequisicionModal = ({ requisicion, open, onClose }) => {
     );
 };
 
-// --- Componente principal ---
+// --- Main Component ---
 export default function VB_REQ_List({ onEdit }) {
+    // --- States ---
     const [requisiciones, setRequisiciones] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedReq, setSelectedReq] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    // CHANGE: New state to track the ID of the requisition being processed.
+    const [processingId, setProcessingId] = useState(null);
     const { usuario } = useAuth();
 
+    // --- Data Fetching ---
     const fetchRequisiciones = useCallback(async () => {
         try {
             setLoading(true);
@@ -113,24 +126,25 @@ export default function VB_REQ_List({ onEdit }) {
         fetchRequisiciones();
     }, [fetchRequisiciones]);
 
+    // --- Action Handlers ---
     const handleApprove = async (id) => {
         if (!window.confirm(`¿Estás seguro de APROBAR esta requisición? El PDF se descargará y se enviará una notificación.`)) return;
         if (!usuario) return toast.error("No se pudo identificar al usuario. Por favor, recarga la página.");
-
+        
+        setProcessingId(id); // Set the ID to disable buttons for this row
         try {
             toast.info('Procesando aprobación, por favor espera...');
             const response = await api.post(
                 `/api/requisiciones/${id}/aprobar-y-notificar`,
                 { approverName: usuario.nombre || 'Aprobador del Sistema' },
-                { responseType: 'blob' } // Esencial para recibir un archivo
+                { responseType: 'blob' }
             );
 
-            // Lógica para descargar el archivo blob
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
             const contentDisposition = response.headers['content-disposition'];
-            let fileName = `Requisicion_${id}.pdf`; // Fallback
+            let fileName = `Requisicion_${id}.pdf`;
             if (contentDisposition) {
                 const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
                 if (fileNameMatch && fileNameMatch.length === 2) fileName = fileNameMatch[1];
@@ -142,32 +156,34 @@ export default function VB_REQ_List({ onEdit }) {
             window.URL.revokeObjectURL(url);
 
             toast.success('Requisición aprobada y notificada con éxito.');
-            fetchRequisiciones(); // Recargar la lista
+            fetchRequisiciones();
 
         } catch (err) {
             console.error("Error en el proceso de aprobación:", err);
-            // CAMBIO: Lógica de error mejorada para dar mensajes más claros
             if (err.response && err.response.data) {
-                // Si el backend nos manda un error JSON, lo mostramos
                 toast.error(err.response.data.error || 'Error del servidor al aprobar.');
             } else if (err.message) {
-                // Si es un error de red
                 toast.error(err.message);
             } else {
-                // Fallback final
                 toast.error('Ocurrió un error inesperado al procesar la aprobación.');
             }
+        } finally {
+            setProcessingId(null); // Clear the ID to re-enable buttons
         }
     };
 
     const handleReject = async (id) => {
-        if (!window.confirm("¿Estás seguro de RECHAZAR esta requisición? Esta acción no se puede deshacer.")) return;
+        if (!window.confirm("¿Estás seguro de RECHAZAR esta requisición?")) return;
+        
+        setProcessingId(id); // Set the ID to disable buttons
         try {
             await api.post(`/api/requisiciones/${id}/rechazar`);
             toast.warn("Requisición rechazada.");
             fetchRequisiciones();
         } catch (err) {
             toast.error(err.error || "Error al rechazar la requisición.");
+        } finally {
+            setProcessingId(null); // Clear the ID to re-enable buttons
         }
     };
     
@@ -181,6 +197,7 @@ export default function VB_REQ_List({ onEdit }) {
         }
     };
 
+    // --- Render Logic ---
     if (loading) return <div className="flex justify-center mt-10"><CircularProgress /></div>;
     if (error) return <p className="text-red-500 text-center mt-10">{error}</p>;
 
@@ -211,6 +228,8 @@ export default function VB_REQ_List({ onEdit }) {
                                         onReject={handleReject}
                                         onViewDetails={handleViewDetails}
                                         onEdit={onEdit}
+                                        // Pass the boolean to the row
+                                        isProcessing={processingId === req.id}
                                     />
                                 ))
                             ) : (

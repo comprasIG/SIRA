@@ -1,25 +1,22 @@
 #C:\SIRA\backend\Dockerfile
-# backend/Dockerfile
 
-# 1. Usar una imagen oficial de Node.js como base. 'alpine' es una versión muy ligera.
+# 1. Usar la imagen base de Alpine
 FROM node:18-alpine AS base
 
-# 2. Establecer el directorio de trabajo dentro del contenedor
+# 2. Establecer el directorio de trabajo
 WORKDIR /app
 
 # 3. Copiar los archivos de dependencias
-# Se copian primero para aprovechar el caché de Docker. Si no cambian, no se reinstala todo.
 COPY package*.json ./
 
-# 4. Instalar dependencias de producción de forma limpia
-# 'npm ci' es más rápido y seguro para producción que 'npm install'
+# 4. Instalar dependencias de producción
 RUN npm ci --only=production
 
-# 5. Copiar el resto del código de la aplicación
+# 5. Copiar el resto del código
 COPY . .
 
-# 6. Exponer el puerto en el que corre tu app (según tu .env es el 3001)
+# 6. Exponer el puerto
 EXPOSE 3001
 
-# 7. El comando para iniciar la aplicación cuando se ejecute el contenedor
+# 7. El comando para iniciar la aplicación
 CMD [ "node", "app.js" ]

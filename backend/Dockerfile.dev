@@ -1,7 +1,6 @@
 # SIRA/backend/Dockerfile.dev
 
-# backend/Dockerfile.dev
-
+# Se mantiene la imagen base de Alpine por su ligereza
 FROM node:18-alpine
 WORKDIR /app
 ENV NODE_ENV=development
