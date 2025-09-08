@@ -47,12 +47,16 @@ app.use('/api/auth', authRoutes);
 const catalogoMaterialesRoutes = require('./routes/catalogo_materiales.routes');
 app.use('/api/catalogo_materiales', catalogoMaterialesRoutes);
 
+const ordenCompraRoutes = require('./routes/ordenCompra.routes');
+app.use('/api/ocs', ordenCompraRoutes);
+
+
 // Ruta base de prueba
 app.get('/', (req, res) => {
   res.send('Backend SIRA funcionando');
 });
 
 // Inicia el servidor
-app.listen(PORT, () => {
+app.listen(PORT, () => { 
   console.log(`Servidor backend escuchando en puerto ${PORT}`);
 });
