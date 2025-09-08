@@ -50,6 +50,8 @@ app.use('/api/catalogo_materiales', catalogoMaterialesRoutes);
 const ordenCompraRoutes = require('./routes/ordenCompra.routes');
 app.use('/api/ocs', ordenCompraRoutes);
 
+const monedaRoutes = require('./routes/moneda.routes')
+app.use('/api/monedas', monedaRoutes);
 
 // Ruta base de prueba
 app.get('/', (req, res) => {

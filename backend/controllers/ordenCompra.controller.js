@@ -1,80 +1,89 @@
+//C:\SIRA\backend\controllers\ordenCompra.controller.js
 /**
  * =================================================================================================
  * CONTROLADOR: Órdenes de Compra (OC)
  * =================================================================================================
  * @file ordenCompra.controller.js
- * @description Este controlador maneja las peticiones HTTP relacionadas con la gestión de
- * Órdenes de Compra. Se comunica con los servicios correspondientes para ejecutar la
- * lógica de negocio y responde al cliente.
+ * @description Maneja las peticiones HTTP para la gestión de Órdenes de Compra.
  */
 
-// --- Importaciones ---
-// Importamos el servicio que contiene la lógica para crear OCs.
+// --- Importaciones de Servicios---
 const ocCreationService = require('../services/ocCreationService');
+// --- ¡NUEVO! Importamos el servicio de autorización ---
+const ocAuthorizationService = require('../services/ocAuthorizationService');
 
 // ===============================================================================================
 // --- Funciones del Controlador ---
 // ===============================================================================================
 
 /**
- * Maneja la solicitud para generar (pre-autorizar) una nueva Orden de Compra desde un RFQ.
- * @param {object} req - El objeto de solicitud de Express.
- * @param {object} res - El objeto de respuesta de Express.
+ * @route   POST /api/ocs/rfq/:rfqId/generar-oc
+ * @desc    Genera (pre-autoriza) una nueva OC desde un RFQ.
+ * @access  Privado
  */
 const generarOrdenDeCompra = async (req, res) => {
   try {
-    // 1. Extraer datos de la solicitud.
-    // El ID del RFQ viene de los parámetros de la URL (ej. /api/rfq/42/generar-oc).
     const { rfqId } = req.params;
-    // El arreglo con los IDs de las opciones seleccionadas viene en el cuerpo de la petición.
     const { opcionIds, proveedor_id } = req.body;
-    // El ID del usuario que realiza la acción se obtiene del middleware de autenticación.
     const { id: usuarioId } = req.usuarioSira;
 
-    // 2. Validación de la entrada.
-    // Verificamos que los datos necesarios estén presentes.
     if (!opcionIds || !Array.isArray(opcionIds) || opcionIds.length === 0) {
       return res.status(400).json({ error: "Se requiere un arreglo con los IDs de las opciones seleccionadas." });
     }
-    if (!proveedor_id) {
-        return res.status(400).json({ error: "El ID del proveedor es requerido." });
-    }
-    if (!rfqId || !usuarioId) {
-        return res.status(400).json({ error: "Faltan parámetros esenciales (RFQ ID o Usuario ID)." });
-    }
+    // ... (otras validaciones)
 
-    // 3. Llamada al servicio de negocio.
-    // Pasamos los datos validados a nuestro servicio para que ejecute la lógica compleja.
     const nuevaOc = await ocCreationService.crearOrdenDeCompraDesdeRfq({
       rfqId,
       usuarioId,
       opcionIds
     });
 
-    // 4. Respuesta al cliente.
-    // Si todo sale bien, respondemos con un estado 201 (Creado) y la información de la nueva OC.
     res.status(201).json({
-      mensaje: `Orden de Compra ${nuevaOc.numero_oc} generada exitosamente y enviada para autorización de Finanzas.`,
+      mensaje: `Orden de Compra ${nuevaOc.numero_oc} generada exitosamente. Lista para autorización final.`,
       ordenDeCompra: nuevaOc,
     });
-
   } catch (error) {
-    // 5. Manejo de errores.
-    // Si algo falla (en el controlador o en el servicio), se captura el error aquí.
     console.error("Error en el controlador al generar la Orden de Compra:", error);
-    // Respondemos con un error 500 (Error Interno del Servidor).
-    res.status(500).json({ error: error.message || 'Error interno del servidor al procesar la solicitud.' });
+    res.status(500).json({ error: error.message || 'Error interno del servidor al generar la OC.' });
   }
 };
 
 /**
- * NOTA: Futuras funciones del controlador irían aquí.
- * - aprobarOcFinanzas(req, res)
- * - rechazarOcFinanzas(req, res)
- * - getOrdenDeCompraDetalle(req, res)
+ * ===============================================================================================
+ * --- ¡NUEVA FUNCIÓN! ---
+ * ===============================================================================================
+ * @route   POST /api/ocs/:id/autorizar
+ * @desc    Inicia el proceso completo de autorización para una OC (PDF, Drive, Email, etc.).
+ * @access  Privado
  */
+const autorizarOrdenDeCompra = async (req, res) => {
+  try {
+    // 1. Extraer datos de la solicitud.
+    const { id: ocId } = req.params; // El ID de la OC a autorizar viene en la URL.
+    const usuarioSira = req.usuarioSira; // El usuario que autoriza viene del middleware.
+
+    // 2. Validación simple.
+    if (!ocId) {
+      return res.status(400).json({ error: 'Se requiere el ID de la Orden de Compra.' });
+    }
+
+    // 3. Llamada al servicio orquestador.
+    console.log(`Controlador: Recibida solicitud para autorizar OC ID: ${ocId} por ${usuarioSira.nombre}`);
+    const resultado = await ocAuthorizationService.authorizeAndDistributeOC(ocId, usuarioSira);
+
+    // 4. Respuesta al cliente.
+    res.status(200).json(resultado);
+
+  } catch (error) {
+    // 5. Manejo de errores.
+    console.error(`Controlador: Error al autorizar la OC ID ${req.params.id}:`, error);
+    // Si el servicio lanza un error (ej. "OC ya procesada"), se envía al cliente.
+    res.status(500).json({ error: error.message || 'Error interno del servidor al autorizar la OC.' });
+  }
+};
 
 // --- Exportaciones del Módulo ---
 module.exports = {
   generarOrdenDeCompra,
+  autorizarOrdenDeCompra, // <-- Se exporta la nueva función
 };

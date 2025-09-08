@@ -1,16 +1,30 @@
 // C:\SIRA\sira-front\src\components\rfq\ResumenCompra.jsx
 /**
- * Componente: ResumenCompra
- * Propósito:
- * Muestra resúmenes de compra detallados y separados por proveedor. Cada resumen
- * ahora tiene su propio engrane de configuración y muestra la lista de materiales.
+ * =================================================================================================
+ * COMPONENTE: ResumenCompra
+ * =================================================================================================
+ * @file ResumenCompra.jsx
+ * @description Muestra resúmenes de compra detallados y separados por proveedor.
+ * Cada resumen tiene su propio engrane de configuración para moneda e impuestos
+ * y muestra la lista de materiales seleccionados para ese proveedor.
  */
+
+// --- Importaciones ---
 import React, { useMemo, useState } from 'react';
 import { Paper, Typography, Box, Alert, IconButton, Tooltip, List, ListItem, ListItemText } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ConfigPopover from './ConfigPopover';
 
-// --- Lógica de Cálculo Principal ---
+// ===============================================================================================
+// --- Lógica de Cálculo Principal (Helper Function) ---
+// ===============================================================================================
+/**
+ * @description Calcula los resúmenes de compra basándose en los materiales seleccionados
+ * y las configuraciones específicas de cada proveedor.
+ * @param {Array} materiales - El array de materiales del formulario.
+ * @param {object} providerConfigs - El objeto con las configuraciones por proveedor.
+ * @returns {Array} - Un arreglo con los objetos de resumen calculados.
+ */
 const calcularResumenes = (materiales, providerConfigs) => {
   if (!materiales || materiales.length === 0) return [];
 
@@ -27,25 +41,23 @@ const calcularResumenes = (materiales, providerConfigs) => {
           };
         }
         agrupado[proveedorId].items.push({
-          material: material.material,
-          unidad: material.unidad,
+          material: material.material, unidad: material.unidad,
           cantidad: Number(opcion.cantidad_cotizada) || 0,
           precioUnitario: Number(opcion.precio_unitario) || 0,
-          esPrecioNeto: opcion.es_precio_neto,
-          esImportacionItem: opcion.es_importacion,
+          esPrecioNeto: opcion.es_precio_neto, esImportacionItem: opcion.es_importacion,
         });
       }
     });
   });
 
   return Object.values(agrupado).map(grupo => {
-    const defaultConfig = { ivaRate: '0.16', isIvaActive: true, isrRate: '0.0125', isIsrActive: false, forcedTotal: '0', isForcedTotalActive: false };
+    // --- MEJORA: Se añade 'moneda' a la configuración por defecto ---
+    const defaultConfig = { moneda: 'MXN', ivaRate: '0.16', isIvaActive: true, isrRate: '0.0125', isIsrActive: false, forcedTotal: '0', isForcedTotalActive: false };
     const config = providerConfigs[grupo.proveedorId] || defaultConfig;
     
     const ivaRateNum = parseFloat(config.ivaRate) || 0;
     const isrRateNum = parseFloat(config.isrRate) || 0;
     const forcedTotalNum = parseFloat(config.forcedTotal) || 0;
-
     const esCompraImportacion = grupo.items.some(item => item.esImportacionItem);
 
     let subTotal = 0;
@@ -61,27 +73,16 @@ const calcularResumenes = (materiales, providerConfigs) => {
 
     const iva = (esCompraImportacion || !config.isIvaActive) ? 0 : subTotal * ivaRateNum;
     const retIsr = (esCompraImportacion || !config.isIsrActive) ? 0 : subTotal * isrRateNum;
-    
-    let total = subTotal + iva - retIsr;
+    let total = config.isForcedTotalActive ? forcedTotalNum : subTotal + iva - retIsr;
 
-    if (config.isForcedTotalActive) {
-      total = forcedTotalNum;
-    }
-
-    return {
-      proveedorId: grupo.proveedorId,
-      proveedorNombre: grupo.proveedorNombre,
-      subTotal,
-      iva,
-      retIsr,
-      total,
-      esCompraImportacion,
-      config,
-      items: itemsConSubtotal,
-    };
+    return { ...grupo, subTotal, iva, retIsr, total, esCompraImportacion, config, items: itemsConSubtotal };
   });
 };
 
+
+// ===============================================================================================
+// --- Componente Principal: ResumenCompra ---
+// ===============================================================================================
 export default function ResumenCompra({ materiales, lugar_entrega, providerConfigs, setProviderConfigs }) {
   // --- Estados ---
   const [anchorEl, setAnchorEl] = useState(null);
@@ -98,35 +99,24 @@ export default function ResumenCompra({ materiales, lugar_entrega, providerConfi
     setCurrentProviderId(null);
   };
   
-  const defaultConfig = { ivaRate: '0.16', isIvaActive: true, isrRate: '0.0125', isIsrActive: false, forcedTotal: '0', isForcedTotalActive: false };
+  // --- MEJORA: Se añade 'moneda' a la configuración por defecto ---
+  const defaultConfig = { moneda: 'MXN', ivaRate: '0.16', isIvaActive: true, isrRate: '0.0125', isIsrActive: false, forcedTotal: '0', isForcedTotalActive: false };
 
-  // CAMBIO: Esta función ahora puede manejar tanto un objeto directo como una función de actualización (la "receta").
   const setConfigForProvider = (valueOrFunction) => {
-    if (!currentProviderId) return; // Salvaguarda
-    
+    if (!currentProviderId) return;
     setProviderConfigs(prevConfigs => {
-        // Obtenemos la configuración anterior para este proveedor específico.
         const prevConfigForProvider = prevConfigs[currentProviderId] || defaultConfig;
-        
-        // Determinamos la nueva configuración.
-        const newConfig = typeof valueOrFunction === 'function'
-            ? valueOrFunction(prevConfigForProvider) // Si es una función, la ejecutamos.
-            : valueOrFunction;                     // Si es un objeto, lo usamos directamente.
-
-        // Devolvemos el estado de todas las configuraciones, con la de este proveedor actualizada.
-        return {
-          ...prevConfigs,
-          [currentProviderId]: newConfig
-        };
+        const newConfig = typeof valueOrFunction === 'function' ? valueOrFunction(prevConfigForProvider) : valueOrFunction;
+        return { ...prevConfigs, [currentProviderId]: newConfig };
     });
   };
 
-
   const isConfigOpen = Boolean(anchorEl);
 
-  // --- Memorización ---
+  // --- Memorización de Cálculos ---
   const resumenesPorProveedor = useMemo(
     () => calcularResumenes(materiales, providerConfigs),
+    // Usar JSON.stringify es una forma eficaz de detectar cambios profundos en los objetos.
     [JSON.stringify(materiales), providerConfigs]
   );
 
@@ -157,8 +147,6 @@ export default function ResumenCompra({ materiales, lugar_entrega, providerConfi
                   <ListItemText 
                     primary={`${item.cantidad} ${item.unidad} de ${item.material}`}
                     secondary={`@ $${item.precioUnitario.toFixed(4)} c/u`}
-                    primaryTypographyProps={{ fontSize: '0.875rem' }}
-                    secondaryTypographyProps={{ fontSize: '0.75rem' }}
                   />
                   <Typography variant="body2" sx={{ fontWeight: 500 }}>
                     ${item.itemSubtotal.toFixed(2)}
@@ -167,46 +155,41 @@ export default function ResumenCompra({ materiales, lugar_entrega, providerConfi
               ))}
             </List>
             
-            <hr className="my-2 border-t border-gray-200" />
+            <hr className="my-2" />
             
-            {resumen.esCompraImportacion && (
-              <Alert severity="info" sx={{ mb: 1, fontSize: '0.8rem', p: '0 8px' }}>Compra de Importación (Impuestos omitidos).</Alert>
-            )}
+            {resumen.esCompraImportacion && <Alert severity="info" sx={{ mb: 1 }}>Compra de Importación.</Alert>}
             
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography variant="body2">Sub Total:</Typography>
               <Typography variant="body2">${resumen.subTotal.toFixed(2)}</Typography>
             </Box>
-
             {resumen.iva > 0 && (
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Typography variant="body2">IVA ({ (parseFloat(resumen.config.ivaRate) * 100).toFixed(0) }%):</Typography>
                 <Typography variant="body2">${resumen.iva.toFixed(2)}</Typography>
               </Box>
             )}
-
             {resumen.retIsr > 0 && (
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: 'error.main' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', color: 'error.main' }}>
                 <Typography variant="body2">Ret. ISR (-):</Typography>
                 <Typography variant="body2">-${resumen.retIsr.toFixed(2)}</Typography>
               </Box>
             )}
 
-            <hr className="my-2 border-t border-gray-200" />
+            <hr className="my-2" />
 
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1rem' }}>
-              <Typography variant="body1" sx={{ fontWeight: 'bold' }}>Total:</Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+              {/* --- MEJORA: Se muestra la moneda junto al Total --- */}
+              <Typography variant="body1" sx={{ fontWeight: 'bold' }}>Total ({resumen.config.moneda}):</Typography>
               <Typography variant="body1" sx={{ fontWeight: 'bold' }}>${resumen.total.toFixed(2)}</Typography>
             </Box>
 
-            {resumen.config.isForcedTotalActive && (
-              <Alert severity="warning" sx={{ mt: 1, fontSize: '0.8rem', p: '0 8px' }}>¡Total Forzado Manualmente!</Alert>
-            )}
+            {resumen.config.isForcedTotalActive && <Alert severity="warning" sx={{ mt: 1 }}>¡Total Forzado!</Alert>}
           </Paper>
         ))
       ) : (
-        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-          Selecciona un proveedor y marca la casilla "Elegir" para ver el resumen.
+        <Typography variant="body2" color="text.secondary">
+          Selecciona un proveedor y marca "Elegir" para ver el resumen.
         </Typography>
       )}
 
