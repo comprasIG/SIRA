@@ -13,6 +13,10 @@
 const pool = require('../db/pool');
 const { uploadQuoteFiles } = require('../services/googleDrive');
 
+const { generatePurchaseOrderPdf } = require('../services/purchaseOrderPdfService');
+const { uploadPdfBuffer } = require('../services/googleDrive');
+const { sendRequisitionEmail } = require('../services/emailService');
+
 // =================================================================================================
 // SECCIÓN 1: OBTENCIÓN DE LISTAS DE RFQs
 // =================================================================================================
@@ -273,68 +277,86 @@ const rechazarRfq = async (req, res) => {
     }
 };
 
-/**
- * @route POST /api/rfq/:id/aprobar
- * @description Lógica original para aprobar RFQ y generar OCs.
- * NOTA: Esta función será reemplazada por la nueva lógica de aprobación por OC individual.
- * Se mantiene por ahora para no romper la funcionalidad existente hasta que la nueva esté lista.
- */
-const aprobarRfqYGenerarOC = async (req, res) => {
-    // ... (El código de esta función no necesita cambios por ahora)
+const generarOcsDesdeRfq = async (req, res) => {
     const { id: rfqId } = req.params;
     const { id: usuarioId } = req.usuarioSira;
     const client = await pool.connect();
+
     try {
         await client.query('BEGIN');
-        const reqInfoQuery = await client.query(`SELECT usuario_id, sitio_id, proyecto_id, lugar_entrega FROM requisiciones WHERE id = $1 AND status = 'POR_APROBAR'`, [rfqId]);
-        if (reqInfoQuery.rowCount === 0) throw new Error('El RFQ no existe o no está en estado para ser aprobado.');
-        const reqInfo = reqInfoQuery.rows[0];
-        const opcionesQuery = await client.query(`SELECT ro.*, rd.material_id FROM requisiciones_opciones ro JOIN requisiciones_detalle rd ON ro.requisicion_detalle_id = rd.id WHERE ro.requisicion_id = $1 AND ro.seleccionado = TRUE AND ro.cantidad_cotizada > 0`, [rfqId]);
-        if (opcionesQuery.rows.length === 0) throw new Error('No hay opciones de proveedor seleccionadas para este RFQ.');
+
+        // 1. Validar y bloquear el RFQ para evitar procesamientos duplicados.
+        const rfqQuery = await client.query(`SELECT r.*, d.codigo as depto_codigo FROM requisiciones r JOIN departamentos d ON r.departamento_id = d.id WHERE r.id = $1 AND r.status = 'POR_APROBAR' FOR UPDATE`, [rfqId]);
+        if (rfqQuery.rowCount === 0) throw new Error('El RFQ no existe, ya fue procesado o no está para aprobación.');
+        const rfqData = rfqQuery.rows[0];
+
+        // 2. Encontrar las opciones "ganadoras" seleccionadas por el comprador.
+        const opcionesQuery = await client.query(`SELECT ro.*, p.marca as proveedor_marca, p.razon_social as proveedor_razon_social, p.correo as proveedor_correo FROM requisiciones_opciones ro JOIN proveedores p ON ro.proveedor_id = p.id WHERE ro.requisicion_id = $1 AND ro.seleccionado = TRUE`, [rfqId]);
+        if (opcionesQuery.rows.length === 0) throw new Error('No se encontraron opciones seleccionadas para generar OCs.');
         
+        // 3. Agrupar por proveedor para crear una OC por cada uno.
         const comprasPorProveedor = opcionesQuery.rows.reduce((acc, opt) => {
-            if (!acc[opt.proveedor_id]) acc[opt.proveedor_id] = [];
-            acc[opt.proveedor_id].push(opt);
+            (acc[opt.proveedor_id] = acc[opt.proveedor_id] || []).push(opt);
             return acc;
         }, {});
 
+        const ocsGeneradasInfo = [];
+
+        // 4. Iterar sobre cada proveedor y procesar su OC.
         for (const proveedorId in comprasPorProveedor) {
             const items = comprasPorProveedor[proveedorId];
-            let subTotal = items.reduce((sum, item) => sum + (Number(item.cantidad_cotizada) * Number(item.precio_unitario)), 0);
-            const iva = subTotal * 0.16;
-            const total = subTotal + iva;
-            const esOrdenDeImportacion = items.some(item => item.es_importacion === true);
+            const primerItem = items[0];
 
+            // --- a. Crear la cabecera de la OC ---
             const ocInsertResult = await client.query(
-                `INSERT INTO ordenes_compra (numero_oc, usuario_id, rfq_id, sitio_id, proyecto_id, lugar_entrega, sub_total, iva, total, impo) VALUES ('OC-' || nextval('ordenes_compra_id_seq'), $1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-                [usuarioId, rfqId, reqInfo.sitio_id, reqInfo.proyecto_id, reqInfo.lugar_entrega, subTotal, iva, total, esOrdenDeImportacion]
+                `INSERT INTO ordenes_compra (numero_oc, usuario_id, rfq_id, sitio_id, proyecto_id, lugar_entrega, sub_total, iva, total, impo, status, proveedor_id) 
+                 VALUES ('OC-' || nextval('ordenes_compra_id_seq'), $1, $2, $3, $4, $5, $6, $7, $8, $9, 'APROBADA', $10) RETURNING id`,
+                [usuarioId, rfqId, rfqData.sitio_id, rfqData.proyecto_id, rfqData.lugar_entrega, primerItem.subtotal, primerItem.iva, primerItem.total, items.some(i => i.es_importacion), proveedorId]
             );
-            const ordenCompraId = ocInsertResult.rows[0].id;
+            const nuevaOcId = ocInsertResult.rows[0].id;
 
+            // --- b. Crear el detalle de la OC y "congelar" los materiales ---
             for (const item of items) {
                 await client.query(
-                    `INSERT INTO ordenes_compra_detalle (orden_compra_id, requisicion_detalle_id, comparativa_precio_id, material_id, cantidad, precio_unitario, moneda, plazo_entrega) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-                    [ordenCompraId, item.requisicion_detalle_id, item.id, item.material_id, item.cantidad_cotizada, item.precio_unitario, item.moneda, item.plazo_entrega]
+                    `INSERT INTO ordenes_compra_detalle (orden_compra_id, requisicion_detalle_id, comparativa_precio_id, material_id, cantidad, precio_unitario, moneda, plazo_entrega) 
+                     VALUES ($1, $2, $3, (SELECT material_id FROM requisiciones_detalle WHERE id=$2), $4, $5, $6, $7)`,
+                    [nuevaOcId, item.requisicion_detalle_id, item.id, item.cantidad_cotizada, item.precio_unitario, item.moneda, item.tiempo_entrega_valor ? `${item.tiempo_entrega_valor} ${item.tiempo_entrega_unidad}` : null]
                 );
+                await client.query(`UPDATE requisiciones_detalle SET status_compra = $1 WHERE id = $2`, [nuevaOcId, item.requisicion_detalle_id]);
             }
+
+            // --- c. RECOLECTAR TODOS LOS DATOS PARA EL PDF DENTRO DE LA TRANSACCIÓN ---
+            const ocDataParaPdf = (await client.query(`SELECT oc.*, p.razon_social AS proveedor_razon_social, p.rfc AS proveedor_rfc, proy.nombre AS proyecto_nombre, s.nombre AS sitio_nombre, u.nombre as usuario_nombre, (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) as moneda, NOW() as fecha_aprobacion FROM ordenes_compra oc JOIN proveedores p ON oc.proveedor_id = p.id JOIN proyectos proy ON oc.proyecto_id = proy.id JOIN sitios s ON oc.sitio_id = s.id JOIN usuarios u ON oc.usuario_id = u.id WHERE oc.id = $1;`, [nuevaOcId])).rows[0];
+            const itemsDataParaPdf = (await client.query(`SELECT ocd.*, cm.nombre AS material_nombre, cu.simbolo AS unidad_simbolo FROM ordenes_compra_detalle ocd JOIN catalogo_materiales cm ON ocd.material_id = cm.id JOIN catalogo_unidades cu ON cm.unidad_de_compra = cu.id WHERE ocd.orden_compra_id = $1;`, [nuevaOcId])).rows;
+            
+            // --- d. Llamar al servicio de PDF pasándole los datos listos ---
+            const pdfBuffer = await generatePurchaseOrderPdf(ocDataParaPdf, itemsDataParaPdf);
+
+            // --- e. Distribuir el archivo ---
+            const fileName = `OC-${ocDataParaPdf.numero_oc}_${primerItem.proveedor_marca}.pdf`;
+            const driveFile = await uploadPdfBuffer(pdfBuffer, fileName, rfqData.depto_codigo, rfqData.rfq_code);
+            const recipients = ['compras.biogas@gmail.com', primerItem.proveedor_correo].filter(Boolean);
+            const subject = `Orden de Compra Aprobada: ${ocDataParaPdf.numero_oc}`;
+            const htmlBody = `<p>Se ha generado una nueva Orden de Compra. El documento PDF se encuentra adjunto.</p><p>Link a Drive: <a href="${driveFile.webViewLink}">Ver Archivo</a></p>`;
+            await sendRequisitionEmail(recipients, subject, htmlBody, pdfBuffer, fileName);
+            
+            ocsGeneradasInfo.push(ocDataParaPdf.numero_oc);
         }
 
+        // 5. Actualizar el estado final del RFQ.
         await client.query(`UPDATE requisiciones SET status = 'ESPERANDO_ENTREGA' WHERE id = $1`, [rfqId]);
+        
         await client.query('COMMIT');
-        res.status(200).json({ mensaje: `RFQ aprobado y ${Object.keys(comprasPorProveedor).length} Órdenes de Compra generadas.` });
+        res.status(200).json({ mensaje: `Proceso completado. OCs generadas y enviadas: ${ocsGeneradasInfo.join(', ')}.` });
 
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error(`Error al aprobar RFQ y generar OC para RFQ ${rfqId}:`, error);
+        console.error(`Error al generar OCs para RFQ ${rfqId}:`, error);
         res.status(500).json({ error: error.message || 'Error interno del servidor.' });
     } finally {
         client.release();
     }
 };
-
-// =================================================================================================
-// SECCIÓN 5: EXPORTACIONES DEL MÓDULO
-// =================================================================================================
 module.exports = {
   getRequisicionesCotizando,
   getRfqDetalle,
@@ -343,5 +365,6 @@ module.exports = {
   cancelarRfq,
   getRfqsPorAprobar,
   rechazarRfq,
-  aprobarRfqYGenerarOC,
+  generarOcsDesdeRfq, // Reemplazamos la función antigua
+  //aprobarRfqYGenerarOC,
 };

@@ -1,7 +1,9 @@
 // C:\SIRA\backend\routes\rfq.routes.js
-
-// C:\SIRA\backend\routes\rfq.routes.js
-
+/**
+ * =================================================================================================
+ * RUTAS: Solicitudes de Cotización (RFQs)
+ * =================================================================================================
+ */
 const express = require("express");
 const router = express.Router();
 const multer = require('multer');
@@ -9,27 +11,24 @@ const verifyFirebaseToken = require("../middleware/verifyFirebaseToken");
 const loadSiraUser = require("../middleware/loadSiraUser");
 const rfqController = require("../controllers/rfq.controller");
 
-// --- CORRECCIÓN: Se ajusta multer para manejar múltiples campos de archivo dinámicos ---
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 },
-});
+// Configuración de Multer para manejar archivos en memoria.
+const upload = multer({ storage: multer.memoryStorage() });
 
+// Aplica middlewares de autenticación a todas las rutas de este archivo.
 router.use(verifyFirebaseToken, loadSiraUser);
 
-// --- Rutas específicas primero ---
+// --- Rutas para obtener listas ---
 router.get("/pendientes", rfqController.getRequisicionesCotizando);
 router.get("/por-aprobar", rfqController.getRfqsPorAprobar);
 
-// --- Rutas genéricas con :id después ---
+// --- Rutas para acciones sobre un RFQ específico ---
 router.get("/:id", rfqController.getRfqDetalle);
-
-// --- CORRECCIÓN: Se usa upload.any() para aceptar archivos de campos con nombres variables ---
 router.post("/:id/opciones", upload.any(), rfqController.guardarOpcionesRfq);
-
 router.post("/:id/enviar-a-aprobacion", rfqController.enviarRfqAprobacion);
 router.post("/:id/cancelar", rfqController.cancelarRfq);
-router.post("/:id/aprobar", rfqController.aprobarRfqYGenerarOC);
 router.post("/:id/rechazar", rfqController.rechazarRfq);
+
+// --- Ruta principal para la acción del Gerente/Aprobador ---
+router.post("/:id/generar-ocs", rfqController.generarOcsDesdeRfq);
 
 module.exports = router;

@@ -1,19 +1,22 @@
 //C:\SIRA\backend\services\purchaseOrderPdfService.js
 /**
  * =================================================================================================
- * SERVICIO: Generación de PDFs para Órdenes de Compra
+ * SERVICIO: Generación de PDFs para Órdenes de Compra (Versión Final y Robusta)
  * =================================================================================================
  * @file purchaseOrderPdfService.js
  * @description Utiliza la librería PDFKit para generar un documento PDF profesional
- * para una Orden de Compra específica, basado en los datos de la base de datos.
+ * para una Orden de Compra. Esta versión está optimizada para prevenir la creación
+ * de documentos en blanco mediante un manejo robusto de streams.
  */
 
 // --- Importaciones ---
 const PDFDocument = require('pdfkit');
 const path = require('path');
-const pool = require('../db/pool'); // Para consultar la base de datos
+const pool = require('../db/pool');
 
+// ===============================================================================================
 // --- Funciones de Ayuda para Dibujar el PDF ---
+// ===============================================================================================
 
 function drawHeader(doc, oc) {
   const logoPath = path.join(__dirname, '..', 'assets', 'logo.png');
@@ -27,20 +30,24 @@ function drawHeader(doc, oc) {
   doc.text(`Fecha de Aprobación: ${new Date(oc.fecha_aprobacion).toLocaleDateString('es-MX')}`, 400, 65, { align: 'right' });
 }
 
-function drawProviderAndShippingInfo(doc, oc) {
+function drawInfoSection(doc, oc) {
   let currentY = 130;
-  doc.fontSize(12).fillColor('#002D62').font('Helvetica-Bold').text('Proveedor', 45, currentY);
-  doc.fontSize(12).fillColor('#002D62').font('Helvetica-Bold').text('Enviar a', 320, currentY);
+  doc.fontSize(11).fillColor('#002D62').font('Helvetica-Bold');
+  doc.text('Proveedor:', 45, currentY);
+  doc.text('Información de Entrega:', 320, currentY);
   currentY += 15;
   
   doc.font('Helvetica').fontSize(10).fillColor('black');
-  const providerInfo = `${oc.proveedor_razon_social}\n${oc.proveedor_rfc}\n${oc.proveedor_direccion || ''}`;
-  const shippingInfo = `${oc.proyecto}\n${oc.sitio}\n${oc.lugar_entrega}`;
-  
+  const providerInfo = `${oc.proveedor_razon_social || ''}\n${oc.proveedor_rfc || ''}`;
   doc.text(providerInfo, 45, currentY, { width: 250 });
-  doc.text(shippingInfo, 320, currentY, { width: 250 });
+
+  doc.font('Helvetica-Bold').text('Sitio:', 320, currentY, { continued: true }).font('Helvetica').text(` ${oc.sitio_nombre || ''}`);
+  currentY += 15;
+  doc.font('Helvetica-Bold').text('Proyecto:', 320, currentY, { continued: true }).font('Helvetica').text(` ${oc.proyecto_nombre || ''}`);
+  currentY += 15;
+  doc.font('Helvetica-Bold').text('Generado por:', 320, currentY, { continued: true }).font('Helvetica').text(` ${oc.usuario_nombre || ''}`);
   
-  return doc.y + 20; // Devuelve la nueva posición Y
+  return doc.y + 25;
 }
 
 function drawItemsTable(doc, items, startY) {
@@ -48,7 +55,6 @@ function drawItemsTable(doc, items, startY) {
   const tableTop = currentY;
   const tableHeaders = ['Material', 'Cantidad', 'Unidad', 'Precio Unit.', 'Total'];
   
-  // Dibuja el encabezado de la tabla
   doc.rect(40, tableTop - 5, 532, 20).fillAndStroke('#F3F4F6', '#F3F4F6');
   doc.font('Helvetica-Bold').fontSize(10).fillColor('#002D62');
   doc.text(tableHeaders[0], 45, tableTop, { width: 240 });
@@ -64,8 +70,7 @@ function drawItemsTable(doc, items, startY) {
     const itemTotal = (item.cantidad * item.precio_unitario).toFixed(2);
     const rowHeight = doc.heightOfString(item.material_nombre, { width: 240 }) + 10;
     
-    // Paginación si es necesario
-    if (currentY + rowHeight > doc.page.height - 150) { // Margen para totales y pie de página
+    if (currentY + rowHeight > doc.page.height - 150) {
       doc.addPage();
       currentY = 40;
     }
@@ -82,8 +87,8 @@ function drawItemsTable(doc, items, startY) {
   return currentY;
 }
 
-function drawTotals(doc, oc, startY) {
-    let currentY = startY + 10;
+function drawTotals(doc, oc) {
+    let currentY = doc.y + 15;
     const rightAlignX = 490;
     const labelWidth = 80;
     
@@ -92,7 +97,7 @@ function drawTotals(doc, oc, startY) {
     doc.text(`$${Number(oc.sub_total).toFixed(2)}`, rightAlignX, currentY, { width: 80, align: 'right' });
     currentY += 15;
     
-    doc.text('IVA (16%):', rightAlignX - labelWidth, currentY, { width: labelWidth, align: 'right' });
+    doc.text(`IVA (${(Number(oc.iva) / Number(oc.sub_total) * 100 || 16).toFixed(0)}%):`, rightAlignX - labelWidth, currentY, { width: labelWidth, align: 'right' });
     doc.text(`$${Number(oc.iva).toFixed(2)}`, rightAlignX, currentY, { width: 80, align: 'right' });
     currentY += 15;
     
@@ -109,65 +114,37 @@ function drawFooter(doc) {
         .text('Este documento es una Orden de Compra oficial. Sujeto a términos y condiciones.', 0, pageBottom, { align: 'center' })
         .text('Documento generado por SIRA - Sistema Integral de Requisiciones y Abastecimiento', 0, pageBottom + 10, { align: 'center' });
 }
-
 /**
- * @description Orquesta la generación del PDF para una Orden de Compra.
- * @param {number} ocId - El ID de la Orden de Compra a generar.
- * @returns {Promise<Buffer>} Una promesa que se resuelve con el Buffer del PDF generado.
+ * @description Orquesta la generación del PDF.
+ * @param {object} ocData - El objeto COMPLETO con los datos de la cabecera de la OC.
+ * @param {Array<object>} itemsData - Un ARREGLO con los materiales de la OC.
+ * @returns {Promise<Buffer>} El Buffer del PDF generado.
  */
-const generatePurchaseOrderPdf = async (ocId) => {
-  // 1. Obtener todos los datos necesarios de la BD.
-  const ocQuery = await pool.query(`
-    SELECT 
-        oc.*, 
-        p.razon_social AS proveedor_razon_social, p.rfc AS proveedor_rfc, p.direccion AS proveedor_direccion,
-        proy.nombre AS proyecto, s.nombre AS sitio,
-        (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) as moneda,
-        NOW() as fecha_aprobacion
-    FROM ordenes_compra oc
-    JOIN proveedores p ON oc.proveedor_id = p.id
-    JOIN proyectos proy ON oc.proyecto_id = proy.id
-    JOIN sitios s ON oc.sitio_id = s.id
-    WHERE oc.id = $1;
-  `, [ocId]);
-  if (ocQuery.rows.length === 0) throw new Error(`Orden de Compra con ID ${ocId} no encontrada.`);
-  const ocData = ocQuery.rows[0];
-
-  const itemsQuery = await pool.query(`
-    SELECT 
-        ocd.*,
-        cm.nombre AS material_nombre,
-        cu.simbolo AS unidad_simbolo
-    FROM ordenes_compra_detalle ocd
-    JOIN catalogo_materiales cm ON ocd.material_id = cm.id
-    JOIN catalogo_unidades cu ON cm.unidad_de_compra = cu.id
-    WHERE ocd.orden_compra_id = $1;
-  `, [ocId]);
-  const itemsData = itemsQuery.rows;
-
-  // 2. Generar el PDF
+const generatePurchaseOrderPdf = async (ocData, itemsData) => {
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ margin: 40, size: 'letter', bufferPages: true });
+      const doc = new PDFDocument({ margin: 40, size: 'letter' });
       const buffers = [];
-      doc.on('data', buffers.push.bind(buffers));
+      doc.on('data', (chunk) => buffers.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(buffers)));
+      doc.on('error', (err) => reject(err));
 
+      // Dibuja el contenido usando los datos que recibe como parámetros.
       drawHeader(doc, ocData);
-      let currentY = drawProviderAndShippingInfo(doc, ocData);
+      let currentY = drawInfoSection(doc, ocData);
       currentY = drawItemsTable(doc, itemsData, currentY);
-      currentY = drawTotals(doc, ocData, currentY);
+      drawTotals(doc, ocData);
       
-      // Añadir pie de página a todas las páginas generadas.
+      // Asegura que el pie de página se dibuje en todas las páginas.
       const pages = doc.bufferedPageRange();
-      for (let i = pages.start; i < pages.count; i++) {
-          doc.switchToPage(i);
-          drawFooter(doc);
+      for (let i = 0; i < (pages.count || 1); i++) {
+        doc.switchToPage(i);
+        drawFooter(doc);
       }
-      
+
       doc.end();
     } catch (error) {
-      console.error("Error al generar el PDF de la OC:", error);
+      console.error("Error durante la generación del stream del PDF:", error);
       reject(error);
     }
   });
