@@ -83,7 +83,7 @@ const calcularResumenes = (materiales, providerConfigs) => {
 // ===============================================================================================
 // --- Componente Principal: ResumenCompra ---
 // ===============================================================================================
-export default function ResumenCompra({ materiales, lugar_entrega, providerConfigs, setProviderConfigs }) {
+export default function ResumenCompra({ materiales, lugar_entrega, providerConfigs, setProviderConfigs , onFilesChange, archivosPorProveedor}) {
   // --- Estados ---
   const [anchorEl, setAnchorEl] = useState(null);
   const [currentProviderId, setCurrentProviderId] = useState(null);
@@ -98,6 +98,33 @@ export default function ResumenCompra({ materiales, lugar_entrega, providerConfi
     setAnchorEl(null);
     setCurrentProviderId(null);
   };
+// --- MANEJADOR DE ARCHIVOS: Validaciones ---
+  const handleFileChange = (e, proveedorId) => {
+    const nuevosArchivos = Array.from(e.target.files);
+    const archivosExistentes = archivosPorProveedor[proveedorId] || [];
+
+    
+    if (archivosExistentes.length + nuevosArchivos.length > 3) {
+      toast.warn("Puedes subir un máximo de 3 archivos por proveedor.");
+      return;
+    }
+    for (const file of nuevosArchivos) {
+      if (file.size > 50 * 1024 * 1024) { // 50 MB
+        toast.warn(`El archivo "${file.name}" es demasiado grande (Máx. 50MB).`);
+        return;
+      }
+    }
+
+    const listaFinal = [...archivosExistentes, ...nuevosArchivos];
+    onFilesChange(proveedorId, listaFinal);
+  };
+  
+  const handleRemoveFile = (proveedorId, fileName) => {
+    const archivosActuales = archivosPorProveedor[proveedorId] || [];
+    const listaFinal = archivosActuales.filter(f => f.name !== fileName);
+    onFilesChange(proveedorId, listaFinal);
+  };
+//fin manejador de archivos
   
   // --- MEJORA: Se añade 'moneda' a la configuración por defecto ---
   const defaultConfig = { moneda: 'MXN', ivaRate: '0.16', isIvaActive: true, isrRate: '0.0125', isIsrActive: false, forcedTotal: '0', isForcedTotalActive: false };
@@ -156,7 +183,27 @@ export default function ResumenCompra({ materiales, lugar_entrega, providerConfi
             </List>
             
             <hr className="my-2" />
-            
+             <Box>
+              <Button
+                variant="outlined"
+                size="small"
+                component="label"
+                startIcon={<AttachFileIcon />}
+                disabled={archivos.length >= 3}
+              >
+                Adjuntar Cotización
+                <input type="file" multiple hidden onChange={(e) => handleFileChange(e, resumen.proveedorId)} />
+              </Button>
+              <Typography variant="caption" display="block" sx={{mt: 1}}>Máx. 3 archivos, 50MB c/u.</Typography>
+              
+              {archivos.length > 0 && (
+                <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {archivos.map((file, index) => (
+                    <Chip key={index} label={file.name} size="small" onDelete={() => handleRemoveFile(resumen.proveedorId, file.name)} />
+                  ))}
+                </Box>
+              )}
+            </Box>
             {resumen.esCompraImportacion && <Alert severity="info" sx={{ mb: 1 }}>Compra de Importación.</Alert>}
             
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>

@@ -128,8 +128,45 @@ const uploadPdfBuffer = async (pdfBuffer, fileName, rootFolderName, subFolderNam
   }
 };
 
+/**
+ * =================================================================================================
+ * -SUBIR PDF DE COTIZACIÓN-RFQ
+ * =================================================================================================
+ * @description Sube archivos de cotizaciones de proveedores a una estructura de carpetas
+ * específica en Google Drive: /COTIZACIONES/[RFQ_CODE]/[Proveedor_Marca]/archivo.pdf
+ * @param {object} fileObject - El objeto de archivo que viene de Multer.
+ * @param {string} rfqCode - El código del RFQ para la carpeta principal.
+ * @param {string} providerName - El nombre del proveedor para la subcarpeta.
+ * @returns {Promise<object>} - Datos del archivo subido.
+ */
+const uploadQuoteFile = async (fileObject, rfqCode, providerName) => {
+    try {
+        const drive = google.drive({ version: 'v3', auth: oauth2Client });
+        const quotesFolderId = await findOrCreateFolder(drive, DRIVE_FOLDER_ID, 'COTIZACIONES');
+        const rfqFolderId = await findOrCreateFolder(drive, quotesFolderId, rfqCode);
+        const providerFolderId = await findOrCreateFolder(drive, rfqFolderId, providerName.replace(/\s+/g, '_'));
+
+        const bufferStream = new stream.PassThrough();
+        bufferStream.end(fileObject.buffer);
+
+        const result = await drive.files.create({
+            media: { mimeType: fileObject.mimetype, body: bufferStream },
+            requestBody: { name: fileObject.originalname, parents: [providerFolderId] },
+            fields: 'id, name, webViewLink',
+        });
+        
+        console.log(`Archivo de cotización subido para ${rfqCode}: ${fileObject.originalname}`);
+        return result.data;
+    } catch (error) {
+        console.error(`Error durante la subida de archivo de cotización para ${rfqCode}:`, error);
+        throw error;
+    }
+};
+
+
 module.exports = { 
     uploadRequisitionFiles,
     uploadQuoteFiles,
-    uploadPdfBuffer, // <-- Se exporta la nueva función
+    uploadPdfBuffer, 
+     uploadQuoteFile,
 };

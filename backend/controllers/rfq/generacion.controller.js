@@ -157,9 +157,37 @@ const { id: requisicion_id } = req.params;
             );
         }
 
-        // La lógica de archivos no necesita cambios.
-        if (req.files && req.files.length > 0) {
-            // ... (código existente para subir archivos a Google Drive)
+        
+               // ---  LÓGICA DE ARCHIVOS! ---
+        if (files && files.length > 0) {
+            // Primero, borramos los adjuntos anteriores para este RFQ para evitar duplicados
+            await client.query(`DELETE FROM rfq_proveedor_adjuntos WHERE requisicion_id = $1`, [requisicion_id]);
+            
+            // Creamos un mapa para buscar fácilmente el nombre de cada proveedor
+            const providerNameMap = new Map();
+            opciones.forEach(opt => {
+                if (opt.proveedor) {
+                    providerNameMap.set(String(opt.proveedor.id), opt.proveedor.nombre);
+                }
+            });
+
+            for (const file of files) {
+                // El frontend nos enviará el campo como 'cotizacion-archivo-[proveedorId]'
+                const fieldParts = file.fieldname.split('-');
+                if (fieldParts[0] === 'cotizacion' && fieldParts[1] === 'archivo') {
+                    const proveedorId = fieldParts[2];
+                    const providerName = providerNameMap.get(proveedorId) || 'SIN_NOMBRE';
+                    
+                    // 1. Subir el archivo a Drive
+                    const uploadedFile = await uploadQuoteFile(file, rfq_code, providerName);
+                    
+                    // 2. Guardar el registro en nuestra nueva tabla
+                    await client.query(
+                        `INSERT INTO rfq_proveedor_adjuntos (requisicion_id, proveedor_id, nombre_archivo, ruta_archivo) VALUES ($1, $2, $3, $4)`,
+                        [requisicion_id, proveedorId, uploadedFile.name, uploadedFile.webViewLink]
+                    );
+                }
+            }
         }
 
         await client.query('COMMIT');

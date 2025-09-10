@@ -55,6 +55,7 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
     buscarProveedores();
   }, [debouncedSearchTerm]);
   
+  /*
   const handleFileChange = (e) => {
     const nuevosArchivos = Array.from(e.target.files);
     if (archivos.length + nuevosArchivos.length > 2) {
@@ -71,7 +72,7 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
     setArchivos(archivosActualizados);
     onFilesChange(opcionIndex, archivosActualizados);
   };
-
+*/
   const handleImportacionChange = (e) => {
     const isChecked = e.target.checked;
     const currentOptionPath = `materiales.${materialIndex}.opciones.${opcionIndex}`;
@@ -191,7 +192,8 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
         />
       </div>
 
-      {/* --- Sección para Adjuntar Archivos --- */}
+
+      {/* --- Sección para Adjuntar Archivos --- 
       <div className="col-span-12">
         <Button variant="outlined" size="small" component="label" startIcon={<AttachFileIcon />} disabled={archivos.length >= 2}>
             Adjuntar Cotización (Máx. 2)
@@ -203,6 +205,7 @@ export default function OpcionProveedorForm({ materialIndex, opcionIndex, contro
             </Box>
         )}
       </div>
+      */}
     </Paper>
   );
 }

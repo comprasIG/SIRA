@@ -1,19 +1,19 @@
 // C:\SIRA\sira-front\src\components\G_RFQForm.jsx
 /**
  * =================================================================================================
- * COMPONENTE: G_RFQForm
+ * COMPONENTE: G_RFQForm (Versión con Carga de Archivos por Proveedor)
  * =================================================================================================
  * @file G_RFQForm.jsx
  * @description Componente principal para la pantalla de cotización (RFQ). Orquesta la carga
- * de datos, la gestión del formulario, los cálculos de resumen y el envío de toda la
- * información detallada (incluyendo finanzas y moneda) al backend.
+ * de datos, la gestión del formulario y el envío de cotizaciones, incluyendo ahora
+ * la carga de archivos por proveedor desde el resumen de compra.
  *
  * @props {number} requisicionId - El ID del RFQ que se va a cotizar.
  * @props {function} onBack - Callback para regresar a la vista anterior.
  */
 
 // --- Importaciones de Librerías y Componentes ---
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import api from "../api/api";
 import { toast } from "react-toastify";
@@ -26,13 +26,6 @@ import RFQFormActions from "./rfq/RFQFormActions";
 // ===============================================================================================
 // --- Lógica de Cálculo (Helper Function) ---
 // ===============================================================================================
-/**
- * @description Calcula los resúmenes de compra por proveedor. Esta lógica se comparte con
- * el componente ResumenCompra para asegurar consistencia.
- * @param {Array} materiales - El array de materiales del formulario.
- * @param {object} providerConfigs - El objeto con las configuraciones por proveedor.
- * @returns {Array} - Un arreglo con los objetos de resumen calculados.
- */
 const calcularResumenes = (materiales, providerConfigs) => {
   if (!materiales || materiales.length === 0) return [];
   const agrupado = {};
@@ -56,7 +49,6 @@ const calcularResumenes = (materiales, providerConfigs) => {
       }
     });
   });
-
   return Object.values(agrupado).map(grupo => {
     const defaultConfig = { moneda: 'MXN', ivaRate: '0.16', isIvaActive: true, isrRate: '0.0125', isIsrActive: false, forcedTotal: '0', isForcedTotalActive: false };
     const config = providerConfigs[grupo.proveedorId] || defaultConfig;
@@ -64,7 +56,6 @@ const calcularResumenes = (materiales, providerConfigs) => {
     const isrRateNum = parseFloat(config.isrRate) || 0;
     const forcedTotalNum = parseFloat(config.forcedTotal) || 0;
     const esCompraImportacion = grupo.items.some(item => item.esImportacionItem);
-
     let subTotal = 0;
     grupo.items.forEach(item => {
       let precioBase = item.precioUnitario;
@@ -73,15 +64,12 @@ const calcularResumenes = (materiales, providerConfigs) => {
       }
       subTotal += item.cantidad * precioBase;
     });
-
     const iva = (esCompraImportacion || !config.isIvaActive) ? 0 : subTotal * ivaRateNum;
     const retIsr = (esCompraImportacion || !config.isIsrActive) ? 0 : subTotal * isrRateNum;
     let total = config.isForcedTotalActive ? forcedTotalNum : subTotal + iva - retIsr;
-
     return { proveedorId: grupo.proveedorId, subTotal, iva, retIsr, total, config };
   });
 };
-
 
 // ===============================================================================================
 // --- Componente Principal: G_RFQForm ---
@@ -93,9 +81,9 @@ export default function G_RFQForm({ requisicionId, onBack }) {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDataReady, setIsDataReady] = useState(false);
-  const [archivosOpciones, setArchivosOpciones] = useState({});
   const [providerConfigs, setProviderConfigs] = useState({});
   const [lastUsedProvider, setLastUsedProvider] = useState(null);
+  const [archivosProveedor, setArchivosProveedor] = useState({});
 
   // --- Configuración de `react-hook-form` ---
   const { control, handleSubmit, reset, watch, setValue } = useForm({ defaultValues: { materiales: [] } });
@@ -143,33 +131,23 @@ export default function G_RFQForm({ requisicionId, onBack }) {
   }, [requisicionId, reset]);
 
   // --- Manejadores de Eventos y Lógica de Envío ---
-  const handleFilesChange = (materialIndex, opcionIndex, files) => {
-    const uniqueKey = `${materialIndex}-${opcionIndex}`;
-    setArchivosOpciones(prev => ({ ...prev, [uniqueKey]: files }));
+  const handleProviderFileChange = (proveedorId, files) => {
+    setArchivosProveedor(prev => ({ ...prev, [proveedorId]: files }));
   };
   
-  /**
-   * @description Función principal para guardar el formulario.
-   * Construye un payload `FormData` robusto, asegurando que todos los datos
-   * financieros y de configuración sean válidos antes de enviarlos.
-   */
   const onSaveSubmit = async (data) => {
     setIsSaving(true);
     const formData = new FormData();
 
-    // --- MEJORA: Lógica de "Blindaje" para garantizar la integridad de los datos ---
-    // 1. Se define una configuración por defecto.
     const defaultConfig = { moneda: 'MXN', ivaRate: '0.16', isIvaActive: true, isrRate: '0.0125', isIsrActive: false, forcedTotal: '0', isForcedTotalActive: false };
     const safeProviderConfigs = { ...providerConfigs };
     
-    // 2. Se identifican todos los proveedores que han sido seleccionados ("Elegir").
     const selectedProviderIds = new Set(
       data.materiales.flatMap(m => m.opciones)
         .filter(o => o.seleccionado && o.proveedor?.id)
         .map(o => o.proveedor.id)
     );
 
-    // 3. Se asegura que cada proveedor seleccionado tenga una configuración válida.
     selectedProviderIds.forEach(id => {
       if (!safeProviderConfigs[id]) {
         safeProviderConfigs[id] = defaultConfig;
@@ -178,7 +156,6 @@ export default function G_RFQForm({ requisicionId, onBack }) {
       }
     });
 
-    // 4. Se construye el payload de OPCIONES, ahora enriquecido y seguro.
     const opcionesPayload = data.materiales.flatMap(m =>
       m.opciones.filter(o => o.proveedor && o.proveedor.id)
         .map(o => {
@@ -188,28 +165,23 @@ export default function G_RFQForm({ requisicionId, onBack }) {
     );
     formData.append('opciones', JSON.stringify(opcionesPayload));
 
-    // 5. Se calculan y añaden los RESÚMENES usando la configuración validada.
     const resumenesPayload = calcularResumenes(data.materiales, safeProviderConfigs);
     formData.append('resumenes', JSON.stringify(resumenesPayload));
     
-    // 6. Se adjuntan el código RFQ y los archivos.
     formData.append('rfq_code', requisicion.rfq_code);
-    data.materiales.forEach((material, matIndex) => {
-      material.opciones.forEach((opcion, opIndex) => {
-        if (opcion.proveedor && opcion.proveedor.id) {
-          const uniqueKey = `${matIndex}-${opIndex}`;
-          const archivos = archivosOpciones[uniqueKey];
-          if (archivos && archivos.length > 0) {
-            archivos.forEach(file => formData.append(`cotizacion-${opcion.proveedor.id}`, file, file.name));
-          }
-        }
-      });
-    });
+    
+    for (const proveedorId in archivosProveedor) {
+      const archivos = archivosProveedor[proveedorId];
+      if (archivos && archivos.length > 0) {
+        archivos.forEach(file => {
+          formData.append(`cotizacion-archivo-${proveedorId}`, file);
+        });
+      }
+    }
 
-    // 7. Se envía la petición a la API.
     try {
       await api.post(`/api/rfq/${requisicionId}/opciones`, formData);
-      toast.success("Comparativa y detalles financieros guardados con éxito.");
+      toast.success("Comparativa y archivos guardados con éxito.");
     } catch (err) {
       toast.error(err.error || "Error al guardar la comparativa.");
     } finally {
@@ -250,7 +222,6 @@ export default function G_RFQForm({ requisicionId, onBack }) {
                 control={control}
                 materialIndex={index}
                 setValue={setValue}
-                onFilesChange={handleFilesChange}
                 lastUsedProvider={lastUsedProvider}
                 setLastUsedProvider={setLastUsedProvider}
               />
@@ -262,6 +233,8 @@ export default function G_RFQForm({ requisicionId, onBack }) {
               lugar_entrega={requisicion?.lugar_entrega}
               providerConfigs={providerConfigs}
               setProviderConfigs={setProviderConfigs}
+              onFilesChange={handleProviderFileChange}
+              archivosPorProveedor={archivosProveedor}
             />
           </div>
         </div>
