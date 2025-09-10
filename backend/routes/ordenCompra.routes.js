@@ -38,4 +38,7 @@ router.post(
     ocController.autorizarOrdenDeCompra
 );
 
+router.get("/:id/pdf", ocController.descargarOcPdf);
+
+
 module.exports = router;

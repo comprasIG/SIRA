@@ -11,7 +11,7 @@ app.use(express.json());
 app.use(cors());
 
 // Rutas
-const requisicionesRoutes = require('./routes/requisiciones.routes');
+const requisicionesRoutes = require('./routes/requisiciones.routes'); // <-- IMPORTA el nuevo archivo de rutas
 app.use('/api/requisiciones', requisicionesRoutes);
 
 const proyectosRoutes = require('./routes/proyectos.routes');
@@ -52,6 +52,9 @@ app.use('/api/ocs', ordenCompraRoutes);
 
 const monedaRoutes = require('./routes/moneda.routes')
 app.use('/api/monedas', monedaRoutes);
+
+const notificacionesRoutes = require('./routes/configuracion/notificaciones.routes'); 
+app.use('/api/configuracion/notificaciones', notificacionesRoutes);
 
 // Ruta base de prueba
 app.get('/', (req, res) => {

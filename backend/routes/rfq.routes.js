@@ -1,7 +1,7 @@
 // C:\SIRA\backend\routes\rfq.routes.js
 /**
  * =================================================================================================
- * RUTAS: Solicitudes de Cotización (RFQs)
+ * RUTAS: Solicitudes de Cotización (RFQs) (Con Orden Corregido)
  * =================================================================================================
  */
 const express = require("express");
@@ -9,26 +9,27 @@ const router = express.Router();
 const multer = require('multer');
 const verifyFirebaseToken = require("../middleware/verifyFirebaseToken");
 const loadSiraUser = require("../middleware/loadSiraUser");
-const rfqController = require("../controllers/rfq.controller");
 
-// Configuración de Multer para manejar archivos en memoria.
+const genController = require('../controllers/rfq/generacion.controller');
+const vbController = require('../controllers/rfq/vistoBueno.controller');
+
 const upload = multer({ storage: multer.memoryStorage() });
-
-// Aplica middlewares de autenticación a todas las rutas de este archivo.
 router.use(verifyFirebaseToken, loadSiraUser);
 
-// --- Rutas para obtener listas ---
-router.get("/pendientes", rfqController.getRequisicionesCotizando);
-router.get("/por-aprobar", rfqController.getRfqsPorAprobar);
+// --- ¡CORRECCIÓN! Rutas específicas primero ---
+router.get("/pendientes", genController.getRequisicionesCotizando);
+router.get("/por-aprobar", vbController.getRfqsPorAprobar);
 
-// --- Rutas para acciones sobre un RFQ específico ---
-router.get("/:id", rfqController.getRfqDetalle);
-router.post("/:id/opciones", upload.any(), rfqController.guardarOpcionesRfq);
-router.post("/:id/enviar-a-aprobacion", rfqController.enviarRfqAprobacion);
-router.post("/:id/cancelar", rfqController.cancelarRfq);
-router.post("/:id/rechazar", rfqController.rechazarRfq);
+// --- Rutas que pertenecen al controlador de GENERACIÓN (Comprador) ---
+router.post("/:id/opciones", upload.any(), genController.guardarOpcionesRfq);
+router.post("/:id/enviar-a-aprobacion", genController.enviarRfqAprobacion);
+router.post("/:id/cancelar", genController.cancelarRfq);
 
-// --- Ruta principal para la acción del Gerente/Aprobador ---
-router.post("/:id/generar-ocs", rfqController.generarOcsDesdeRfq);
+// --- Rutas que pertenecen al controlador de VISTO BUENO (Gerente) ---
+router.post("/:id/rechazar", vbController.rechazarRfq);
+router.post("/:id/generar-ocs", vbController.generarOcsDesdeRfq);
+
+// --- ¡CORRECCIÓN! La ruta genérica con :id va al final ---
+router.get("/:id", genController.getRfqDetalle);
 
 module.exports = router;

@@ -29,7 +29,7 @@ import Error403 from "./pages/Error403";
 import Error404 from "./pages/Error404";
 import AgregarProducto from "./pages/AgregarProducto";
 import ListaProductos from "./pages/ListaProductos";
-
+import NotificacionesPage from './pages/NotificacionesPage';
 
 
 
@@ -69,9 +69,8 @@ console.log(import.meta.env.VITE_API_URL); // Verifica que la variable de entorn
           <Route path="/VB_RFQ" element={<RutaProtegida permiso="VB_RFQ"><MainLayout><VB_RFQ /></MainLayout></RutaProtegida>} />
           <Route path="/USUARIOS" element={<RutaProtegida permiso="USUARIOS"><MainLayout><USUARIOS /></MainLayout></RutaProtegida>} />
           <Route path="/agregar-producto" element={<RutaProtegida permiso="AGREGAR_PRODUCTO"><MainLayout><AgregarProducto /></MainLayout></RutaProtegida>} />
-          <Route path="/lista-producto" element={<RutaProtegida permiso="AGREGAR_PRODUCTO"><MainLayout><ListaProductos /></MainLayout></RutaProtegida>}
-          
-/>
+          <Route path="/lista-producto" element={<RutaProtegida permiso="AGREGAR_PRODUCTO"><MainLayout><ListaProductos /></MainLayout></RutaProtegida>}/>
+          <Route  path="/config/notificaciones" element={<RutaProtegida permiso="SUPERUSUARIO"><MainLayout> <NotificacionesPage /></MainLayout></RutaProtegida>}/>
           {/* Redirección y página no encontrada */}
           <Route path="/" element={<Navigate to={usuario ? "/dashboard" : "/login"} replace />} />
           <Route path="*" element={<Error404 />} />

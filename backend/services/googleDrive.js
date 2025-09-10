@@ -104,15 +104,14 @@ const uploadQuoteFiles = async (files, rfqCode, providerName) => {
  * @param {string} requisitionNumber - Número de requisición para la subcarpeta.
  * @returns {Promise<object>} - Datos del archivo subido (id, name, webViewLink).
  */
-const uploadPdfBuffer = async (pdfBuffer, fileName, departmentAbbreviation, requisitionNumber) => {
+const uploadPdfBuffer = async (pdfBuffer, fileName, rootFolderName, subFolderName) => {
   try {
     const drive = google.drive({ version: 'v3', auth: oauth2Client });
-    // Se reutiliza la misma estructura de carpetas que la subida de adjuntos
-    const requisicionesFolderId = await findOrCreateFolder(drive, DRIVE_FOLDER_ID, 'REQUISICIONES');
-    const departmentFolderId = await findOrCreateFolder(drive, requisicionesFolderId, departmentAbbreviation);
-    const targetFolderId = await findOrCreateFolder(drive, departmentFolderId, requisitionNumber);
+    
+    // --- MEJORA: La lógica ahora es más genérica ---
+    const rootFolderId = await findOrCreateFolder(drive, DRIVE_FOLDER_ID, rootFolderName); // Ej: 'REQUISICIONES' o 'ORDENES DE COMPRA (PDF)'
+    const targetFolderId = await findOrCreateFolder(drive, rootFolderId, subFolderName); // Ej: 'SSD_0077' o 'OC-99'
 
-    // Se convierte el Buffer a un stream legible para la API
     const bufferStream = new stream.PassThrough();
     bufferStream.end(pdfBuffer);
 
@@ -122,13 +121,10 @@ const uploadPdfBuffer = async (pdfBuffer, fileName, departmentAbbreviation, requ
       fields: 'id, name, webViewLink',
     });
 
-    console.log(`PDF de requisición subido a Drive: ${fileName}`);
+    console.log(`PDF subido a Drive en carpeta ${rootFolderName}: ${fileName}`);
     return result.data;
-
   } catch (error) {
-    console.error(`Error durante la subida del PDF ${fileName}:`, error);
-    // No lanzamos el error para no detener el proceso, pero lo registramos.
-    // En un futuro, se podría implementar un sistema de reintentos.
+    // ...
   }
 };
 

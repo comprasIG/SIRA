@@ -5,6 +5,7 @@ import { useAuth } from "../../context/authContext";
 import clsx from "clsx";
 import React, { useEffect, useRef } from 'react';
 
+
 // Iconos de Material-UI
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import DescriptionIcon from '@mui/icons-material/Description';
@@ -18,6 +19,8 @@ import GroupIcon from '@mui/icons-material/Group';
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
 import AddBusinessOutlinedIcon from '@mui/icons-material/AddBusinessOutlined';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'; // Icono para la nueva opción
+
 
 export default function Sidebar({ isOpen, toggleSidebar }) {
   const { funcionesPermitidas, usuario } = useAuth();
@@ -71,9 +74,16 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
         { label: "Usuarios", to: "/USUARIOS", permiso: "USUARIOS", icon: <GroupIcon sx={{ fontSize: 20 }} /> },
         { label: "Agregar Producto", to: "/agregar-producto", permiso: "AGREGAR_PRODUCTO", icon: <AddBusinessOutlinedIcon sx={{ fontSize: 20 }} /> },
         { label: "Ver Productos", to: "/lista-producto", permiso: "AGREGAR_PRODUCTO", icon: <FactCheckOutlinedIcon sx={{ fontSize: 20 }} /> },
+         { 
+          label: "Grupos de Notificación", 
+          to: "/config/notificaciones", 
+          permiso: "SUPERUSUARIO", // Usamos un permiso especial que solo el superusuario tendrá
+          icon: <AdminPanelSettingsIcon sx={{ fontSize: 20 }} /> 
+        },
       ],
     },
   ];
+
 
   const linkBaseStyle = "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors duration-200";
   const linkInactiveStyle = "text-gray-300 hover:bg-gray-700 hover:text-white";
@@ -86,10 +96,14 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
     }
   };
 
-  const renderMenuItems = (group) => {
+   const renderMenuItems = (group) => {
     if (usuario?.es_superusuario) {
-      return group.items.map(renderLink);
+      // El superusuario ve todos los ítems que no tengan un permiso específico o que tengan el permiso SUPERUSUARIO
+      return group.items
+        .filter(item => !item.permiso || funcionesPermitidas.includes(item.permiso) || item.permiso === "SUPERUSUARIO")
+        .map(renderLink);
     }
+    // Los usuarios normales ven solo los ítems a los que tienen permiso explícito
     return group.items
       .filter(item => funcionesPermitidas.includes(item.permiso))
       .map(renderLink);

@@ -1,20 +1,19 @@
 //C:\SIRA\sira-front\src\components\vb_rfq\RfqInfoModal.jsx
 /**
  * =================================================================================================
- * COMPONENTE: RfqInfoModal
+ * COMPONENTE: RfqInfoModal (Versión Dashboard)
  * =================================================================================================
- * @file RfqInfoModal.jsx
- * @description Muestra un resumen financiero completo de las opciones de compra
- * seleccionadas por el comprador para un RFQ.
+ * @description Muestra un resumen tipo dashboard del estado de un RFQ, incluyendo
+ * contadores de progreso, resumen financiero de OCs generadas/pendientes y anexos.
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../../api/api';
 import { toast } from 'react-toastify';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, CircularProgress,
-  Typography, Box, Paper, List, ListItem, ListItemText, Divider
+  Typography, Box, Paper, List, ListItem, ListItemText, Divider, Grid, Link, Chip,Alert
 } from '@mui/material';
-// Reutilizamos la misma lógica de cálculo que el modal de aprobación
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { calcularResumenParaModal } from './vbRfqUtils';
 
 export default function RfqInfoModal({ open, onClose, rfqId }) {
@@ -32,69 +31,83 @@ export default function RfqInfoModal({ open, onClose, rfqId }) {
         }
     }, [open, rfqId]);
 
-    // --- Lógica para agrupar las opciones ganadoras por proveedor ---
-    const resumenesPorProveedor = useMemo(() => {
-        if (!details) return [];
-        const agrupado = {};
+    const { ocsPendientes, ocsGeneradas, totalLineas, lineasProcesadas, anexos } = useMemo(() => {
+        if (!details) return { ocsPendientes: [], ocsGeneradas: [], totalLineas: 0, lineasProcesadas: 0, anexos: [] };
+        
+        const agrupadoPendiente = {};
+        const agrupadoGenerado = {};
+
         details.materiales.forEach(material => {
             const opcionGanadora = material.opciones.find(op => op.seleccionado === true);
-            if (opcionGanadora) {
+            if (!opcionGanadora) return;
+
+            if (material.status_compra === 'PENDIENTE') {
                 const provId = opcionGanadora.proveedor_id;
-                if (!agrupado[provId]) {
-                    agrupado[provId] = {
-                        nombre: opcionGanadora.proveedor_razon_social || opcionGanadora.proveedor_nombre,
-                        opciones: [],
-                    };
+                if (!agrupadoPendiente[provId]) {
+                    agrupadoPendiente[provId] = { nombre: opcionGanadora.proveedor_razon_social, opciones: [] };
                 }
-                agrupado[provId].opciones.push({ ...opcionGanadora, materialNombre: material.material });
+                agrupadoPendiente[provId].opciones.push({ ...opcionGanadora, materialNombre: material.material });
+            } else {
+                const ocId = Number(material.status_compra);
+                 if (!agrupadoGenerado[ocId]) {
+                    agrupadoGenerado[ocId] = { opciones: [] };
+                }
+                agrupadoGenerado[ocId].opciones.push(opcionGanadora);
             }
         });
         
-        // Calculamos los totales para cada grupo
-        return Object.values(agrupado).map(grupo => ({
-            ...grupo,
-            resumenFinanciero: calcularResumenParaModal(grupo.opciones)
-        }));
+        const ocsPendientes = Object.values(agrupadoPendiente).map(g => ({ ...g, resumen: calcularResumenParaModal(g.opciones) }));
+        const ocsGeneradas = Object.values(agrupadoGenerado).map(g => ({ ...g, resumen: calcularResumenParaModal(g.opciones) }));
+        
+        const lineasProcesadas = details.materiales.filter(m => m.status_compra !== 'PENDIENTE').length;
+
+        return { ocsPendientes, ocsGeneradas, totalLineas: details.materiales.length, lineasProcesadas, anexos: details.adjuntos };
     }, [details]);
 
     return (
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-            <DialogTitle>Resumen de Compras para RFQ: <strong>{details?.rfq_code}</strong></DialogTitle>
+            <DialogTitle>Dashboard de RFQ: <strong>{details?.rfq_code}</strong></DialogTitle>
             <DialogContent dividers>
                 {loading || !details ? <CircularProgress /> : (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        {resumenesPorProveedor.map((grupo, index) => (
-                            <Paper key={index} variant="outlined" sx={{ p: 2 }}>
-                                <Typography variant="h6" gutterBottom>{grupo.nombre}</Typography>
-                                <List dense>
-                                    {grupo.opciones.map(item => (
-                                        <ListItem key={item.id} disableGutters>
-                                            <ListItemText 
-                                                primary={item.materialNombre}
-                                                secondary={`Cant: ${Number(item.cantidad_cotizada).toFixed(2)} @ $${Number(item.precio_unitario).toFixed(4)}`}
-                                            />
-                                        </ListItem>
-                                    ))}
-                                </List>
-                                <Divider sx={{ my: 1 }} />
-                                <Box>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography variant="body2">Subtotal:</Typography><Typography variant="body2">${grupo.resumenFinanciero.subTotal.toFixed(2)}</Typography></Box>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography variant="body2">IVA:</Typography><Typography variant="body2">${grupo.resumenFinanciero.iva.toFixed(2)}</Typography></Box>
-                                    {grupo.resumenFinanciero.retIsr > 0 && <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography variant="body2" color="error">Ret. ISR:</Typography><Typography variant="body2" color="error">-${grupo.resumenFinanciero.retIsr.toFixed(2)}</Typography></Box>}
-                                    <Divider sx={{ my: 1 }} />
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
-                                        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>Total ({grupo.resumenFinanciero.moneda}):</Typography>
-                                        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>${grupo.resumenFinanciero.total.toFixed(2)}</Typography>
-                                    </Box>
-                                </Box>
+                    <Grid container spacing={2}>
+                        <Grid item xs={12}>
+                            <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
+                                <Typography variant="h6">Progreso de Generación de OCs</Typography>
+                                <Typography variant="h4">{lineasProcesadas} / {totalLineas}</Typography>
+                                <Typography variant="body2" color="text.secondary">Líneas de material con OC generada</Typography>
                             </Paper>
-                        ))}
-                    </Box>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                            <Typography variant="subtitle1" gutterBottom sx={{fontWeight: 'bold'}}>Pendiente de Generar</Typography>
+                            {ocsPendientes.length > 0 ? ocsPendientes.map((g, i) => (
+                                <Paper key={i} variant="outlined" sx={{ p: 2, mb: 1 }}>
+                                    <Typography variant="body1"><strong>{g.nombre}</strong></Typography>
+                                    <Typography variant="body2">Total: ${g.resumen.total.toFixed(2)} {g.resumen.moneda}</Typography>
+                                </Paper>
+                            )) : <Alert severity="success">No hay OCs pendientes.</Alert>}
+                        </Grid>
+                         <Grid item xs={12} md={6}>
+                            <Typography variant="subtitle1" gutterBottom sx={{fontWeight: 'bold'}}>OCs ya Generadas</Typography>
+                            {ocsGeneradas.length > 0 ? ocsGeneradas.map((g, i) => (
+                                <Paper key={i} variant="outlined" sx={{ p: 2, mb: 1 }}>
+                                     <Typography variant="body1"><strong>Total: ${g.resumen.total.toFixed(2)} {g.resumen.moneda}</strong></Typography>
+                                </Paper>
+                            )) : <Alert severity="info">Aún no se han generado OCs.</Alert>}
+                        </Grid>
+                        {anexos.length > 0 && <Grid item xs={12}>
+                            <Typography variant="subtitle1" gutterBottom sx={{fontWeight: 'bold'}}>Anexos de Requisición</Typography>
+                             <List dense>
+                                {anexos.map(file => (
+                                    <ListItem key={file.id} component={Link} href={file.ruta_archivo} target="_blank" button>
+                                        <AttachFileIcon sx={{ mr: 1, fontSize: '1rem' }} /> {file.nombre_archivo}
+                                    </ListItem>
+                                ))}
+                            </List>
+                        </Grid>}
+                    </Grid>
                 )}
             </DialogContent>
-            <DialogActions>
-                <Button onClick={onClose}>Cerrar</Button>
-            </DialogActions>
+            <DialogActions><Button onClick={onClose}>Cerrar</Button></DialogActions>
         </Dialog>
     );
 }

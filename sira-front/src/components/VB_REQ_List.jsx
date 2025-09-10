@@ -157,18 +157,29 @@ export default function VB_REQ_List({ onEdit }) {
 
             toast.success('Requisición aprobada y notificada con éxito.');
             fetchRequisiciones();
-
-        } catch (err) {
+      } catch (err) {
+            // --- ¡LA CORRECCIÓN ESTÁ AQUÍ! ---
+            // Manejo de errores robusto cuando se espera un blob pero se recibe un JSON.
             console.error("Error en el proceso de aprobación:", err);
-            if (err.response && err.response.data) {
-                toast.error(err.response.data.error || 'Error del servidor al aprobar.');
-            } else if (err.message) {
-                toast.error(err.message);
+
+            if (err.response && err.response.data && err.response.data.toString() === "[object Blob]") {
+                // Si el error es un blob, intentamos leerlo como texto/JSON.
+                const errorData = await err.response.data.text();
+                try {
+                    const errorJson = JSON.parse(errorData);
+                    toast.error(errorJson.error || 'Error del servidor al aprobar.');
+                } catch (e) {
+                    toast.error('Ocurrió un error inesperado al procesar la aprobación.');
+                }
+            } else if (err.error) {
+                // Si el error ya viene parseado en nuestro wrapper de api.js
+                toast.error(err.error);
             } else {
-                toast.error('Ocurrió un error inesperado al procesar la aprobación.');
+                toast.error('Ocurrió un error inesperado en la red.');
             }
         } finally {
-            setProcessingId(null); // Clear the ID to re-enable buttons
+            // Este bloque ahora SÍ se ejecutará siempre, desbloqueando la UI.
+            setProcessingId(null);
         }
     };
 

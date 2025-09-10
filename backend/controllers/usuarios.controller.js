@@ -122,6 +122,36 @@ const getUsuarioActual = async (req, res) => {
 /**
  * Crea un nuevo usuario SIRA en la base de datos.
  */
+/**
+ * =================================================================================================
+ * ¡NUEVA FUNCIÓN!
+ * =================================================================================================
+
+ * @route   GET /api/usuarios/search
+ * @desc    Busca usuarios por nombre para el componente Autocomplete.
+ * @access  Privado (requiere autenticación)
+ */
+const searchUsuarios = async (req, res) => {
+    const { query } = req.query; // Obtiene el término de búsqueda de la URL (ej. ?query=Agustin)
+
+    if (!query || query.length < 3) {
+        return res.json([]); // No busca si el término es muy corto
+    }
+
+    try {
+        const searchTerm = `%${query}%`; // Prepara el término para la búsqueda LIKE
+        const result = await pool.query(
+            `SELECT id, nombre, correo FROM usuarios WHERE unaccent(nombre) ILIKE unaccent($1) AND activo = true LIMIT 10`,
+            [searchTerm]
+        );
+        res.status(200).json(result.rows);
+    } catch (error) {
+        console.error("Error al buscar usuarios:", error);
+        res.status(500).json({ error: "Error interno del servidor." });
+    }
+};
+
+
 const crearUsuario = async (req, res) => {
   const {
     nombre,
@@ -175,4 +205,5 @@ module.exports = {
   getUsuariosConFunciones,
   crearUsuario,
   getUsuarioActual, 
+  searchUsuarios,
 };
