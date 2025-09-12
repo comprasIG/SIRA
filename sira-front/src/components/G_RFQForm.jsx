@@ -170,14 +170,15 @@ export default function G_RFQForm({ requisicionId, onBack }) {
     
     formData.append('rfq_code', requisicion.rfq_code);
     
-    for (const proveedorId in archivosProveedor) {
-      const archivos = archivosProveedor[proveedorId];
-      if (archivos && archivos.length > 0) {
-        archivos.forEach(file => {
-          formData.append(`cotizacion-archivo-${proveedorId}`, file);
-        });
-      }
-    }
+for (const proveedorId in archivosProveedor) {
+  const archivos = archivosProveedor[proveedorId];
+  if (archivos && archivos.length > 0) {
+    // El nombre del campo ahora identifica al proveedor.
+    archivos.forEach(file => {
+      formData.append(`cotizacion-archivo-${proveedorId}`, file);
+    });
+  }
+}
 
     try {
       await api.post(`/api/rfq/${requisicionId}/opciones`, formData);

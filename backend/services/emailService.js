@@ -1,5 +1,10 @@
 // C:\SIRA\backend\services\emailService.js
-
+/**
+ * =================================================================================================
+ * SERVICIO: Envío de Correo (Versión Mejorada)
+ * =================================================================================================
+ * @description Envía correos electrónicos con soporte para múltiples archivos adjuntos.
+ */
 const nodemailer = require('nodemailer');
 require('dotenv').config(); 
 
@@ -7,7 +12,7 @@ require('dotenv').config();
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: process.env.SMTP_PORT,
-    secure: true,
+    secure: true, // true para 465, false para otros puertos
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASSWORD,
@@ -15,44 +20,30 @@ const transporter = nodemailer.createTransport({
 });
 
 /**
- * Envía un correo electrónico con un único PDF adjunto de forma segura.
+ * =================================================================================================
+ * --- ¡NUEVA FUNCIÓN PRINCIPAL! ---
+ * =================================================================================================
+ * @description Envía un correo electrónico con múltiples archivos adjuntos.
  * @param {string[]} recipients - Arreglo de correos de los destinatarios.
  * @param {string} subject - Asunto del correo.
  * @param {string} htmlBody - Cuerpo del correo en HTML.
- * @param {Buffer} pdfBuffer - El PDF generado en memoria (Buffer).
- * @param {string} fileName - Nombre del archivo adjunto.
+ * @param {Array<object>} attachments - Un ARREGLO de objetos de adjuntos.
+ * Cada objeto debe tener { filename: 'nombre.pdf', content: bufferDeArchivo }.
  */
-const sendRequisitionEmail = async (recipients, subject, htmlBody, pdfBuffer, fileName) => {
-    
-    // --- Lógica Defensiva ---
-    // 1. Creamos un arreglo de adjuntos vacío.
-    const attachments = [];
+const sendEmailWithAttachments = async (recipients, subject, htmlBody, attachments = []) => {
+    // Filtramos para asegurarnos de que solo se incluyan adjuntos válidos.
+    const validAttachments = attachments.filter(att => att && att.filename && att.content);
 
-    // 2. Verificamos que el buffer del PDF y el nombre del archivo existan antes de añadirlo.
-    // Esto previene errores si la generación del PDF fallara silenciosamente.
-    if (pdfBuffer && fileName) {
-        attachments.push({
-            filename: fileName,
-            content: pdfBuffer,
-            contentType: 'application/pdf',
-        });
-    }
-
-    // --- Opciones del Correo ---
     const mailOptions = {
         from: `"SIRA PROJECT" <${process.env.SMTP_USER}>`,
         to: recipients.join(', '),
         subject: subject,
         html: htmlBody,
-        // 3. Asignamos nuestro arreglo de adjuntos construido de forma segura.
-        attachments: attachments,
+        attachments: validAttachments, // Asignamos el arreglo de adjuntos
     };
 
-    // --- Registro Detallado para Depuración ---
-    // Esta línea nos dirá en la consola del backend exactamente cuántos archivos se van a enviar.
-    console.log(`Preparando para enviar correo a [${recipients.join(', ')}] con ${attachments.length} archivo(s) adjunto(s).`);
+    console.log(`Preparando para enviar correo a [${recipients.join(', ')}] con ${validAttachments.length} archivo(s) adjunto(s).`);
 
-    // --- Lógica de Envío ---
     try {
         const info = await transporter.sendMail(mailOptions);
         console.log('Correo de notificación enviado con éxito:', info.messageId);
@@ -63,6 +54,27 @@ const sendRequisitionEmail = async (recipients, subject, htmlBody, pdfBuffer, fi
     }
 };
 
+
+/**
+ * =================================================================================================
+ * --- FUNCIÓN ANTIGUA (Ahora es un atajo a la nueva) ---
+ * =================================================================================================
+ * @description Envía un correo con un único PDF. Mantenida por retrocompatibilidad.
+ */
+const sendRequisitionEmail = async (recipients, subject, htmlBody, pdfBuffer, fileName) => {
+    const attachments = [];
+    if (pdfBuffer && fileName) {
+        attachments.push({
+            filename: fileName,
+            content: pdfBuffer,
+            contentType: 'application/pdf',
+        });
+    }
+    // Llama a la nueva función principal para hacer el trabajo.
+    return sendEmailWithAttachments(recipients, subject, htmlBody, attachments);
+};
+
 module.exports = {
     sendRequisitionEmail,
+    sendEmailWithAttachments, // <-- Se exporta la nueva función
 };

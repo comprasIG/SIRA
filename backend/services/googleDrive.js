@@ -163,10 +163,33 @@ const uploadQuoteFile = async (fileObject, rfqCode, providerName) => {
     }
 };
 
+/**
+ * =================================================================================================
+ * --- ¡NUEVA FUNCIÓN! ---
+ * =================================================================================================
+ * @description Descarga el contenido de un archivo de Google Drive a un buffer en memoria.
+ * @param {string} fileId - El ID del archivo en Google Drive.
+ * @returns {Promise<Buffer>} - Un buffer con los datos del archivo.
+ */
+const downloadFileBuffer = async (fileId) => {
+    try {
+        const drive = google.drive({ version: 'v3', auth: oauth2Client });
+        const response = await drive.files.get(
+            { fileId: fileId, alt: 'media' },
+            { responseType: 'arraybuffer' }
+        );
+        return Buffer.from(response.data);
+    } catch (error) {
+        console.error(`Error al descargar el archivo ${fileId} de Drive:`, error);
+        throw new Error(`No se pudo descargar el archivo de Drive con ID ${fileId}.`);
+    }
+};
+
 
 module.exports = { 
     uploadRequisitionFiles,
     uploadQuoteFiles,
     uploadPdfBuffer, 
-     uploadQuoteFile,
+    uploadQuoteFile,
+    downloadFileBuffer,
 };
