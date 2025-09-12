@@ -85,8 +85,8 @@ const EditarProductoModal = ({ producto, onClose, onUpdate }) => {
               <option value="8">Milímetro (MM)</option>
               <option value="9">Pulgada (IN)</option>
               <option value="10">Tonelada (T)</option>
-              <option value="11">Par (PAR)</option>
-              <option value="12">Tramo (TM)</option>
+              <option value="91">Par (PAR)</option>
+              <option value="92">Tramo (TM)</option>
             </select>
           </div>
           <div className="flex items-center">

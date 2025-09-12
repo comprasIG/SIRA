@@ -173,11 +173,11 @@ delete payload.nombre;
             <option value="5">Kit (KIT)</option>
             <option value="6">Metro (M)</option>
             <option value="7">Centimetro (CM)</option>
-            <option value="6">Milimetro (MM)</option>
-            <option value="6">Pulgada (IN)</option>
-            <option value="6">T (T)</option>
-            <option value="6">Par (PAR)</option>
-            <option value="6">Tramo (TM)</option>
+            <option value="8">Milimetro (MM)</option>
+            <option value="9">Pulgada (IN)</option>
+            <option value="10">T (T)</option>
+            <option value="91">Par (PAR)</option>
+            <option value="92">Tramo (TM)</option>
         </select>
         </div>
 
