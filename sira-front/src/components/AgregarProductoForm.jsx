@@ -239,7 +239,7 @@ delete payload.nombre;
               activo: true,
             })
           }
-          className="w-full md:w-auto flex items-center justify-center gap-2 bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold shadow-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-300 transform hover:scale-105"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-indigo-500 text-indigo-600 font-semibold uppercase rounded-md shadow-sm hover:bg-indigo-50 transition"
         >
           {/*Es el icono para el boton borrar*/}
           <CleaningServicesIcon fontSize="small"/>
@@ -247,7 +247,7 @@ delete payload.nombre;
         </button>
         <button
           type="submit"
-          className="w-full md:w-auto flex items-center justify-center gap-2 bg-indigo-600 text-white px-8 py-3 rounded-lg font-bold text-lg shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105 hover:shadow-xl"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white font-semibold uppercase rounded-md shadow-sm hover:bg-indigo-700 transition"
         >
           {/*Es el icono para el boton Guardar*/}
           <AddCircleOutlineIcon />

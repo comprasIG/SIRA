@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
+import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
+import SaveAsOutlinedIcon from '@mui/icons-material/SaveAsOutlined';
 
 const inputStyle =
   "mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm";
@@ -92,8 +94,8 @@ const EditarProductoModal = ({ producto, onClose, onUpdate }) => {
             <label htmlFor="activo" className="ml-2 block text-sm text-gray-700">Activo</label>
           </div>
           <div className="flex justify-end gap-4 mt-6">
-            <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">Cancelar</button>
-            <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Guardar Cambios</button>
+            <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"><CancelOutlinedIcon/> Cancelar</button>
+            <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"><SaveAsOutlinedIcon/> Guardar Cambios</button>
           </div>
         </form>
             </div>
