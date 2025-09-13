@@ -1,25 +1,26 @@
 //C:\SIRA\sira-front\src\components\vb_rfq\RfqApprovalModal.jsx
 /**
  * =================================================================================================
- * COMPONENTE: RfqApprovalModal (Versión Final con Descarga Segura)
+ * COMPONENTE: RfqApprovalModal (Con Compras Divididas y Loader Global)
  * =================================================================================================
  * @file RfqApprovalModal.jsx
- * @description Permite al gerente generar Órdenes de Compra de forma individual.
- * Tras generar la OC, inicia una descarga segura del PDF en el navegador del usuario.
+ * @description Este modal ahora permite generar OCs para compras divididas (múltiples
+ * proveedores para un mismo material) y utiliza una función 'setGlobalLoading' para
+ * activar un loader en toda la pantalla durante la generación de la OC.
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../../api/api';
 import { toast } from 'react-toastify';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, CircularProgress,
-  Paper, Typography, Alert, List, ListItem, ListItemText, Divider
+  Paper, Typography, Alert, List, ListItem, ListItemText, Divider, Link, ListItemIcon
 } from '@mui/material';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { calcularResumenParaModal } from './vbRfqUtils';
 
-export default function RfqApprovalModal({ open, onClose, rfqId, refreshList }) {
+export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, setGlobalLoading }) {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [processingId, setProcessingId] = useState(null);
 
   const fetchDetails = useCallback(async () => {
     if (!rfqId) return;
@@ -44,36 +45,37 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList }) 
 
   const ocsPendientes = useMemo(() => {
     if (!details) return [];
+    
     const agrupado = {};
     details.materiales.forEach(material => {
-      const opcionGanadora = material.opciones.find(op => op.seleccionado === true);
-      if (opcionGanadora && material.status_compra === 'PENDIENTE') {
-        const provId = opcionGanadora.proveedor_id;
-        if (!agrupado[provId]) {
-          agrupado[provId] = {
-            nombre: opcionGanadora.proveedor_razon_social || opcionGanadora.proveedor_nombre,
-            opciones: [],
-          };
+      // Usamos .filter() para encontrar TODAS las opciones seleccionadas.
+      const opcionesGanadoras = material.opciones.filter(op => op.seleccionado === true);
+      
+      opcionesGanadoras.forEach(opcion => {
+        if (material.status_compra === 'PENDIENTE') {
+          const provId = opcion.proveedor_id;
+          if (!agrupado[provId]) {
+            agrupado[provId] = {
+              nombre: opcion.proveedor_razon_social || opcion.proveedor_nombre,
+              opciones: [],
+              adjuntos: details.adjuntos_cotizacion?.filter(a => a.proveedor_id === provId) || []
+            };
+          }
+          agrupado[provId].opciones.push({ ...opcion, materialNombre: material.material });
         }
-        agrupado[provId].opciones.push({ ...opcionGanadora, materialNombre: material.material });
-      }
+      });
     });
+    
     return Object.values(agrupado).map(grupo => ({
       ...grupo,
       resumenFinanciero: calcularResumenParaModal(grupo.opciones)
     }));
   }, [details]);
 
-  // --- ¡NUEVA FUNCIÓN HELPER PARA LA DESCARGA SEGURA! ---
   const handleDownloadPdf = async (ocId) => {
     try {
         toast.info("Preparando descarga del PDF...");
-        // Se usa nuestro 'api' helper, que SÍ incluye el token de autenticación.
-        const response = await api.get(`/api/ocs/${ocId}/pdf`, {
-            responseType: 'blob',
-        });
-
-        // Lógica para crear un enlace temporal y activar la descarga.
+        const response = await api.get(`/api/ocs/${ocId}/pdf`, { responseType: 'blob' });
         const url = window.URL.createObjectURL(new Blob([response.data]));
         const link = document.createElement('a');
         link.href = url;
@@ -94,26 +96,21 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList }) 
     }
   };
 
-  // --- Manejador principal actualizado ---
   const handleGenerateOC = async (proveedorId) => {
-    setProcessingId(proveedorId);
+    setGlobalLoading(true); // Activa el loader global
     try {
       toast.info("Iniciando proceso de generación...");
       const response = await api.post(`/api/rfq/${rfqId}/generar-ocs`, { proveedorId });
       toast.success(response.mensaje);
-      
-      // --- ¡CORRECCIÓN! Se llama a la nueva función de descarga segura ---
       if (response.ocs && response.ocs.length > 0) {
-        const nuevaOc = response.ocs[0];
-        await handleDownloadPdf(nuevaOc.id);
+        await handleDownloadPdf(response.ocs[0].id);
       }
-      
       fetchDetails(); 
       refreshList();
     } catch (err) {
       toast.error(err.error || "Ocurrió un error al generar la OC.");
     } finally {
-      setProcessingId(null);
+      setGlobalLoading(false); // Desactiva el loader global
     }
   };
 
@@ -126,8 +123,6 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList }) 
             <Typography variant="h6" gutterBottom>OCs Pendientes de Generar</Typography>
             {ocsPendientes.length > 0 ? ocsPendientes.map((grupo, index) => {
               const provId = grupo.opciones[0].proveedor_id;
-              const isProcessing = processingId === provId;
-              
               return (
                 <Paper key={index} variant="outlined" sx={{ p: 2, mb: 2 }}>
                   <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>
@@ -143,6 +138,20 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList }) 
                       </ListItem>
                     ))}
                   </List>
+                  {grupo.adjuntos.length > 0 && (
+                    <>
+                      <Divider sx={{ my: 1 }} />
+                      <Typography variant="caption">Archivos de Cotización:</Typography>
+                      <List dense disablePadding>
+                        {grupo.adjuntos.map(file => (
+                          <ListItem key={file.id} component={Link} href={file.ruta_archivo} target="_blank" button dense>
+                            <ListItemIcon sx={{minWidth: '32px'}}><AttachFileIcon fontSize="small" /></ListItemIcon>
+                            <ListItemText primary={file.nombre_archivo} primaryTypographyProps={{ variant: 'body2' }} />
+                          </ListItem>
+                        ))}
+                      </List>
+                    </>
+                  )}
                   <Divider sx={{ my: 1 }} />
                   <Box sx={{ p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography variant="body2">Subtotal:</Typography><Typography variant="body2">${grupo.resumenFinanciero.subTotal.toFixed(2)}</Typography></Box>
@@ -154,14 +163,15 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList }) 
                       <Typography variant="body1" sx={{ fontWeight: 'bold' }}>${grupo.resumenFinanciero.total.toFixed(2)}</Typography>
                     </Box>
                   </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
                     <Button
                       variant="contained"
                       color="success"
                       onClick={() => handleGenerateOC(provId)}
-                      disabled={isProcessing}
+                      // Se deshabilita si el modal está cargando su propia data
+                      disabled={loading}
                     >
-                      {isProcessing ? <CircularProgress size={24} color="inherit" /> : 'Generar OC'}
+                      Generar OC
                     </Button>
                   </Box>
                 </Paper>

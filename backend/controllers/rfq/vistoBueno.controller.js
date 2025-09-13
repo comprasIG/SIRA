@@ -117,31 +117,44 @@ const generarOcsDesdeRfq = async (req, res) => {
             return acc;
         }, {});
 
-        const ocsGeneradasInfo = [];
+         const ocsGeneradasInfo = [];
 
-        // 4. Iterar sobre cada proveedor y procesar su OC.
         for (const provId in comprasPorProveedor) {
             const items = comprasPorProveedor[provId];
             const primerItem = items[0];
 
-            // a. Crear la cabecera y detalle de la OC en la base de datos.
             const ocInsertResult = await client.query(`INSERT INTO ordenes_compra (numero_oc, usuario_id, rfq_id, sitio_id, proyecto_id, lugar_entrega, sub_total, iva, total, impo, status, proveedor_id) VALUES ('OC-' || nextval('ordenes_compra_id_seq'), $1, $2, $3, $4, $5, $6, $7, $8, $9, 'POR_AUTORIZAR', $10) RETURNING id`, [usuarioId, rfqId, rfqData.sitio_id, rfqData.proyecto_id, rfqData.lugar_entrega, primerItem.subtotal, primerItem.iva, primerItem.total, items.some(i => i.es_importacion), provId]);
             const nuevaOcId = ocInsertResult.rows[0].id;
+
             for (const item of items) {
                 await client.query(`INSERT INTO ordenes_compra_detalle (orden_compra_id, requisicion_detalle_id, comparativa_precio_id, material_id, cantidad, precio_unitario, moneda, plazo_entrega) VALUES ($1, $2, $3, (SELECT material_id FROM requisiciones_detalle WHERE id=$2), $4, $5, $6, $7)`, [nuevaOcId, item.requisicion_detalle_id, item.id, item.cantidad_cotizada, item.precio_unitario, item.moneda, item.tiempo_entrega_valor ? `${item.tiempo_entrega_valor} ${item.tiempo_entrega_unidad}` : null]);
-                await client.query(`UPDATE requisiciones_detalle SET status_compra = $1 WHERE id = $2`, [nuevaOcId, item.requisicion_detalle_id]);
+                
+                // --- ¡LA CORRECCIÓN ESTÁ AQUÍ! ---
+                // La lógica para actualizar la cantidad procesada debe estar DENTRO del bucle de items.
+                await client.query(
+                    `UPDATE requisiciones_detalle SET cantidad_procesada = cantidad_procesada + $1 WHERE id = $2`,
+                    [item.cantidad_cotizada, item.requisicion_detalle_id]
+                );
+                await client.query(
+                    `UPDATE requisiciones_detalle SET status_compra = $1 WHERE id = $2 AND cantidad_procesada >= cantidad`,
+                    [nuevaOcId, item.requisicion_detalle_id]
+                );
             }
+           // b. Sumamos la cantidad de este item a la columna 'cantidad_procesada'.
+                await client.query(
+                    `UPDATE requisiciones_detalle 
+                     SET cantidad_procesada = cantidad_procesada + $1 
+                     WHERE id = $2`,
+                    [item.cantidad_cotizada, item.requisicion_detalle_id]
+                );
 
-            // b. Recolectar datos y generar el PDF de la OC.
-            const ocDataParaPdf = (await client.query(`SELECT oc.*, p.razon_social AS proveedor_razon_social, p.rfc AS proveedor_rfc, proy.nombre AS proyecto_nombre, s.nombre AS sitio_nombre, u.nombre as usuario_nombre, (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) as moneda, NOW() as fecha_aprobacion FROM ordenes_compra oc JOIN proveedores p ON oc.proveedor_id = p.id JOIN proyectos proy ON oc.proyecto_id = proy.id JOIN sitios s ON oc.sitio_id = s.id JOIN usuarios u ON oc.usuario_id = u.id WHERE oc.id = $1;`, [nuevaOcId])).rows[0];
-            const itemsDataParaPdf = (await client.query(`SELECT ocd.*, cm.nombre AS material_nombre, cu.simbolo AS unidad_simbolo FROM ordenes_compra_detalle ocd JOIN catalogo_materiales cm ON ocd.material_id = cm.id JOIN catalogo_unidades cu ON cm.unidad_de_compra = cu.id WHERE ocd.orden_compra_id = $1;`, [nuevaOcId])).rows;
-            const pdfBuffer = await generatePurchaseOrderPdf(ocDataParaPdf, itemsDataParaPdf);
-            const fileName = `OC-${ocDataParaPdf.numero_oc}_${primerItem.proveedor_marca}.pdf`;
-            const driveFile = await uploadPdfBuffer(pdfBuffer, fileName, 'ORDENES DE COMPRA (PDF)', ocDataParaPdf.numero_oc);
-            
-            // c. Preparar adjuntos para el correo: la OC y sus cotizaciones de respaldo.
-            const attachments = [{ filename: fileName, content: pdfBuffer, contentType: 'application/pdf' }];
-            const quoteFilesQuery = await client.query(`SELECT nombre_archivo, ruta_archivo FROM rfq_proveedor_adjuntos WHERE requisicion_id = $1 AND proveedor_id = $2`, [rfqId, provId]);
+                // c. Verificamos si la cantidad total ya fue cubierta para "cerrar" la línea.
+                await client.query(
+                    `UPDATE requisiciones_detalle
+                     SET status_compra = $1
+                     WHERE id = $2 AND cantidad_procesada >= cantidad`,
+                    [nuevaOcId, item.requisicion_detalle_id] // Usamos el ID de la OC como referencia de cierre
+                );
             for (const file of quoteFilesQuery.rows) {
                 try {
                     const fileId = file.ruta_archivo.split('/view')[0].split('/').pop();

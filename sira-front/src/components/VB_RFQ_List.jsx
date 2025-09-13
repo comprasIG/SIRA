@@ -6,7 +6,8 @@
  * @file VB_RFQ_List.jsx
  * @description Muestra la lista de RFQs pendientes de aprobación y orquesta las acciones
  * de ver información, editar, rechazar y abrir el modal de pre-aprobación.
- * @props {function} onEdit - Callback para abrir el formulario de cotización en modo edición.
+ * También gestiona un estado de carga global para mostrar un overlay en toda la
+ * pantalla durante acciones críticas.
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/api';
@@ -18,18 +19,21 @@ import {
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DoNotDisturbIcon from '@mui/icons-material/DoNotDisturb';
 import EditIcon from '@mui/icons-material/Edit';
-import InfoIcon from '@mui/icons-material/Info'; // Icono para el botón de información
+import InfoIcon from '@mui/icons-material/Info';
 import RfqApprovalModal from './vb_rfq/RfqApprovalModal';
-import RfqInfoModal from './vb_rfq/RfqInfoModal'; // Importamos el nuevo modal de información
+import RfqInfoModal from './vb_rfq/RfqInfoModal';
+import FullScreenLoader from './ui/FullScreenLoader'; // Asegúrate de que esta ruta sea correcta
 
 export default function VB_RFQ_List({ onEdit }) {
+  // --- Estados del Componente ---
   const [rfqs, setRfqs] = useState([]);
   const [loading, setLoading] = useState(true);
-  
-  // --- MEJORA: Separamos el estado de los dos modales para mayor claridad ---
   const [approvalModal, setApprovalModal] = useState({ open: false, rfqId: null });
   const [infoModal, setInfoModal] = useState({ open: false, rfqId: null });
+  // Estado para controlar el loader de pantalla completa
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
 
+  // --- Carga de Datos ---
   const fetchRfqs = useCallback(async () => {
     setLoading(true);
     try {
@@ -42,23 +46,32 @@ export default function VB_RFQ_List({ onEdit }) {
     }
   }, []);
 
-  useEffect(() => { fetchRfqs(); }, [fetchRfqs]);
+  useEffect(() => {
+    fetchRfqs();
+  }, [fetchRfqs]);
 
+  // --- Manejadores de Eventos ---
   const handleReject = (id) => {
     if (window.confirm("¿Estás seguro de RECHAZAR este RFQ? Se devolverá al comprador para su corrección.")) {
+      // Activamos el loader global para la acción de rechazar
+      setIsProcessingAction(true);
       api.post(`/api/rfq/${id}/rechazar`)
         .then(res => {
           toast.success(res.mensaje || 'RFQ devuelto a cotización.');
           fetchRfqs();
         })
-        .catch(err => toast.error(err.error || 'La acción falló.'));
+        .catch(err => toast.error(err.error || 'La acción falló.'))
+        .finally(() => setIsProcessingAction(false)); // Desactivamos el loader al finalizar
     }
   };
 
+  // --- Renderizado ---
   if (loading) return <div className="flex justify-center mt-10"><CircularProgress /></div>;
 
   return (
     <>
+      <FullScreenLoader isOpen={isProcessingAction} message="Procesando, por favor espera..." />
+
       <Paper elevation={3} sx={{ overflow: 'hidden' }}>
         <TableContainer sx={{ maxHeight: 'calc(100vh - 250px)' }}>
           <Table stickyHeader>
@@ -80,24 +93,23 @@ export default function VB_RFQ_List({ onEdit }) {
                     <TableCell>{rfq.proyecto}</TableCell>
                     <TableCell>{new Date(rfq.fecha_creacion).toLocaleDateString()}</TableCell>
                     <TableCell align="center">
-                      {/* --- ¡NUEVO! Botón de Información --- */}
                       <Tooltip title="Ver Detalles del RFQ">
-                        <IconButton onClick={() => setInfoModal({ open: true, rfqId: rfq.id })} color="info">
+                        <IconButton onClick={() => setInfoModal({ open: true, rfqId: rfq.id })} color="info" disabled={isProcessingAction}>
                           <InfoIcon />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Revisar y Generar OCs">
-                        <IconButton onClick={() => setApprovalModal({ open: true, rfqId: rfq.id })} color="success">
+                        <IconButton onClick={() => setApprovalModal({ open: true, rfqId: rfq.id })} color="success" disabled={isProcessingAction}>
                           <CheckCircleIcon />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Rechazar (Devolver a Compras)">
-                        <IconButton onClick={() => handleReject(rfq.id)} color="warning">
+                        <IconButton onClick={() => handleReject(rfq.id)} color="warning" disabled={isProcessingAction}>
                           <DoNotDisturbIcon />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Editar Cotización (sólo líneas pendientes)">
-                        <IconButton onClick={() => onEdit(rfq.id)} color="primary">
+                      <Tooltip title="Editar Cotización">
+                        <IconButton onClick={() => onEdit(rfq.id)} color="primary" disabled={isProcessingAction}>
                           <EditIcon />
                         </IconButton>
                       </Tooltip>
@@ -114,12 +126,12 @@ export default function VB_RFQ_List({ onEdit }) {
         </TableContainer>
       </Paper>
       
-      {/* Se renderizan ambos modales */}
       <RfqApprovalModal
         open={approvalModal.open}
         onClose={() => setApprovalModal({ open: false, rfqId: null })}
         rfqId={approvalModal.rfqId}
         refreshList={fetchRfqs}
+        setGlobalLoading={setIsProcessingAction}
       />
       <RfqInfoModal
         open={infoModal.open}

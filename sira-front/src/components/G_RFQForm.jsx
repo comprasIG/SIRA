@@ -216,26 +216,28 @@ for (const proveedorId in archivosProveedor) {
       <RFQFormHeader onBack={onBack} rfq_code={requisicion?.rfq_code} proyecto={requisicion?.proyecto} sitio={requisicion?.sitio} />
       <form onSubmit={handleSubmit(onSaveSubmit)}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-4">
-            {formValues.materiales?.map((item, index) => (
-              <MaterialCotizacionRow
-                key={item.id || index}
-                control={control}
-                materialIndex={index}
-                setValue={setValue}
-                lastUsedProvider={lastUsedProvider}
-                setLastUsedProvider={setLastUsedProvider}
-              />
-            ))}
-          </div>
+                    <div className="lg:col-span-2 space-y-4">
+                        {formValues.materiales?.map((item, index) => (
+                           <MaterialCotizacionRow
+    key={item.id || index}
+    control={control} // <-- Asegúrate de que esta prop se esté pasando
+    materialIndex={index}
+    setValue={setValue}
+    lastUsedProvider={lastUsedProvider}
+    setLastUsedProvider={setLastUsedProvider}
+    opcionesBloqueadas={requisicion?.opciones_bloqueadas || []}
+  />
+                        ))}
+                    </div>
           <div className="lg:col-span-1">
-            <ResumenCompra
+             <ResumenCompra
               materiales={formValues.materiales}
-              lugar_entrega={requisicion?.lugar_entrega}
+              lugar_entrega={requisicion?.lugar_entrega_nombre || requisicion?.lugar_entrega}
               providerConfigs={providerConfigs}
               setProviderConfigs={setProviderConfigs}
               onFilesChange={handleProviderFileChange}
               archivosPorProveedor={archivosProveedor}
+               proveedoresConOc={requisicion?.proveedores_con_oc || []} //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
             />
           </div>
         </div>

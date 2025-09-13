@@ -65,9 +65,10 @@ const calcularResumenes = (materiales, providerConfigs) => {
     });
 };
 
-export default function ResumenCompra({ materiales, lugar_entrega, providerConfigs, setProviderConfigs, onFilesChange, archivosPorProveedor }) {
+export default function ResumenCompra({ materiales, lugar_entrega, providerConfigs, setProviderConfigs, onFilesChange, archivosPorProveedor, proveedoresConOc = [] }) {
     const [anchorEl, setAnchorEl] = useState(null);
     const [currentProviderId, setCurrentProviderId] = useState(null);
+
 
     const handleConfigClick = (event, providerId) => {
         setCurrentProviderId(providerId);
@@ -127,17 +128,23 @@ export default function ResumenCompra({ materiales, lugar_entrega, providerConfi
                 </Typography>
             ) : (
                 resumenesPorProveedor.map((resumen) => {
-                    const archivos = archivosPorProveedor[resumen.proveedorId] || [];
-                    return (
-                        <Paper key={resumen.proveedorId} variant="outlined" sx={{ p: 2 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                                <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 'bold' }}>
-                                    {resumen.proveedorNombre}
-                                </Typography>
-                                <Tooltip title={`Configurar cálculo para ${resumen.proveedorNombre}`}>
-                                    <IconButton onClick={(e) => handleConfigClick(e, resumen.proveedorId)} size="small"><SettingsIcon fontSize="inherit" /></IconButton>
-                                </Tooltip>
-                            </Box>
+                    const isLocked = proveedoresConOc.includes(resumen.proveedorId);
+                const archivos = archivosPorProveedor[resumen.proveedorId] || [];
+                return (
+         <Paper key={resumen.proveedorId} variant="outlined" sx={{ p: 2, opacity: isLocked ? 0.7 : 1 }}>
+                        {isLocked && <Alert severity="info" sx={{mb: 1}}>Esta OC ya fue generada y no puede ser modificada.</Alert>}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 'bold' }}>
+                                {resumen.proveedorNombre}
+                            </Typography>
+                            <Tooltip title={`Configurar cálculo para ${resumen.proveedorNombre}`}>
+                                <span>
+                                    <IconButton onClick={(e) => handleConfigClick(e, resumen.proveedorId)} size="small" disabled={isLocked}>
+                                        <SettingsIcon fontSize="inherit" />
+                                    </IconButton>
+                                </span>
+                            </Tooltip>
+                        </Box>
                             
                             <List dense sx={{ p: 0 }}>
                                 {resumen.items.map((item, idx) => (
@@ -158,7 +165,7 @@ export default function ResumenCompra({ materiales, lugar_entrega, providerConfi
                             <Divider sx={{ my: 2 }} />
 
                             <Box>
-                                <Button variant="outlined" size="small" component="label" startIcon={<AttachFileIcon />} disabled={archivos.length >= 3}>
+                                <Button variant="outlined" size="small" component="label" startIcon={<AttachFileIcon />}  disabled={isLocked || archivos.length >= 3}>
                                     Adjuntar Cotización
                                     <input type="file" multiple hidden onChange={(e) => handleFileChange(e, resumen.proveedorId)} accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.doc,.docx,.xml"/>
                                 </Button>

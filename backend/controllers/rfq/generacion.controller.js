@@ -30,11 +30,15 @@ const getRfqDetalle = async (req, res) => {
     const { id } = req.params;
     try {
         const reqResult = await pool.query(`
-            SELECT r.id, r.numero_requisicion, r.rfq_code, r.fecha_creacion, r.fecha_requerida, r.lugar_entrega, r.status, r.comentario AS comentario_general, u.nombre AS usuario_creador, p.nombre AS proyecto, s.nombre AS sitio
+            SELECT r.id, r.numero_requisicion, r.rfq_code, r.fecha_creacion, r.fecha_requerida, 
+                   r.lugar_entrega, le.nombre AS lugar_entrega_nombre, r.status, 
+                   r.comentario AS comentario_general, u.nombre AS usuario_creador, 
+                   p.nombre AS proyecto, s.nombre AS sitio
             FROM requisiciones r
             JOIN usuarios u ON r.usuario_id = u.id
             JOIN proyectos p ON r.proyecto_id = p.id
             JOIN sitios s ON r.sitio_id = s.id
+            LEFT JOIN sitios le ON r.lugar_entrega::integer = le.id
             WHERE r.id = $1;
         `, [id]);
         if (reqResult.rows.length === 0) return res.status(404).json({ error: 'Requisición no encontrada.' });
@@ -55,13 +59,48 @@ const getRfqDetalle = async (req, res) => {
             WHERE ro.requisicion_id = $1;
         `, [id]);
         
-        const adjuntosResult = await pool.query(`SELECT id, nombre_archivo, ruta_archivo FROM requisiciones_adjuntos WHERE requisicion_id = $1`,[id]);
+        // --- ¡NUEVA LÓGICA! ---
+
+ const opcionesBloqueadasResult = await pool.query(
+            `SELECT ocd.comparativa_precio_id 
+             FROM ordenes_compra_detalle ocd
+             JOIN ordenes_compra oc ON ocd.orden_compra_id = oc.id
+             WHERE oc.rfq_id = $1`,
+            [id]
+        );
+        const opcionesBloqueadas = opcionesBloqueadasResult.rows.map(r => r.comparativa_precio_id);
+
+
+
+        // 1. Obtenemos los adjuntos de las cotizaciones.
+        const adjuntosCotizacionResult = await pool.query(
+            `SELECT id, proveedor_id, nombre_archivo, ruta_archivo FROM rfq_proveedor_adjuntos WHERE requisicion_id = $1`,
+            [id]
+        );
+
+        // 2. Obtenemos una lista de los IDs de proveedores que ya tienen una OC generada.
+        const proveedoresConOcResult = await pool.query(
+            `SELECT DISTINCT proveedor_id FROM ordenes_compra WHERE rfq_id = $1`,
+            [id]
+        );
+        const proveedoresConOc = proveedoresConOcResult.rows.map(r => r.proveedor_id);
+        
+        const adjuntosOriginalesResult = await pool.query(`SELECT id, nombre_archivo, ruta_archivo FROM requisiciones_adjuntos WHERE requisicion_id = $1`, [id]);
+        
         const materialesConOpciones = materialesResult.rows.map(material => ({
             ...material,
             opciones: opcionesResult.rows.filter(op => op.requisicion_detalle_id === material.id)
         }));
         
-        res.json({ ...reqResult.rows[0], materiales: materialesConOpciones, adjuntos: adjuntosResult.rows });
+        // 3. Añadimos los nuevos datos a la respuesta JSON.
+        res.json({ 
+            ...reqResult.rows[0], 
+            materiales: materialesConOpciones,
+            adjuntos_cotizacion: adjuntosCotizacionResult.rows, // <-- Nuevo campo
+            proveedores_con_oc: proveedoresConOc,            // <-- Nuevo campo
+            opciones_bloqueadas: opcionesBloqueadas, // <-- Nuevo campo
+            adjuntos: adjuntosOriginalesResult.rows
+        });
     } catch (error) {
         console.error(`Error al obtener detalle de RFQ ${id}:`, error);
         res.status(500).json({ error: "Error interno del servidor." });
