@@ -1,46 +1,106 @@
-//C:\SIRA\sira-front\src\components\ui\FullScreenLoader.jsx
-/**
- * =================================================================================================
- * COMPONENTE: FullScreenLoader
- * =================================================================================================
- * @file FullScreenLoader.jsx
- * @description Un componente reutilizable que muestra una superposición de carga en
- * toda la pantalla. Es ideal para bloquear la interacción del usuario durante
- * procesos asíncronos críticos.
- *
- * @props {boolean} isOpen - Controla si el loader está visible o no.
- * @props {string} [message] - Un mensaje opcional para mostrar debajo del spinner.
- */
+// C:\SIRA\sira-front\src\components\ui\FullScreenLoader.jsx (VERSIÓN ATREVIDA)
+
 import React from 'react';
-import { Box, CircularProgress, Typography, Backdrop } from '@mui/material';
+import { Box, Typography, Backdrop } from '@mui/material';
 
 export default function FullScreenLoader({ isOpen, message }) {
   if (!isOpen) {
     return null;
   }
 
+  // Keyframes para la animación de pulso de las órbitas
+  const keyframes = `
+    @keyframes pulseOrbit {
+      0% { stroke-opacity: 0.2; }
+      50% { stroke-opacity: 0.6; }
+      100% { stroke-opacity: 0.2; }
+    }
+  `;
+
   return (
-    // Backdrop es un componente de MUI que proporciona un fondo semitransparente.
     <Backdrop
-      // --- ¡LA CORRECCIÓN ESTÁ AQUÍ! ---
-      // Cambiamos 'theme.zIndex.drawer' por 'theme.zIndex.modal'.
-      // Esto asegura que el Backdrop (loader) siempre tenga un z-index
-      // un nivel más alto que cualquier Dialog (modal) abierto.
       sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.modal + 1 }}
       open={isOpen}
     >
+      <style>{keyframes}</style>
       <Box
         sx={{
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',
-          gap: 2, // Espacio entre el spinner y el texto
+          gap: 4,
+          // ¡IMPORTANTE! Se establece el color primario del tema aquí
+          // El SVG usará 'currentColor' para heredar este color.
+          color: 'primary.main',
         }}
       >
-        <CircularProgress color="inherit" />
+        {/* --- INICIO DE LA ANIMACIÓN SVG ORBITAL --- */}
+        <svg width="300" height="300" viewBox="0 0 400 400" aria-label="Procesando información">
+          
+          {/* Órbitas (Elipses con rotación y animación de pulso) */}
+          <ellipse
+            cx="200" cy="200" rx="180" ry="80"
+            fill="none"
+            stroke="currentColor" // Hereda el color primario
+            strokeWidth="2"
+            style={{
+              animation: 'pulseOrbit 4s ease-in-out infinite',
+            }}
+          />
+          <ellipse
+            cx="200" cy="200" rx="180" ry="80"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            transform="rotate(60, 200, 200)" // Rotación diferente
+            style={{
+              animation: 'pulseOrbit 4s ease-in-out infinite',
+              animationDelay: '-1s', // Desfase de animación
+            }}
+          />
+          <ellipse
+            cx="200" cy="200" rx="180" ry="80"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            transform="rotate(120, 200, 200)" // Rotación diferente
+            style={{
+              animation: 'pulseOrbit 4s ease-in-out infinite',
+              animationDelay: '-2s', // Desfase de animación
+            }}
+          />
+
+          {/* Paquetes de datos (Círculos que siguen las órbitas a diferentes velocidades) */}
+          <circle cx="0" cy="0" r="8" fill="currentColor">
+            <animateMotion dur="5s" repeatCount="indefinite" rotate="auto">
+              <mpath xlinkHref="#orbit1" />
+            </animateMotion>
+          </circle>
+          <circle cx="0" cy="0" r="8" fill="currentColor">
+            <animateMotion dur="7s" repeatCount="indefinite" rotate="auto">
+              <mpath xlinkHref="#orbit2" />
+            </animateMotion>
+          </circle>
+          <circle cx="0" cy="0" r="8" fill="currentColor">
+            <animateMotion dur="9s" repeatCount="indefinite" rotate="auto">
+              <mpath xlinkHref="#orbit3" />
+            </animateMotion>
+          </circle>
+
+          {/* Definición de los caminos para las animaciones (invisibles) */}
+          <defs>
+            <ellipse id="orbit1" cx="200" cy="200" rx="180" ry="80" />
+            <ellipse id="orbit2" cx="200" cy="200" rx="180" ry="80" transform="rotate(60, 200, 200)" />
+            <ellipse id="orbit3" cx="200" cy="200" rx="180" ry="80" transform="rotate(120, 200, 200)" />
+          </defs>
+        </svg>
+        {/* --- FIN DE LA ANIMACIÓN SVG ORBITAL --- */}
+
         {message && (
-          <Typography variant="h6">{message}</Typography>
+          <Typography variant="h6" sx={{ color: 'white', letterSpacing: '1px' }}>
+            {message}
+          </Typography>
         )}
       </Box>
     </Backdrop>

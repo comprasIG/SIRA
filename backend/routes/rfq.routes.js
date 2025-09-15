@@ -29,6 +29,9 @@ router.post("/:id/cancelar", genController.cancelarRfq);
 router.post("/:id/rechazar", vbController.rechazarRfq);
 router.post("/:id/generar-ocs", vbController.generarOcsDesdeRfq);
 
+const exportController = require('../controllers/rfq/export.controller');
+router.get('/:id/exportar-excel', exportController.exportRfqToExcel);
+
 // --- ¡CORRECCIÓN! La ruta genérica con :id va al final ---
 router.get("/:id", genController.getRfqDetalle);
 

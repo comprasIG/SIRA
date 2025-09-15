@@ -19,7 +19,9 @@ export default function MaterialCotizacionRow({ control, materialIndex, setValue
   // --- Hooks ---
   const { fields, append, remove } = useFieldArray({
     control, // Requiere el objeto 'control' del formulario principal
-    name: `materiales.${materialIndex}.opciones`
+    name: `materiales.${materialIndex}.opciones`,
+     keyName: 'key'
+    
   });
 
   const material = useWatch({
@@ -83,21 +85,23 @@ export default function MaterialCotizacionRow({ control, materialIndex, setValue
       
       {/* Contenedor para las Opciones de Proveedor */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {fields.map((field, index) => (
-          <OpcionProveedorForm
-            key={field.id}
-            fieldId={field.id}
-            materialIndex={materialIndex}
-            opcionIndex={index}
-            control={control}
-            setValue={setValue}
-            removeOpcion={remove}
-            totalOpciones={fields.length}
-            lastUsedProvider={lastUsedProvider}
-            onProviderSelect={setLastUsedProvider}
-            opcionesBloqueadas={opcionesBloqueadas}
-          />
-        ))}
+{fields.map((field, index) => (
+  <OpcionProveedorForm
+  key={field.key}
+    // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    fieldId={field?.id_bd ?? field?.id ?? field?.opcion_id ?? field?.original_id}
+    // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    materialIndex={materialIndex}
+    opcionIndex={index}
+    control={control}
+    setValue={setValue}
+    removeOpcion={remove}
+    totalOpciones={fields.length}
+    lastUsedProvider={lastUsedProvider}
+    onProviderSelect={setLastUsedProvider}
+    opcionesBloqueadas={opcionesBloqueadas}
+  />
+))}
       </Box>
     </Paper>
   );

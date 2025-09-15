@@ -88,6 +88,10 @@ export default function G_RFQForm({ requisicionId, onBack }) {
   // --- Configuración de `react-hook-form` ---
   const { control, handleSubmit, reset, watch, setValue } = useForm({ defaultValues: { materiales: [] } });
   const formValues = watch();
+  
+useEffect(() => {
+  console.log("DEBUG | formValues.materiales:", formValues.materiales);
+}, [formValues.materiales]);
 
   // --- Carga de Datos Inicial (Efecto) ---
   useEffect(() => {
@@ -107,17 +111,34 @@ export default function G_RFQForm({ requisicionId, onBack }) {
         }));
         setProviderConfigs(initialConfigs);
 
-        const mappedMateriales = data.materiales.map(m => ({
-          ...m,
-          opciones: m.opciones.length > 0
-            ? m.opciones.map(op => ({
-              ...op,
-              precio_unitario: Number(op.precio_unitario) || '',
-              cantidad_cotizada: Number(op.cantidad_cotizada) || 0,
-              proveedor: { id: op.proveedor_id, nombre: op.proveedor_nombre, razon_social: op.proveedor_razon_social }
-            }))
-            : [{ proveedor: null, proveedor_id: null, precio_unitario: '', cantidad_cotizada: m.cantidad, seleccionado: false, es_entrega_inmediata: true, es_precio_neto: false, es_importacion: false }]
-        }));
+       const mappedMateriales = data.materiales.map(m => ({
+  ...m,
+  opciones: m.opciones.length > 0
+    ? m.opciones.map(op => ({
+        // Nos aseguramos de no perder el campo 'id' real que viene del backend
+       id: op.id,        // UUID react-hook-form (generado)
+id_bd: op.id,     // <-- ID REAL de la base de datos
+        ...op,
+        precio_unitario: Number(op.precio_unitario) || '',
+        cantidad_cotizada: Number(op.cantidad_cotizada) || 0,
+        proveedor: { 
+          id: op.proveedor_id, 
+          nombre: op.proveedor_nombre, 
+          razon_social: op.proveedor_razon_social 
+        }
+      }))
+    : [{
+        id: null, // <-- si es nueva opción, id será null hasta que se guarde
+        proveedor: null, 
+        proveedor_id: null, 
+        precio_unitario: '', 
+        cantidad_cotizada: m.cantidad, 
+        seleccionado: false, 
+        es_entrega_inmediata: true, 
+        es_precio_neto: false, 
+        es_importacion: false 
+      }]
+}));
 
         reset({ materiales: mappedMateriales });
         setIsDataReady(true);
@@ -131,31 +152,26 @@ export default function G_RFQForm({ requisicionId, onBack }) {
   }, [requisicionId, reset]);
 
   // --- Manejadores de Eventos y Lógica de Envío ---
-  const handleProviderFileChange = (proveedorId, files) => {
+    const handleProviderFileChange = (proveedorId, files) => {
     setArchivosProveedor(prev => ({ ...prev, [proveedorId]: files }));
   };
   
-  const onSaveSubmit = async (data) => {
+ const onSaveSubmit = async (data) => {
     setIsSaving(true);
     const formData = new FormData();
 
+
     const defaultConfig = { moneda: 'MXN', ivaRate: '0.16', isIvaActive: true, isrRate: '0.0125', isIsrActive: false, forcedTotal: '0', isForcedTotalActive: false };
     const safeProviderConfigs = { ...providerConfigs };
-    
     const selectedProviderIds = new Set(
       data.materiales.flatMap(m => m.opciones)
         .filter(o => o.seleccionado && o.proveedor?.id)
         .map(o => o.proveedor.id)
     );
-
     selectedProviderIds.forEach(id => {
-      if (!safeProviderConfigs[id]) {
-        safeProviderConfigs[id] = defaultConfig;
-      } else if (!safeProviderConfigs[id].moneda) {
-        safeProviderConfigs[id].moneda = 'MXN';
-      }
+      if (!safeProviderConfigs[id]) safeProviderConfigs[id] = defaultConfig;
+      else if (!safeProviderConfigs[id].moneda) safeProviderConfigs[id].moneda = 'MXN';
     });
-
     const opcionesPayload = data.materiales.flatMap(m =>
       m.opciones.filter(o => o.proveedor && o.proveedor.id)
         .map(o => {
@@ -164,27 +180,26 @@ export default function G_RFQForm({ requisicionId, onBack }) {
         })
     );
     formData.append('opciones', JSON.stringify(opcionesPayload));
-
     const resumenesPayload = calcularResumenes(data.materiales, safeProviderConfigs);
     formData.append('resumenes', JSON.stringify(resumenesPayload));
-    
     formData.append('rfq_code', requisicion.rfq_code);
-    
-for (const proveedorId in archivosProveedor) {
-  const archivos = archivosProveedor[proveedorId];
-  if (archivos && archivos.length > 0) {
-    // El nombre del campo ahora identifica al proveedor.
-    archivos.forEach(file => {
-      formData.append(`cotizacion-archivo-${proveedorId}`, file);
-    });
-  }
-}
+    for (const proveedorId in archivosProveedor) {
+      const archivos = archivosProveedor[proveedorId];
+      if (archivos && archivos.length > 0) {
+        archivos.forEach(file => {
+          formData.append(`cotizacion-archivo-${proveedorId}`, file);
+        });
+      }
+    }
 
     try {
       await api.post(`/api/rfq/${requisicionId}/opciones`, formData);
       toast.success("Comparativa y archivos guardados con éxito.");
     } catch (err) {
+      // Si hay un error, se muestra el toast y se lanza el error
+      // para que la función que llamó a esta sepa que algo falló.
       toast.error(err.error || "Error al guardar la comparativa.");
+      throw err; // <-- ¡ESTO ES CLAVE!
     } finally {
       setIsSaving(false);
     }
@@ -202,47 +217,62 @@ for (const proveedorId in archivosProveedor) {
     }
   };
 
-  const handleSaveAndExit = () => {
-    handleSubmit(onSaveSubmit)().then(() => onBack());
+ const handleSaveAndExit = () => {
+    handleSubmit(onSaveSubmit)()
+      .then(() => {
+        // Esta parte SÓLO se ejecuta si onSaveSubmit fue exitoso
+        onBack();
+      })
+      .catch(() => {
+        // Esta parte se ejecuta si onSaveSubmit lanzó un error.
+        // No hacemos nada, para que el usuario se quede en la página
+        // y pueda ver el mensaje de error.
+        console.error("El guardado falló. El usuario permanecerá en la página.");
+      });
   };
-
-  // --- Renderizado del Componente ---
-  if (loading || !isDataReady) {
-    return <div className="flex justify-center items-center h-full"><CircularProgress /></div>;
-  }
-
-  return (
-    <Paper elevation={2} className="p-4 md:p-6">
-      <RFQFormHeader onBack={onBack} rfq_code={requisicion?.rfq_code} proyecto={requisicion?.proyecto} sitio={requisicion?.sitio} />
-      <form onSubmit={handleSubmit(onSaveSubmit)}>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2 space-y-4">
-                        {formValues.materiales?.map((item, index) => (
-                           <MaterialCotizacionRow
-    key={item.id || index}
-    control={control} // <-- Asegúrate de que esta prop se esté pasando
-    materialIndex={index}
-    setValue={setValue}
-    lastUsedProvider={lastUsedProvider}
-    setLastUsedProvider={setLastUsedProvider}
-    opcionesBloqueadas={requisicion?.opciones_bloqueadas || []}
-  />
-                        ))}
-                    </div>
-          <div className="lg:col-span-1">
-             <ResumenCompra
-              materiales={formValues.materiales}
-              lugar_entrega={requisicion?.lugar_entrega_nombre || requisicion?.lugar_entrega}
-              providerConfigs={providerConfigs}
-              setProviderConfigs={setProviderConfigs}
-              onFilesChange={handleProviderFileChange}
-              archivosPorProveedor={archivosProveedor}
-               proveedoresConOc={requisicion?.proveedores_con_oc || []} //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+ return (
+  <Paper elevation={2} className="p-4 md:p-6">
+    <RFQFormHeader
+      onBack={onBack}
+      rfq_code={requisicion?.rfq_code}
+      proyecto={requisicion?.proyecto}
+      sitio={requisicion?.sitio}
+    />
+    <form onSubmit={handleSubmit(onSaveSubmit)}>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          {formValues.materiales?.map((item, index) => (
+            <MaterialCotizacionRow
+              key={item.id || index}
+              control={control}
+              materialIndex={index}
+              setValue={setValue}
+              lastUsedProvider={lastUsedProvider}
+              setLastUsedProvider={setLastUsedProvider}
+              opcionesBloqueadas={requisicion?.opciones_bloqueadas || []}
             />
-          </div>
+          ))}
         </div>
-        <RFQFormActions isSaving={isSaving} onSaveAndExit={handleSaveAndExit} onSendToApproval={handleEnviarAprobacion} />
-      </form>
-    </Paper>
-  );
+
+        <div className="lg:col-span-1">
+          <ResumenCompra
+  materiales={formValues.materiales}
+  lugar_entrega={requisicion?.lugar_entrega_nombre || requisicion?.lugar_entrega}
+  providerConfigs={providerConfigs}
+  setProviderConfigs={setProviderConfigs}
+  onFilesChange={handleProviderFileChange}
+  archivosPorProveedor={archivosProveedor}
+  opcionesBloqueadas={requisicion?.opciones_bloqueadas || []} 
+/>
+        </div>
+      </div>
+
+      <RFQFormActions
+        isSaving={isSaving}
+        onSaveAndExit={handleSaveAndExit}
+        onSendToApproval={handleEnviarAprobacion}
+      />
+    </form>
+  </Paper>
+);
 }

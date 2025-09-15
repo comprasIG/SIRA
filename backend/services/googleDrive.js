@@ -95,22 +95,21 @@ const uploadQuoteFiles = async (files, rfqCode, providerName) => {
     }
 };
 
-// --- NUEVA FUNCIÓN ---
 /**
  * Sube un PDF generado en memoria (Buffer) a Google Drive.
  * @param {Buffer} pdfBuffer - El contenido del PDF.
  * @param {string} fileName - El nombre que tendrá el archivo en Drive.
- * @param {string} departmentAbbreviation - Siglas del depto. para crear la carpeta.
- * @param {string} requisitionNumber - Número de requisición para la subcarpeta.
+ * @param {string} rootFolderName - El nombre de la carpeta principal (ej: 'ORDENES DE COMPRA (PDF)').
+ * @param {string} subFolderName - El nombre de la subcarpeta (ej: el RFQ o el número de OC).
  * @returns {Promise<object>} - Datos del archivo subido (id, name, webViewLink).
  */
 const uploadPdfBuffer = async (pdfBuffer, fileName, rootFolderName, subFolderName) => {
   try {
     const drive = google.drive({ version: 'v3', auth: oauth2Client });
-    
-    // --- MEJORA: La lógica ahora es más genérica ---
-    const rootFolderId = await findOrCreateFolder(drive, DRIVE_FOLDER_ID, rootFolderName); // Ej: 'REQUISICIONES' o 'ORDENES DE COMPRA (PDF)'
-    const targetFolderId = await findOrCreateFolder(drive, rootFolderId, subFolderName); // Ej: 'SSD_0077' o 'OC-99'
+
+    // Lógica genérica para crear la estructura de carpetas
+    const rootFolderId = await findOrCreateFolder(drive, DRIVE_FOLDER_ID, rootFolderName);
+    const targetFolderId = await findOrCreateFolder(drive, rootFolderId, subFolderName);
 
     const bufferStream = new stream.PassThrough();
     bufferStream.end(pdfBuffer);
@@ -121,10 +120,16 @@ const uploadPdfBuffer = async (pdfBuffer, fileName, rootFolderName, subFolderNam
       fields: 'id, name, webViewLink',
     });
 
-    console.log(`PDF subido a Drive en carpeta ${rootFolderName}: ${fileName}`);
-    return result.data;
+    console.log(`PDF subido a Drive en carpeta ${subFolderName}: ${fileName}`);
+    return result.data; // Se devuelve el objeto del archivo creado
+  
   } catch (error) {
-    // ...
+    // --- ¡CORRECCIÓN IMPORTANTE! ---
+    // Ahora el error se registra y se propaga hacia el controlador.
+    console.error(`Error CRÍTICO al subir PDF a Drive (${fileName}):`, error);
+    // No devolvemos nada, permitiendo que la validación en el controlador falle con un mensaje claro.
+    // Opcionalmente, podrías hacer 'throw error;' para detener la ejecución inmediatamente.
+    return null; // Devolvemos null para que el controlador pueda manejarlo.
   }
 };
 
