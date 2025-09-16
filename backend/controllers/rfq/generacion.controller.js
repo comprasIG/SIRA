@@ -110,6 +110,7 @@ const getRfqDetalle = async (req, res) => {
 const guardarOpcionesRfq = async (req, res) => {
     const { id: requisicion_id } = req.params;
     let { opciones, resumenes, rfq_code } = req.body;
+    console.log("==== RFQ OPCIONES:", opciones);
     const files = req.files; 
 
     try {

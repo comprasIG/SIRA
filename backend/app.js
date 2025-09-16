@@ -56,6 +56,10 @@ app.use('/api/monedas', monedaRoutes);
 const notificacionesRoutes = require('./routes/configuracion/notificaciones.routes'); 
 app.use('/api/configuracion/notificaciones', notificacionesRoutes);
 
+const finanzasRoutes = require('./routes/finanzas.routes');
+app.use('/api/finanzas', finanzasRoutes);
+
+
 // Ruta base de prueba
 app.get('/', (req, res) => {
   res.send('Backend SIRA funcionando');
