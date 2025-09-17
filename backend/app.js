@@ -59,6 +59,8 @@ app.use('/api/configuracion/notificaciones', notificacionesRoutes);
 const finanzasRoutes = require('./routes/finanzas.routes');
 app.use('/api/finanzas', finanzasRoutes);
 
+const pagosOCRoutes = require('./routes/finanzas/pagosOC.routes');
+app.use('/api/finanzas', pagosOCRoutes);
 
 // Ruta base de prueba
 app.get('/', (req, res) => {

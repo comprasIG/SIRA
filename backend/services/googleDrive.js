@@ -190,6 +190,36 @@ const downloadFileBuffer = async (fileId) => {
     }
 };
 
+/**
+ * Busca y obtiene el folderId de una ruta jerárquica tipo ['ROOT', 'SUBFOLDER', ...]
+ * NO crea folders nuevos, solo busca. (Safe para obtener el link de la carpeta OC)
+ * @param {Array<string>} folderPath - Array con los nombres de la jerarquía, empezando desde la raíz.
+ * @returns {Promise<string|null>} El folderId o null si no se encuentra.
+ */
+const getFolderIdByPath = async (folderPath) => {
+    try {
+        const drive = google.drive({ version: 'v3', auth: oauth2Client });
+        let parentId = DRIVE_FOLDER_ID; // La carpeta raíz global de tu GDrive
+        for (const folderName of folderPath) {
+            const escapedFolderName = folderName.replace(/'/g, "\\'");
+            const q = `name = '${escapedFolderName}' and mimeType = 'application/vnd.google-apps.folder' and '${parentId}' in parents and trashed = false`;
+            const res = await drive.files.list({
+                q: q,
+                fields: 'files(id, name)',
+                spaces: 'drive',
+            });
+            if (!res.data.files.length) {
+                // Folder not found
+                return null;
+            }
+            parentId = res.data.files[0].id;
+        }
+        return parentId;
+    } catch (err) {
+        console.error('Error en getFolderIdByPath:', err);
+        return null;
+    }
+};
 
 module.exports = { 
     uploadRequisitionFiles,
@@ -197,4 +227,5 @@ module.exports = {
     uploadPdfBuffer, 
     uploadQuoteFile,
     downloadFileBuffer,
+    getFolderIdByPath, 
 };
