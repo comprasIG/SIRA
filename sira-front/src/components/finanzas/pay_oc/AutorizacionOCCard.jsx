@@ -4,14 +4,14 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Paper, Typography, Box, Button, Divider, Chip } from '@mui/material';
 import CreditScoreIcon from '@mui/icons-material/CreditScore';
-
+import BoltIcon from '@mui/icons-material/Bolt';
 // Variante para la animación de entrada de cada tarjeta
 const cardVariants = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
 };
 
-export const AutorizacionOCCard = ({ oc, onAprobarCredito }) => {
+export const AutorizacionOCCard = ({ oc, onAprobarCredito,  onPreautorizarSpei }) => {
   const totalFormatted = new Intl.NumberFormat('es-MX', {
     style: 'currency',
     currency: 'MXN'
@@ -59,6 +59,16 @@ export const AutorizacionOCCard = ({ oc, onAprobarCredito }) => {
             </Button>
           </motion.div>
           {/* Aquí irán los otros botones de acción */}
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <Button 
+              variant="contained" 
+              color="primary" 
+              startIcon={<BoltIcon />}
+              onClick={() => onPreautorizarSpei(oc.id)} // <-- Llama a la nueva función
+            >
+              Aprobar de contado
+            </Button>
+          </motion.div>
         </Box>
       </Paper>
     </motion.div>

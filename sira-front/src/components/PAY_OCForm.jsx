@@ -3,25 +3,30 @@
 import React from 'react';
 import { useAutorizaciones } from './finanzas/pay_oc/useAutorizaciones';
 import { AutorizacionOCCard } from './finanzas/pay_oc/AutorizacionOCCard';
+import { ConfirmacionCreditoDialog } from './finanzas/pay_oc/ConfirmacionCreditoDialog';
+import { ConfirmacionSpeiDialog } from './finanzas/pay_oc/ConfirmacionSpeiDialog';
 import { Box, Typography, Container } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import Lottie from 'lottie-react';
 import loadingAnimation from '@/assets/lottie/loading.json';
 import emptyAnimation from '@/assets/lottie/payment_sucess.json'; 
 
-// Variante para la animación del contenedor de las tarjetas
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.1 // Esto hace que las tarjetas aparezcan una tras otra
+      staggerChildren: 0.1 
     }
   }
 };
 
-export default function PAY_OC() {
-    const { ocs, loading, error, aprobarCredito } = useAutorizaciones();
+export default function PAY_OCForm() {
+    const { 
+        ocs, loading, error,
+        dialogState, iniciarAprobacionCredito, confirmarAprobacionCredito, cerrarDialogo,
+        speiDialogState, preautorizarSpei, confirmarSpeiConComprobante, cerrarDialogoSpei
+    } = useAutorizaciones();
 
     if (loading) {
         return (
@@ -32,7 +37,7 @@ export default function PAY_OC() {
     }
 
     if (error) {
-        return <Typography color="error">{error}</Typography>;
+        return <Typography color="error" sx={{ textAlign: 'center', mt: 4 }}>{error}</Typography>;
     }
 
     return (
@@ -57,7 +62,8 @@ export default function PAY_OC() {
                             <AutorizacionOCCard 
                                 key={oc.id}
                                 oc={oc} 
-                                onAprobarCredito={aprobarCredito} 
+                                onAprobarCredito={iniciarAprobacionCredito}
+                                onPreautorizarSpei={preautorizarSpei} // <-- ESTA ES LA LÍNEA QUE FALTABA
                             />
                         ))}
                     </motion.div>
@@ -72,6 +78,21 @@ export default function PAY_OC() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <ConfirmacionCreditoDialog
+                open={dialogState.open}
+                onClose={cerrarDialogo}
+                onConfirm={confirmarAprobacionCredito}
+                diasCredito={dialogState.diasCredito}
+                fechaPago={dialogState.fechaPago}
+            />
+
+            <ConfirmacionSpeiDialog
+                open={speiDialogState.open}
+                onClose={cerrarDialogoSpei}
+                onConfirm={confirmarSpeiConComprobante}
+                ocId={speiDialogState.ocId}
+            />
         </Container>
     );
 }
