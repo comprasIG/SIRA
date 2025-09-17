@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Paper, Typography, Box, Button, Divider, Chip, Stack } from '@mui/material';
+// ✨ MEJORA: Añadimos Tooltip a la lista de importaciones
+import { Paper, Typography, Box, Button, Divider, Chip, Stack, Tooltip } from '@mui/material';
 import CreditScoreIcon from '@mui/icons-material/CreditScore';
 import BoltIcon from '@mui/icons-material/Bolt';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -20,77 +21,75 @@ export default function AutorizacionOCCard({
   onSubirComprobante,
   onCancelarSpei,
 }) {
-  const totalFormatted = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(oc.total);
+ const totalFormatted = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(oc.total);
 
   const showCredito = mode === 'porAutorizar';
   const showContado = mode === 'porAutorizar';
   const showSubirComprobante = mode === 'speiConfirm' || mode === 'porLiquidar';
   const showCancelarSpei = mode === 'speiConfirm';
 
-  return (
+     return (
     <motion.div variants={cardVariants}>
-      <Paper elevation={4} sx={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid #e0e0e0' }}>
-        <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderBottom: '1px solid #e0e0e0' }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-            <Typography variant="h6" fontWeight="bold">{oc.numero_oc}</Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="flex-end">
-              {oc.proyecto_nombre && (
-                <Chip size="small" icon={<WorkspacesIcon />} label={oc.proyecto_nombre} color="primary" />
-              )}
-              {oc.sitio_nombre && (
-                <Chip size="small" icon={<PlaceIcon />} label={oc.sitio_nombre} />
-              )}
+      <Paper 
+        elevation={4} 
+        sx={{ 
+          borderRadius: 3, 
+          transition: 'border-color 0.3s',
+          border: '1px solid transparent',
+          '&:hover': {
+            borderColor: 'primary.main'
+          }
+        }}
+      >
+        <Box sx={{ p: 2 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+            <Box>
+              <Typography variant="caption" color="text.secondary">Orden de Compra</Typography>
+              <Typography variant="h6" fontWeight="bold" lineHeight={1.2}>{oc.numero_oc}</Typography>
+            </Box>
+            <Stack direction="column" spacing={0.5} alignItems="flex-end">
+              {oc.proyecto_nombre && <Chip size="small" icon={<WorkspacesIcon />} label={oc.proyecto_nombre} color="primary" />}
+              {oc.sitio_nombre && <Chip size="small" icon={<PlaceIcon />} label={oc.sitio_nombre} />}
             </Stack>
           </Stack>
-          <Typography variant="body2" color="text.secondary">{oc.proveedor_razon_social}</Typography>
-        </Box>
-
-        <Box sx={{ p: 2 }}>
-          <Typography variant="h4" fontWeight="bold" color="primary" textAlign="center" my={2}>
-            {totalFormatted}
-          </Typography>
-          <Typography variant="caption" display="block" textAlign="center" color="text.secondary">
-            Monto Total (IVA incluido)
-          </Typography>
-          <Stack direction="row" spacing={1} justifyContent="center" sx={{ mt: 1 }}>
-            {oc.metodo_pago && <Chip size="small" label={`Pago: ${oc.metodo_pago}`} />}
-            {oc.status && <Chip size="small" color="warning" variant="outlined" label={oc.status} />}
-          </Stack>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{oc.proveedor_razon_social}</Typography>
         </Box>
 
         <Divider />
 
-        <Box sx={{ p: 2, display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ p: 2 }}>
+          <Typography variant="h4" fontWeight={800} color="primary.main" textAlign="center">
+            {totalFormatted}
+          </Typography>
+          <Typography variant="caption" display="block" textAlign="center" color="text.secondary" sx={{ mb: 1 }}>
+            Monto Total (IVA incluido)
+          </Typography>
+          <Stack direction="row" spacing={1} justifyContent="center">
+            {oc.metodo_pago && <Chip size="small" label={`Pago: ${oc.metodo_pago}`} variant="outlined" />}
+            <Chip size="small" color="warning" label={oc.status} />
+          </Stack>
+        </Box>
+
+        <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
           {showCredito && (
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button variant="contained" color="success" startIcon={<CreditScoreIcon />} onClick={() => onAprobarCredito(oc.id)}>
-                Aprobar a Crédito
-              </Button>
-            </motion.div>
+            <Tooltip title="Aprobar con los días de crédito del proveedor.">
+              <Button size="small" variant="contained" color="success" startIcon={<CreditScoreIcon />} onClick={() => onAprobarCredito(oc.id)}>Crédito</Button>
+            </Tooltip>
           )}
-
           {showContado && (
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button variant="contained" color="primary" startIcon={<BoltIcon />} onClick={() => onPreautorizarSpei(oc.id)}>
-                Aprobar de contado
-              </Button>
-            </motion.div>
+            <Tooltip title="Aprobar para pago inmediato y subir comprobante después.">
+              <Button size="small" variant="contained" color="primary" startIcon={<BoltIcon />} onClick={() => onPreautorizarSpei(oc.id)}>Contado</Button>
+            </Tooltip>
           )}
-
           {showSubirComprobante && (
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button variant="outlined" color="warning" startIcon={<CloudUploadIcon />} onClick={() => onSubirComprobante(oc)}>
-                Subir Comprobante
-              </Button>
-            </motion.div>
+            <Tooltip title="Subir el comprobante de pago para esta OC.">
+              <Button variant="contained" color="secondary" startIcon={<CloudUploadIcon />} onClick={() => onSubirComprobante(oc)}>Subir Comprobante</Button>
+            </Tooltip>
           )}
-
           {showCancelarSpei && (
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button variant="outlined" color="error" startIcon={<CancelOutlinedIcon />} onClick={() => onCancelarSpei?.(oc.id)}>
-                Cancelar
-              </Button>
-            </motion.div>
+            <Tooltip title="Devolver esta OC a la lista 'Por Autorizar'.">
+              <Button size="small" variant="text" color="error" startIcon={<CancelOutlinedIcon />} onClick={() => onCancelarSpei?.(oc.id)}>Cancelar</Button>
+            </Tooltip>
           )}
         </Box>
       </Paper>
