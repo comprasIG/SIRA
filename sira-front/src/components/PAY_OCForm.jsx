@@ -6,6 +6,10 @@ import AutorizacionOCCard from './finanzas/pay_oc/AutorizacionOCCard';
 import { ConfirmacionCreditoDialog } from './finanzas/pay_oc/ConfirmacionCreditoDialog';
 import SubirComprobanteDialog from './finanzas/pay_oc/SubirComprobanteDialog';
 
+import RechazoOCDialog from './finanzas/pay_oc/RechazoOCDialog';
+import HoldOCDialog from './finanzas/pay_oc/HoldOCDialog';
+import PreviewOCDialog from './finanzas/pay_oc/PreviewOCDialog';
+
 import {
   Box, Typography, Container, Paper, Button, TextField, MenuItem,
   Stack, Divider, Tabs, Tab, Chip
@@ -35,6 +39,7 @@ const matchesOcNumber = (ocNumero = '', query = '') => {
 };
 
 export default function PAY_OCForm() {
+  // Hook principal (¡dentro del componente!)
   const {
     ocs: ocsPorAutorizar,
     speiPorConfirmar,
@@ -43,6 +48,8 @@ export default function PAY_OCForm() {
     dialogState, iniciarAprobacionCredito, confirmarAprobacionCredito, cerrarDialogo,
     preautorizarSpei, cancelarSpei,
     subirComprobantePago,
+    // nuevos métodos que usas más abajo:
+    rechazarOC, holdOC, getOcPreview,
   } = useAutorizaciones();
 
   const kpiData = {
@@ -112,7 +119,8 @@ export default function PAY_OCForm() {
     });
   }, [porLiquidar, plFilters]);
 
-  // modal comprobante
+  // ===== Diálogos locales =====
+  // Subir comprobante
   const [comprobanteDialogOpen, setComprobanteDialogOpen] = useState(false);
   const [ocSeleccionada, setOcSeleccionada] = useState(null);
   const [loadingComprobante, setLoadingComprobante] = useState(false);
@@ -124,6 +132,16 @@ export default function PAY_OCForm() {
     setComprobanteDialogOpen(false);
     setOcSeleccionada(null);
   };
+
+  // Rechazo / Hold / Preview
+  const [rechazoOpen, setRechazoOpen] = useState(false);
+  const [ocRechazo, setOcRechazo] = useState(null);
+
+  const [holdOpen, setHoldOpen] = useState(false);
+  const [ocHold, setOcHold] = useState(null);
+
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
 
   if (loading) {
     return (
@@ -203,6 +221,12 @@ export default function PAY_OCForm() {
                     mode="porAutorizar"
                     onAprobarCredito={iniciarAprobacionCredito}
                     onPreautorizarSpei={preautorizarSpei}
+                    onRechazar={(o) => { setOcRechazo(o); setRechazoOpen(true); }}
+                    onHold={(o) => { setOcHold(o); setHoldOpen(true); }}
+                    onPreview={async (ocId) => {
+                      const data = await getOcPreview(ocId);
+                      if (data) { setPreviewData(data); setPreviewOpen(true); }
+                    }}
                   />
                 ))}
               </motion.div>
@@ -296,6 +320,32 @@ export default function PAY_OCForm() {
         onSubmit={handleSubirComprobante}
         oc={ocSeleccionada}
         loading={loadingComprobante}
+      />
+
+      <RechazoOCDialog
+        open={rechazoOpen}
+        onClose={() => { setRechazoOpen(false); setOcRechazo(null); }}
+        oc={ocRechazo}
+        onConfirm={async (motivo) => {
+          await rechazarOC(ocRechazo.id, motivo);
+          setRechazoOpen(false); setOcRechazo(null);
+        }}
+      />
+
+      <HoldOCDialog
+        open={holdOpen}
+        onClose={() => { setHoldOpen(false); setOcHold(null); }}
+        oc={ocHold}
+        onConfirm={async (fecha) => {
+          await holdOC(ocHold.id, fecha);
+          setHoldOpen(false); setOcHold(null);
+        }}
+      />
+
+      <PreviewOCDialog
+        open={previewOpen}
+        onClose={() => { setPreviewOpen(false); setPreviewData(null); }}
+        preview={previewData}
       />
     </Container>
   );

@@ -1,4 +1,4 @@
-// vite.config.js
+// C:\SIRA\SIRA\sira-front\vite.config.js
 import { defineConfig } from 'vite'
 import react            from '@vitejs/plugin-react'
 import tailwind         from '@tailwindcss/vite'   // <-- IMPORT CORRECTO

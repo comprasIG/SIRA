@@ -1,5 +1,4 @@
 // C:\SIRA\backend\routes\finanzas.routes.js
-
 const express = require('express');
 const router = express.Router();
 
@@ -8,12 +7,17 @@ const loadSiraUser = require("../middleware/loadSiraUser");
 
 const {
   getOcsPorAutorizar,
+  listSpeiPorConfirmar,
+  listOcsPorLiquidar,
   preautorizarSpei,
   cancelarSpei,
   aprobarCredito,
   getDetallesCredito,
-  listSpeiPorConfirmar,
-  listOcsPorLiquidar,
+  // nuevos:
+  rechazarOC,
+  ponerHoldOC,
+  reanudarDesdeHold,
+  getOcPreview,
 } = require('../controllers/finanzas/autorizacionOC.controller');
 
 router.use(verifyFirebaseToken, loadSiraUser);
@@ -30,5 +34,11 @@ router.post('/oc/:id/cancelar-spei', cancelarSpei);
 // Crédito
 router.get('/oc/:id/detalles-credito', getDetallesCredito);
 router.post('/oc/:id/aprobar-credito', aprobarCredito);
+
+// Rechazo / Hold / Preview
+router.post('/oc/:id/rechazar', rechazarOC);
+router.post('/oc/:id/hold', ponerHoldOC);
+router.post('/oc/:id/reanudar', reanudarDesdeHold);
+router.get('/oc/:id/preview', getOcPreview);
 
 module.exports = router;
