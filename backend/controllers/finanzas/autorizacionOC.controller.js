@@ -9,6 +9,7 @@ const getOcsPorAutorizar = async (_req, res) => {
     const q = `
       SELECT 
         oc.id, oc.numero_oc, oc.total, oc.fecha_creacion, oc.status, oc.metodo_pago,
+        oc.monto_pagado,
         p.razon_social AS proveedor_razon_social,
         pr.nombre AS proyecto_nombre,
         s.nombre AS sitio_nombre
@@ -35,6 +36,7 @@ const listSpeiPorConfirmar = async (_req, res) => {
     const q = `
       SELECT 
         oc.id, oc.numero_oc, oc.total, oc.fecha_creacion, oc.status, oc.metodo_pago,
+        oc.monto_pagado,
         p.razon_social AS proveedor_razon_social,
         pr.nombre AS proyecto_nombre,
         s.nombre AS sitio_nombre
@@ -57,12 +59,15 @@ const listSpeiPorConfirmar = async (_req, res) => {
 /** =========================
  *  POR LIQUIDAR
  *  (APROBADA con monto_pagado < total) para CREDITO y SPEI
+ *  Incluye saldo_pendiente
  * ========================== */
 const listOcsPorLiquidar = async (_req, res) => {
   try {
     const q = `
       SELECT 
-        oc.id, oc.numero_oc, oc.total, COALESCE(oc.monto_pagado, 0) AS monto_pagado,
+        oc.id, oc.numero_oc, oc.total,
+        COALESCE(oc.monto_pagado, 0) AS monto_pagado,
+        (oc.total - COALESCE(oc.monto_pagado, 0)) AS saldo_pendiente,
         oc.fecha_vencimiento_pago, oc.status, oc.metodo_pago,
         p.razon_social AS proveedor_razon_social,
         pr.nombre AS proyecto_nombre,
@@ -80,6 +85,32 @@ const listOcsPorLiquidar = async (_req, res) => {
     res.json(rows);
   } catch (error) {
     console.error('Error al listar OCs por liquidar:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+};
+
+/** =========================
+ *  EN HOLD
+ * ========================== */
+const listOcsEnHold = async (_req, res) => {
+  try {
+    const q = `
+      SELECT 
+        oc.id, oc.numero_oc, oc.total, oc.status, oc.hold_regresar_en,
+        p.razon_social AS proveedor_razon_social,
+        pr.nombre AS proyecto_nombre,
+        s.nombre AS sitio_nombre
+      FROM ordenes_compra oc
+      JOIN proveedores p ON oc.proveedor_id = p.id
+      JOIN proyectos  pr ON oc.proyecto_id = pr.id
+      JOIN sitios     s  ON oc.sitio_id = s.id
+      WHERE oc.status = 'HOLD'
+      ORDER BY oc.hold_regresar_en NULLS LAST, oc.fecha_creacion ASC
+    `;
+    const { rows } = await pool.query(q);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error al listar OCs en HOLD:', error);
     res.status(500).json({ error: 'Error interno del servidor.' });
   }
 };
@@ -258,7 +289,9 @@ const rechazarOC = async (req, res) => {
 
     const q = await client.query(`SELECT status FROM ordenes_compra WHERE id = $1 FOR UPDATE`, [ordenCompraId]);
     if (q.rowCount === 0) return res.status(404).json({ error: 'OC no encontrada.' });
-    if (q.rows[0].status !== 'POR_AUTORIZAR') return res.status(409).json({ error: 'Solo puedes rechazar OCs en POR_AUTORIZAR.' });
+    if (q.rows[0].status !== 'POR_AUTORIZAR' && q.rows[0].status !== 'HOLD') {
+      return res.status(409).json({ error: 'Solo puedes rechazar OCs en POR_AUTORIZAR u HOLD.' });
+    }
 
     const upd = await client.query(
       `UPDATE ordenes_compra SET status = 'RECHAZADA', actualizado_en = now() WHERE id = $1 RETURNING id, status`,
@@ -284,11 +317,19 @@ const rechazarOC = async (req, res) => {
 
 /** =========================
  *  PONER EN HOLD OC
+ *  (default +30 días si no se envía fecha)
  * ========================== */
 const ponerHoldOC = async (req, res) => {
   const { id: ordenCompraId } = req.params;
-  const { regresar_en } = req.body || {}; // 'YYYY-MM-DD' opcional
+  let { regresar_en } = req.body || {}; // 'YYYY-MM-DD' opcional
   const { id: usuarioId } = req.usuarioSira;
+
+  // default +30 días
+  if (!regresar_en) {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    regresar_en = d.toISOString().slice(0, 10);
+  }
 
   const client = await pool.connect();
   try {
@@ -302,7 +343,7 @@ const ponerHoldOC = async (req, res) => {
       `UPDATE ordenes_compra 
        SET status = 'HOLD', hold_regresar_en = $2, actualizado_en = now()
        WHERE id = $1 RETURNING id, status, hold_regresar_en`,
-      [ordenCompraId, regresar_en || null]
+      [ordenCompraId, regresar_en]
     );
 
     await client.query(
@@ -401,11 +442,11 @@ module.exports = {
   getOcsPorAutorizar,
   listSpeiPorConfirmar,
   listOcsPorLiquidar,
+  listOcsEnHold,
   preautorizarSpei,
   cancelarSpei,
   aprobarCredito,
   getDetallesCredito,
-  // nuevos
   rechazarOC,
   ponerHoldOC,
   reanudarDesdeHold,

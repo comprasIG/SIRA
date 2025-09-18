@@ -1,24 +1,13 @@
-// C:\SIRA\SIRA\sira-front\src\components\finanzas\pay_oc\useAutorizaciones.js
 import { useState, useCallback, useEffect } from 'react';
 import api from '../../../api/api';
 import { toast } from 'react-toastify';
 
-const dedupeById = (arr = []) => {
-  const map = new Map();
-  for (const it of arr) if (it && typeof it.id !== 'undefined' && !map.has(it.id)) map.set(it.id, it);
-  return Array.from(map.values());
-};
-
-const safeGetArray = async (path) => {
-  try { const data = await api.get(path); return Array.isArray(data) ? data : []; }
-  catch { return []; }
-};
-
 export const useAutorizaciones = () => {
   // Listas
-  const [ocsPorAutorizar, setOcsPorAutorizar] = useState([]);     // POR_AUTORIZAR
-  const [ocsSpeiConfirmar, setOcsSpeiConfirmar] = useState([]);   // SPEI en CONFIRMAR_SPEI
-  const [ocsPorLiquidar, setOcsPorLiquidar] = useState([]);       // Crédito y SPEI (APROBADA) con pendiente_liquidar
+  const [ocsPorAutorizar, setOcsPorAutorizar] = useState([]);
+  const [ocsSpeiConfirmar, setOcsSpeiConfirmar] = useState([]);
+  const [ocsPorLiquidar, setOcsPorLiquidar] = useState([]);
+  const [ocsEnHold, setOcsEnHold] = useState([]);
 
   // UI
   const [loading, setLoading] = useState(true);
@@ -28,39 +17,43 @@ export const useAutorizaciones = () => {
   const [dialogState, setDialogState] = useState({ open: false, ocId: null, diasCredito: 0, fechaPago: null });
 
   // === FETCHERS ===
-  const fetchPorAutorizar = useCallback(async () => safeGetArray('/api/finanzas/ocs/por-autorizar'), []);
-  const fetchSpeiPorConfirmar = useCallback(async () => {
-    const candidates = [
-      '/api/finanzas/ocs/confirmar-spei',
-      '/api/finanzas/ocs/pendientes-spei',
-      '/api/finanzas/ocs?status=CONFIRMAR_SPEI',
-      '/api/finanzas/ocs/estado/CONFIRMAR_SPEI',
-      '/api/finanzas/ocs/todas',
-    ];
-    const results = await Promise.all(candidates.map(safeGetArray));
-    let merged = dedupeById(results.flat());
-    if (merged.length) merged = merged.filter(oc => oc?.metodo_pago === 'SPEI' && oc?.status === 'CONFIRMAR_SPEI');
-    return merged;
+  const fetchPorAutorizar = useCallback(async () => {
+    try { return await api.get('/api/finanzas/ocs/por-autorizar'); }
+    catch (e) { toast.error('No se pudieron cargar OCs por autorizar.'); return []; }
   }, []);
+
+  const fetchSpeiPorConfirmar = useCallback(async () => {
+    try { return await api.get('/api/finanzas/ocs/confirmar-spei'); }
+    catch (e) { toast.error('No se pudieron cargar SPEI por confirmar.'); return []; }
+  }, []);
+
   const fetchPorLiquidar = useCallback(async () => {
-    const candidates = ['/api/finanzas/ocs/por-liquidar', '/api/finanzas/ocs/pendientes-liquidacion', '/api/finanzas/ocs?pendiente_liquidar=true', '/api/finanzas/ocs/todas'];
-    const results = await Promise.all(candidates.map(safeGetArray));
-    let merged = dedupeById(results.flat());
-    if (merged.length) {
-      merged = merged.filter(oc => (!!oc?.pendiente_liquidar) && (oc?.metodo_pago === 'CREDITO' || (oc?.metodo_pago === 'SPEI' && oc?.status === 'APROBADA')));
-    }
-    return merged;
+    try { return await api.get('/api/finanzas/ocs/por-liquidar'); }
+    catch (e) { toast.error('No se pudieron cargar OCs por liquidar.'); return []; }
+  }, []);
+
+  const fetchEnHold = useCallback(async () => {
+    try { return await api.get('/api/finanzas/ocs/en-hold'); }
+    catch (e) { toast.error('No se pudieron cargar OCs en HOLD.'); return []; }
   }, []);
 
   const fetchAll = useCallback(async () => {
     try {
       setLoading(true); setError(null);
-      const [porAutorizar, speiConfirmar, porLiqui] = await Promise.all([fetchPorAutorizar(), fetchSpeiPorConfirmar(), fetchPorLiquidar()]);
-      setOcsPorAutorizar(porAutorizar); setOcsSpeiConfirmar(speiConfirmar); setOcsPorLiquidar(porLiqui);
+      const [pa, sc, pl, eh] = await Promise.all([
+        fetchPorAutorizar(),
+        fetchSpeiPorConfirmar(),
+        fetchPorLiquidar(),
+        fetchEnHold()
+      ]);
+      setOcsPorAutorizar(pa || []);
+      setOcsSpeiConfirmar(sc || []);
+      setOcsPorLiquidar(pl || []);
+      setOcsEnHold(eh || []);
     } catch (err) {
-      setError('No se pudieron cargar las órdenes de compra.'); toast.error(err?.error || 'Error al cargar datos.');
+      setError('No se pudieron cargar las órdenes de compra.');
     } finally { setLoading(false); }
-  }, [fetchPorAutorizar, fetchSpeiPorConfirmar, fetchPorLiquidar]);
+  }, [fetchPorAutorizar, fetchSpeiPorConfirmar, fetchPorLiquidar, fetchEnHold]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -68,7 +61,7 @@ export const useAutorizaciones = () => {
   const iniciarAprobacionCredito = async (ocId) => {
     try {
       const { dias_credito } = await api.get(`/api/finanzas/oc/${ocId}/detalles-credito`);
-      const dias = dias_credito > 0 ? dias_credito : 15;
+      const dias = dias_credito > 0 ? dias_credito : 30;
       const fecha = new Date(); fecha.setDate(fecha.getDate() + dias);
       setDialogState({ open: true, ocId, diasCredito: dias_credito, fechaPago: fecha });
     } catch { toast.error('No se pudo obtener la información de crédito.'); }
@@ -76,7 +69,6 @@ export const useAutorizaciones = () => {
   const confirmarAprobacionCredito = async () => {
     const { ocId } = dialogState; if (!ocId) return;
     try {
-      toast.info('Procesando aprobación…');
       const resp = await api.post(`/api/finanzas/oc/${ocId}/aprobar-credito`);
       setOcsPorAutorizar(prev => prev.filter(o => o.id !== ocId));
       setDialogState({ open: false, ocId: null, diasCredito: 0, fechaPago: null });
@@ -88,11 +80,11 @@ export const useAutorizaciones = () => {
 
   // === CONTADO / SPEI ===
   const preautorizarSpei = async (ocId) => {
-    try { toast.info('Marcando OC para SPEI…'); await api.post(`/api/finanzas/oc/${ocId}/preautorizar-spei`); await fetchAll(); toast.success('OC marcada como de contado (SPEI).'); }
+    try { await api.post(`/api/finanzas/oc/${ocId}/preautorizar-spei`); await fetchAll(); toast.success('OC marcada como de contado (SPEI).'); }
     catch (err) { toast.error(err?.error || 'No se pudo pre-autorizar la OC.'); }
   };
   const cancelarSpei = async (ocId) => {
-    try { toast.info('Cancelando pre-autorización SPEI…'); await api.post(`/api/finanzas/oc/${ocId}/cancelar-spei`); await fetchAll(); toast.success('Pre-autorización SPEI cancelada.'); }
+    try { await api.post(`/api/finanzas/oc/${ocId}/cancelar-spei`); await fetchAll(); toast.success('Pre-autorización SPEI cancelada.'); }
     catch (err) { toast.error(err?.error || 'No se pudo cancelar la pre-autorización SPEI.'); }
   };
 
@@ -110,18 +102,29 @@ export const useAutorizaciones = () => {
     catch (err) { toast.error(err?.error || 'No se pudo reanudar la OC.'); }
   };
 
+  // === PAGOS (comprobantes) ===
+  const subirComprobantePago = async (ocId, { archivo, tipoPago, monto, comentario }) => {
+    const fd = new FormData();
+    fd.append('comprobante', archivo);
+    fd.append('tipo_pago', tipoPago);
+    fd.append('monto', monto);
+    if (comentario) fd.append('comentario', comentario);
+    try { const resp = await api.post(`/api/finanzas/oc/${ocId}/pagos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); await fetchAll(); return resp; }
+    catch (err) { toast.error(err?.error || 'Error al subir el comprobante.'); throw err; }
+  };
+
   // === PREVIEW ===
   const getOcPreview = async (ocId) => {
     try { return await api.get(`/api/finanzas/oc/${ocId}/preview`); }
     catch { toast.error('No se pudo obtener la previsualización.'); return null; }
   };
 
-  // Exponer API del hook
   return {
     // listas
     ocs: ocsPorAutorizar,
     speiPorConfirmar: ocsSpeiConfirmar,
     porLiquidar: ocsPorLiquidar,
+    enHold: ocsEnHold,
     // ui
     loading, error,
     // crédito
@@ -131,11 +134,7 @@ export const useAutorizaciones = () => {
     // hold & rechazo
     rechazarOC, holdOC, reanudarOC,
     // pagos
-    subirComprobantePago: async (ocId, { archivo, tipoPago, monto, comentario }) => {
-      const fd = new FormData(); fd.append('comprobante', archivo); fd.append('tipo_pago', tipoPago); fd.append('monto', monto); if (comentario) fd.append('comentario', comentario);
-      try { const resp = await api.post(`/api/finanzas/oc/${ocId}/pagos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); await fetchAll(); return resp; }
-      catch (err) { toast.error(err?.error || 'Error al subir el comprobante.'); throw err; }
-    },
+    subirComprobantePago,
     // preview
     getOcPreview,
   };

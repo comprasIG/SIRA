@@ -1,9 +1,24 @@
-//C:\SIRA\SIRA\sira-front\src\components\finanzas\pay_oc\HoldOCDialog.jsx
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Stack } from '@mui/material';
+
+function formatYYYYMMDD(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 export default function HoldOCDialog({ open, onClose, onConfirm, oc }) {
   const [fecha, setFecha] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      const d = new Date();
+      d.setDate(d.getDate() + 30);        // default +30 días
+      setFecha(formatYYYYMMDD(d));
+    }
+  }, [open]);
+
   const handleClose = () => { setFecha(''); onClose(); };
   const handleConfirm = () => onConfirm(fecha || null);
 
@@ -14,7 +29,7 @@ export default function HoldOCDialog({ open, onClose, onConfirm, oc }) {
         <Stack spacing={2} sx={{ mt: 1 }}>
           <TextField
             type="date"
-            label="Regresar en (opcional)"
+            label="Regresar en"
             InputLabelProps={{ shrink: true }}
             value={fecha}
             onChange={(e) => setFecha(e.target.value)}

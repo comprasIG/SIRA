@@ -9,11 +9,11 @@ const {
   getOcsPorAutorizar,
   listSpeiPorConfirmar,
   listOcsPorLiquidar,
+  listOcsEnHold,                // NUEVO
   preautorizarSpei,
   cancelarSpei,
   aprobarCredito,
   getDetallesCredito,
-  // nuevos:
   rechazarOC,
   ponerHoldOC,
   reanudarDesdeHold,
@@ -26,6 +26,7 @@ router.use(verifyFirebaseToken, loadSiraUser);
 router.get('/ocs/por-autorizar', getOcsPorAutorizar);
 router.get('/ocs/confirmar-spei', listSpeiPorConfirmar);
 router.get('/ocs/por-liquidar', listOcsPorLiquidar);
+router.get('/ocs/en-hold', listOcsEnHold); // NUEVA
 
 // Acciones SPEI
 router.post('/oc/:id/preautorizar-spei', preautorizarSpei);
