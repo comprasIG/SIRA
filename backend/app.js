@@ -1,17 +1,17 @@
-//C:\SIRA\backend\app.js
+// C:\SIRA\backend\app.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 
 const app = express();
-const PORT = 3001; // o el puerto que quieras
+const PORT = 3001; // ajusta si lo necesitas
 
 // Middleware
 app.use(express.json());
 app.use(cors());
 
-// Rutas
-const requisicionesRoutes = require('./routes/requisiciones.routes'); // <-- IMPORTA el nuevo archivo de rutas
+// Routers principales
+const requisicionesRoutes = require('./routes/requisiciones.routes');
 app.use('/api/requisiciones', requisicionesRoutes);
 
 const proyectosRoutes = require('./routes/proyectos.routes');
@@ -50,10 +50,10 @@ app.use('/api/catalogo_materiales', catalogoMaterialesRoutes);
 const ordenCompraRoutes = require('./routes/ordenCompra.routes');
 app.use('/api/ocs', ordenCompraRoutes);
 
-const monedaRoutes = require('./routes/moneda.routes')
+const monedaRoutes = require('./routes/moneda.routes');
 app.use('/api/monedas', monedaRoutes);
 
-const notificacionesRoutes = require('./routes/configuracion/notificaciones.routes'); 
+const notificacionesRoutes = require('./routes/configuracion/notificaciones.routes');
 app.use('/api/configuracion/notificaciones', notificacionesRoutes);
 
 const finanzasRoutes = require('./routes/finanzas.routes');
@@ -63,11 +63,11 @@ const pagosOCRoutes = require('./routes/finanzas/pagosOC.routes');
 app.use('/api/finanzas', pagosOCRoutes);
 
 // Ruta base de prueba
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.send('Backend SIRA funcionando');
 });
 
 // Inicia el servidor
-app.listen(PORT, () => { 
+app.listen(PORT, () => {
   console.log(`Servidor backend escuchando en puerto ${PORT}`);
 });
