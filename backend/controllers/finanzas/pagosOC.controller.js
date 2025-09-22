@@ -3,7 +3,7 @@
 const path = require('path');
 const pool = require('../../db/pool');
 const { sendEmailWithAttachments } = require('../../services/emailService');
-const { 
+const {
   uploadMulterFileToOcFolder,
   getOcFolderWebLink
 } = require('../../services/googleDrive');
@@ -88,12 +88,13 @@ const registrarPago = async (req, res) => {
 
   try {
     if (!archivo) return res.status(400).json({ error: 'No se envió el comprobante.' });
+    if (!usuarioId) return res.status(401).json({ error: 'Usuario no autenticado para registrar pagos.' });
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      // Info de OC (FOR UPDATE)
+      // Info de la OC (FOR UPDATE)
       const ocBefore = await getOcInfo(ordenCompraId, client, true);
       const { numero_oc, metodo_pago, status, proveedor_nombre, total } = ocBefore;
 
@@ -136,7 +137,7 @@ const registrarPago = async (req, res) => {
       `, [ordenCompraId, montoAplicar, tipoCanonico, usuarioId, driveFile.webViewLink, comentario || null]);
       const pago = pagoQ.rows[0];
 
-      // Actualizar OC (monto_pagado y status según SPEI)
+      // --- ACTUALIZAR OC (monto_pagado y status según SPEI) ---
       const nuevoMontoPagado = pagadoAntes + montoAplicar;
       let nuevoStatus = status;
       let setComprobanteEnOC = false;
@@ -150,17 +151,32 @@ const registrarPago = async (req, res) => {
         }
       }
 
-      const updQ = await client.query(`
-        UPDATE ordenes_compra
-        SET monto_pagado = $1,
-            status = $2,
-            ${setComprobanteEnOC ? 'comprobante_pago_link = $3,' : ''}
-            actualizado_en = now()
-        WHERE id = $4
-        RETURNING id, numero_oc, status, metodo_pago, total, monto_pagado, comprobante_pago_link
-      `, setComprobanteEnOC
-          ? [nuevoMontoPagado, nuevoStatus, driveFile.webViewLink, ordenCompraId]
-          : [nuevoMontoPagado, nuevoStatus, ordenCompraId]);
+      // ⚠️ Placeholders fijos por rama para evitar $3/$4 inconsistentes
+      let sqlUpdate, paramsUpdate;
+      if (setComprobanteEnOC) {
+        sqlUpdate = `
+          UPDATE ordenes_compra
+          SET monto_pagado = $1,
+              status = $2,
+              comprobante_pago_link = $3,
+              actualizado_en = now()
+          WHERE id = $4
+          RETURNING id, numero_oc, status, metodo_pago, total, monto_pagado, comprobante_pago_link
+        `;
+        paramsUpdate = [nuevoMontoPagado, nuevoStatus, driveFile.webViewLink, ordenCompraId];
+      } else {
+        sqlUpdate = `
+          UPDATE ordenes_compra
+          SET monto_pagado = $1,
+              status = $2,
+              actualizado_en = now()
+          WHERE id = $3
+          RETURNING id, numero_oc, status, metodo_pago, total, monto_pagado, comprobante_pago_link
+        `;
+        paramsUpdate = [nuevoMontoPagado, nuevoStatus, ordenCompraId];
+      }
+
+      const updQ = await client.query(sqlUpdate, paramsUpdate);
       const ocAfter = updQ.rows[0];
 
       // Historial
