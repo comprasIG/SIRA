@@ -1,122 +1,107 @@
-//C:\SIRA\backend\services\ocAuthorizationService.js
+// C:\SIRA\backend\services\ocAuthorizationService.js
 /**
- * =================================================================================================
- * SERVICIO: Orquestador de Autorización de Órdenes de Compra
- * =================================================================================================
- * @file ocAuthorizationService.js
- * @description Este servicio gestiona el flujo de trabajo completo para la autorización
- * de una Orden de Compra. Orquesta la generación de PDF, la subida a Google Drive,
- * el envío de notificaciones por correo y la actualización final del estado en la BD.
+ * Orquestador de Autorización de Órdenes de Compra
+ * - Genera PDF con datos completos
+ * - Sube PDF a Drive en carpeta estándar ORDENES DE COMPRA (PDF)/OC-<NUMERO_OC>
+ * - Envía correo con PDF adjunto y link a la carpeta
+ * - Cambia estado a APROBADA
  */
-
-// --- Importaciones de Servicios Dependientes ---
 const pool = require('../db/pool');
 const { generatePurchaseOrderPdf } = require('./purchaseOrderPdfService');
-const { uploadPdfBuffer } = require('./googleDrive');
-const { sendRequisitionEmail } = require('./emailService'); // Reutilizamos este servicio de email
+const { uploadPdfToOcFolder, getOcFolderWebLink } = require('./googleDrive');
+const { sendRequisitionEmail } = require('./emailService');
 
-/**
- * @description Proceso completo para autorizar, registrar y distribuir una Orden de Compra.
- * @param {number} ocId - El ID de la Orden de Compra a procesar.
- * @param {object} usuarioSira - El objeto del usuario que está realizando la autorización.
- * @returns {Promise<object>} Un objeto confirmando el éxito de las operaciones.
- */
 const authorizeAndDistributeOC = async (ocId, usuarioSira) => {
   const client = await pool.connect();
   try {
-    // --- INICIO DE LA TRANSACCIÓN ---
-    // Usamos una transacción para asegurar que si algo falla, no se actualice el estado de la OC.
     await client.query('BEGIN');
 
-    // 1. OBTENER DATOS Y VALIDAR ESTADO
-    // Obtenemos todos los datos necesarios de la OC y sus relaciones.
-    const ocQuery = await client.query(`
-      SELECT 
-          oc.id, oc.numero_oc, oc.status, oc.rfq_id,
-          r.rfq_code,
-          p.marca AS proveedor_marca, p.razon_social AS proveedor_razon_social, p.correo as proveedor_correo,
-          d.codigo as depto_codigo
+    // 1) Traer datos completos para el PDF (cabecera)
+    const ocQ = await client.query(`
+      SELECT oc.*, 
+             p.razon_social AS proveedor_razon_social, p.marca AS proveedor_marca, p.rfc AS proveedor_rfc, p.correo AS proveedor_correo,
+             proy.nombre AS proyecto_nombre, s.nombre AS sitio_nombre, u.nombre AS usuario_nombre,
+             (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) AS moneda,
+             NOW() AS fecha_aprobacion
       FROM ordenes_compra oc
-      JOIN requisiciones r ON oc.rfq_id = r.id
       JOIN proveedores p ON oc.proveedor_id = p.id
-      JOIN departamentos d ON r.departamento_id = d.id
-      WHERE oc.id = $1;
+      JOIN proyectos proy ON oc.proyecto_id = proy.id
+      JOIN sitios s ON oc.sitio_id = s.id
+      JOIN usuarios u ON oc.usuario_id = u.id
+      WHERE oc.id = $1
+      FOR UPDATE
     `, [ocId]);
 
-    if (ocQuery.rows.length === 0) {
-      throw new Error(`La Orden de Compra con ID ${ocId} no fue encontrada.`);
-    }
-    const ocData = ocQuery.rows[0];
-
-    // La OC solo se puede procesar si está en 'POR_AUTORIZAR'.
+    if (ocQ.rowCount === 0) throw new Error(`OC ${ocId} no encontrada.`);
+    const ocData = ocQ.rows[0];
     if (ocData.status !== 'POR_AUTORIZAR') {
-      throw new Error(`La OC ${ocData.numero_oc} ya se encuentra en estado '${ocData.status}' y no puede ser procesada de nuevo.`);
+      throw new Error(`La OC ${ocData.numero_oc} está en estado '${ocData.status}' y no puede autorizarse aquí.`);
     }
-    
-    // 2. GENERAR EL PDF
-    console.log(`[Auth Service] Iniciando generación de PDF para OC ${ocData.numero_oc}...`);
-    const pdfBuffer = await generatePurchaseOrderPdf(ocId);
-    console.log(`[Auth Service] PDF generado exitosamente.`);
 
-    // 3. SUBIR A GOOGLE DRIVE
-    const fileName = `OC-${ocData.numero_oc}_${ocData.proveedor_marca}.pdf`;
-    console.log(`[Auth Service] Subiendo archivo "${fileName}" a Google Drive...`);
-    const driveFile = await uploadPdfBuffer(pdfBuffer, fileName, ocData.depto_codigo, ocData.rfq_code);
-    console.log(`[Auth Service] Archivo subido a Drive. Link: ${driveFile.webViewLink}`);
+    // 2) Traer detalle (ítems)
+    const itemsQ = await client.query(`
+      SELECT ocd.*, cm.nombre AS material_nombre, cu.simbolo AS unidad_simbolo
+      FROM ordenes_compra_detalle ocd
+      JOIN catalogo_materiales cm ON ocd.material_id = cm.id
+      JOIN catalogo_unidades cu ON cm.unidad_de_compra = cu.id
+      WHERE ocd.orden_compra_id = $1
+      ORDER BY ocd.id ASC
+    `, [ocId]);
+    const itemsData = itemsQ.rows;
 
-    // 4. ENVIAR NOTIFICACIÓN POR CORREO
-    // Preparamos los detalles para el envío del correo.
-    const recipients = ['compras.biogas@gmail.com']; // Lista de destinatarios internos
-    if (ocData.proveedor_correo) {
-      recipients.push(ocData.proveedor_correo); // Opcionalmente, se añade el correo del proveedor
-    }
-    const subject = `Nueva Orden de Compra Autorizada: ${ocData.numero_oc} para ${ocData.proveedor_razon_social}`;
+    // 3) Generar PDF
+    const pdfBuffer = await generatePurchaseOrderPdf(ocData, itemsData);
+    const pdfNameSafeMarca = (ocData.proveedor_marca || 'PROV').replace(/\s+/g, '_');
+    const fileName = `OC-${ocData.numero_oc}_${pdfNameSafeMarca}.pdf`;
+
+    // 4) Subir a carpeta estándar de la OC
+    const driveFile = await uploadPdfToOcFolder(pdfBuffer, ocData.numero_oc, fileName);
+    const { webViewLink: folderLink } = await getOcFolderWebLink(ocData.numero_oc);
+
+    // 5) Enviar email (internos + proveedor opcional)
+    const recipients = ['compras.biogas@gmail.com'];
+    if (ocData.proveedor_correo) recipients.push(ocData.proveedor_correo);
+
+    const subject = `Orden de Compra Autorizada: ${ocData.numero_oc} – ${ocData.proveedor_razon_social}`;
     const htmlBody = `
-      <p>Estimados,</p>
-      <p>Se ha autorizado una nueva Orden de Compra. Por favor, encuentren el documento PDF adjunto para su gestión.</p>
+      <p>Se autorizó la Orden de Compra <strong>${ocData.numero_oc}</strong>.</p>
       <ul>
-        <li><strong>Número de OC:</strong> ${ocData.numero_oc}</li>
         <li><strong>Proveedor:</strong> ${ocData.proveedor_razon_social}</li>
-        <li><strong>RFQ de Origen:</strong> ${ocData.rfq_code}</li>
-        <li><strong>Autorizado por:</strong> ${usuarioSira.nombre}</li>
+        <li><strong>Proyecto:</strong> ${ocData.proyecto_nombre}</li>
+        <li><strong>Sitio:</strong> ${ocData.sitio_nombre}</li>
+        <li><strong>Total:</strong> $${Number(ocData.total).toFixed(2)} ${ocData.moneda || ''}</li>
       </ul>
-      <p>Pueden acceder al archivo directamente en Google Drive a través de este <a href="${driveFile.webViewLink}">enlace</a>.</p>
-      <br>
-      <p><em>Este es un correo generado automáticamente por el sistema SIRA.</em></p>
+      <p>Pueden consultar la carpeta de la OC en Drive aquí: <a href="${folderLink}">${folderLink}</a></p>
+      <p>Se adjunta el PDF de la OC.</p>
+      <br><p><em>Correo automático SIRA</em></p>
     `;
-    console.log(`[Auth Service] Enviando correo a: ${recipients.join(', ')}...`);
     await sendRequisitionEmail(recipients, subject, htmlBody, pdfBuffer, fileName);
-    console.log(`[Auth Service] Correo enviado.`);
 
-    // 5. ACTUALIZAR ESTADO EN LA BASE DE DATOS
-    // Si todos los pasos anteriores fueron exitosos, actualizamos el estado de la OC a 'APROBADA'.
-    // SUGERENCIA: Considera añadir columnas `aprobado_por_id` y `fecha_aprobacion` a la tabla `ordenes_compra` para mejor trazabilidad.
+    // 6) Actualizar estado
     await client.query(
-      `UPDATE ordenes_compra SET status = 'APROBADA' WHERE id = $1`,
+      `UPDATE ordenes_compra SET status = 'APROBADA', actualizado_en = now() WHERE id = $1`,
       [ocId]
     );
-    console.log(`[Auth Service] Estado de la OC ${ocData.numero_oc} actualizado a 'APROBADA'.`);
 
-    // --- FIN DE LA TRANSACCIÓN ---
+    await client.query(
+      `INSERT INTO ordenes_compra_historial (orden_compra_id, usuario_id, accion_realizada, detalles)
+       VALUES ($1, $2, $3, $4)`,
+      [ocId, usuarioSira.id, 'AUTORIZACIÓN', JSON.stringify({ pdf: driveFile?.webViewLink, carpeta: folderLink })]
+    );
+
     await client.query('COMMIT');
-
     return {
-      mensaje: `OC ${ocData.numero_oc} autorizada y distribuida exitosamente.`,
-      driveLink: driveFile.webViewLink,
+      mensaje: `OC ${ocData.numero_oc} autorizada y distribuida.`,
+      drivePdfLink: driveFile?.webViewLink || null,
+      driveFolderLink: folderLink || null,
     };
-
-  } catch (error) {
-    // Si cualquier paso falla, se revierte la actualización de la base de datos.
+  } catch (err) {
     await client.query('ROLLBACK');
-    console.error(`[Auth Service] Error en el proceso de autorización para OC ${ocId}:`, error);
-    // Se relanza el error para que el controlador lo maneje.
-    throw error;
+    console.error('[Auth Service] Error:', err);
+    throw err;
   } finally {
-    // Siempre se libera la conexión al finalizar.
     client.release();
   }
 };
 
-module.exports = {
-  authorizeAndDistributeOC,
-};
+module.exports = { authorizeAndDistributeOC };

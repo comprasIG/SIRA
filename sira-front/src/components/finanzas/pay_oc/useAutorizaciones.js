@@ -1,3 +1,4 @@
+//C:\SIRA\SIRA\sira-front\src\components\finanzas\pay_oc\useAutorizaciones.js
 import { useState, useCallback, useEffect } from 'react';
 import api from '../../../api/api';
 import { toast } from 'react-toastify';
@@ -19,22 +20,22 @@ export const useAutorizaciones = () => {
   // === FETCHERS ===
   const fetchPorAutorizar = useCallback(async () => {
     try { return await api.get('/api/finanzas/ocs/por-autorizar'); }
-    catch (e) { toast.error('No se pudieron cargar OCs por autorizar.'); return []; }
+    catch { toast.error('No se pudieron cargar OCs por autorizar.'); return []; }
   }, []);
 
   const fetchSpeiPorConfirmar = useCallback(async () => {
     try { return await api.get('/api/finanzas/ocs/confirmar-spei'); }
-    catch (e) { toast.error('No se pudieron cargar SPEI por confirmar.'); return []; }
+    catch { toast.error('No se pudieron cargar SPEI por confirmar.'); return []; }
   }, []);
 
   const fetchPorLiquidar = useCallback(async () => {
     try { return await api.get('/api/finanzas/ocs/por-liquidar'); }
-    catch (e) { toast.error('No se pudieron cargar OCs por liquidar.'); return []; }
+    catch { toast.error('No se pudieron cargar OCs por liquidar.'); return []; }
   }, []);
 
   const fetchEnHold = useCallback(async () => {
     try { return await api.get('/api/finanzas/ocs/en-hold'); }
-    catch (e) { toast.error('No se pudieron cargar OCs en HOLD.'); return []; }
+    catch { toast.error('No se pudieron cargar OCs en HOLD.'); return []; }
   }, []);
 
   const fetchAll = useCallback(async () => {
@@ -50,7 +51,7 @@ export const useAutorizaciones = () => {
       setOcsSpeiConfirmar(sc || []);
       setOcsPorLiquidar(pl || []);
       setOcsEnHold(eh || []);
-    } catch (err) {
+    } catch {
       setError('No se pudieron cargar las órdenes de compra.');
     } finally { setLoading(false); }
   }, [fetchPorAutorizar, fetchSpeiPorConfirmar, fetchPorLiquidar, fetchEnHold]);
@@ -103,14 +104,36 @@ export const useAutorizaciones = () => {
   };
 
   // === PAGOS (comprobantes) ===
+  /**
+   * tipoPago: 'TOTAL' | 'ANTICIPO'
+   * - Si es TOTAL, el back calcula saldo si no mandas monto.
+   * - Si es ANTICIPO, SIEMPRE enviamos 'monto' > 0 (como string con punto decimal).
+   */
   const subirComprobantePago = async (ocId, { archivo, tipoPago, monto, comentario }) => {
     const fd = new FormData();
     fd.append('comprobante', archivo);
-    fd.append('tipo_pago', tipoPago);
-    fd.append('monto', monto);
+
+    // Mapea defensivo (por si en algún flujo llega "PARCIAL")
+    const t = (tipoPago || '').toString().toUpperCase();
+    const tipoCanonico = t === 'PARCIAL' ? 'ANTICIPO' : t;
+    fd.append('tipo_pago', tipoCanonico); // 'TOTAL' | 'ANTICIPO'
+
+    // Si no es TOTAL, mandamos SIEMPRE monto
+    if (tipoCanonico !== 'TOTAL') {
+      const montoStr = String(monto ?? '').replace(',', '.').trim();
+      fd.append('monto', montoStr);
+    }
+
     if (comentario) fd.append('comentario', comentario);
-    try { const resp = await api.post(`/api/finanzas/oc/${ocId}/pagos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); await fetchAll(); return resp; }
-    catch (err) { toast.error(err?.error || 'Error al subir el comprobante.'); throw err; }
+
+    try {
+      const resp = await api.post(`/api/finanzas/oc/${ocId}/pagos`, fd);
+      await fetchAll();
+      return resp;
+    } catch (err) {
+      toast.error(err?.error || 'Error al subir el comprobante.');
+      throw err;
+    }
   };
 
   // === PREVIEW ===

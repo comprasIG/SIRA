@@ -6,51 +6,95 @@ const stream = require('stream');
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
-const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID;
+const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID; // Carpeta raíz de tu instancia
 const REDIRECT_URI = 'https://developers.google.com/oauthplayground';
 
 const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 oauth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
 
-// --- FUNCIONES INTERNAS (HELPERS) ---
+const drive = () => google.drive({ version: 'v3', auth: oauth2Client });
 
+// ============================================================
+// Helpers internos
+// ============================================================
 const findOrCreateFolder = async (driveService, parentFolderId, folderName) => {
-  const escapedFolderName = folderName.replace(/'/g, "\\'");
-  const query = `name = '${escapedFolderName}' and mimeType = 'application/vnd.google-apps.folder' and '${parentFolderId}' in parents and trashed = false`;
-  try {
-    const res = await driveService.files.list({
-      q: query,
-      fields: 'files(id, name)',
-      spaces: 'drive',
-    });
-    if (res.data.files.length > 0) {
-      return res.data.files[0].id;
-    } else {
-      const fileMetadata = { name: folderName, mimeType: 'application/vnd.google-apps.folder', parents: [parentFolderId] };
-      const newFolder = await driveService.files.create({ requestBody: fileMetadata, fields: 'id' });
-      return newFolder.data.id;
-    }
-  } catch (error) {
-    console.error(`Error al buscar o crear la carpeta ${folderName}:`, error);
-    throw error;
-  }
+  const escaped = folderName.replace(/'/g, "\\'");
+  const q = `name='${escaped}' and mimeType='application/vnd.google-apps.folder' and '${parentFolderId}' in parents and trashed=false`;
+  const res = await driveService.files.list({ q, fields: 'files(id, name)', spaces: 'drive' });
+  if (res.data.files.length > 0) return res.data.files[0].id;
+
+  const fileMetadata = {
+    name: folderName,
+    mimeType: 'application/vnd.google-apps.folder',
+    parents: [parentFolderId],
+  };
+  const created = await driveService.files.create({ requestBody: fileMetadata, fields: 'id' });
+  return created.data.id;
 };
 
-// --- FUNCIONES EXPORTADAS ---
+const getWebViewLink = async (fileId) => {
+  const meta = await drive().files.get({ fileId, fields: 'id, webViewLink' });
+  return meta.data.webViewLink || null;
+};
 
-/**
- * Sube archivos que provienen de una petición de Multer.
- */
+// ============================================================
+// Carpeta estándar para OC: ORDENES DE COMPRA (PDF)/OC-<NUMERO_OC>
+// ============================================================
+const ensureOcFolder = async (numeroOc) => {
+  const d = drive();
+  const rootOcFolderId = await findOrCreateFolder(d, DRIVE_FOLDER_ID, 'ORDENES DE COMPRA (PDF)');
+  const ocFolderName = `OC-${numeroOc}`;
+  const ocFolderId = await findOrCreateFolder(d, rootOcFolderId, ocFolderName);
+  const webViewLink = await getWebViewLink(ocFolderId);
+  return { ocFolderId, webViewLink };
+};
+
+// ============================================================
+// Subidas a carpeta de OC
+// ============================================================
+const uploadBufferToFolder = async (folderId, buffer, mimeType, fileName) => {
+  const bufferStream = new stream.PassThrough();
+  bufferStream.end(buffer);
+  const result = await drive().files.create({
+    media: { mimeType, body: bufferStream },
+    requestBody: { name: fileName, parents: [folderId] },
+    fields: 'id, name, webViewLink, webContentLink',
+  });
+  return result.data;
+};
+
+const uploadPdfToOcFolder = async (pdfBuffer, numeroOc, fileName) => {
+  const { ocFolderId, webViewLink: folderWebViewLink } = await ensureOcFolder(numeroOc);
+  const file = await uploadBufferToFolder(ocFolderId, pdfBuffer, 'application/pdf', fileName);
+  return { ...file, folderWebViewLink, folderId: ocFolderId };
+};
+
+const uploadFileToOcFolder = async (fileBuffer, mimeType, numeroOc, fileName) => {
+  const { ocFolderId, webViewLink: folderWebViewLink } = await ensureOcFolder(numeroOc);
+  const file = await uploadBufferToFolder(ocFolderId, fileBuffer, mimeType, fileName);
+  return { ...file, folderWebViewLink, folderId: ocFolderId };
+};
+
+// Para rutas con Multer: req.file (comprobante)
+const uploadMulterFileToOcFolder = async (fileObject, numeroOc, fileNameOverride) => {
+  if (!fileObject || !fileObject.buffer) throw new Error('Archivo inválido.');
+  const fname = fileNameOverride || fileObject.originalname;
+  return uploadFileToOcFolder(fileObject.buffer, fileObject.mimetype, numeroOc, fname);
+};
+
+// ============================================================
+// Funciones existentes (se conservan)
+// ============================================================
 const uploadRequisitionFiles = async (files, departmentAbbreviation, requisitionNumber) => {
   try {
-    const drive = google.drive({ version: 'v3', auth: oauth2Client });
-    const requisicionesFolderId = await findOrCreateFolder(drive, DRIVE_FOLDER_ID, 'REQUISICIONES');
-    const departmentFolderId = await findOrCreateFolder(drive, requisicionesFolderId, departmentAbbreviation);
-    const targetFolderId = await findOrCreateFolder(drive, departmentFolderId, requisitionNumber);
+    const d = drive();
+    const requisicionesFolderId = await findOrCreateFolder(d, DRIVE_FOLDER_ID, 'REQUISICIONES');
+    const departmentFolderId = await findOrCreateFolder(d, requisicionesFolderId, departmentAbbreviation);
+    const targetFolderId = await findOrCreateFolder(d, departmentFolderId, requisitionNumber);
     const uploadPromises = files.map(fileObject => {
       const bufferStream = new stream.PassThrough();
       bufferStream.end(fileObject.buffer);
-      return drive.files.create({
+      return d.files.create({
         media: { mimeType: fileObject.mimetype, body: bufferStream },
         requestBody: { name: fileObject.originalname, parents: [targetFolderId] },
         fields: 'id, name, webViewLink',
@@ -64,168 +108,116 @@ const uploadRequisitionFiles = async (files, departmentAbbreviation, requisition
   }
 };
 
-/**
- * Sube archivos de cotizaciones que provienen de Multer.
- */
 const uploadQuoteFiles = async (files, rfqCode, providerName) => {
-    try {
-        const drive = google.drive({ version: 'v3', auth: oauth2Client });
-        const quotesFolderId = await findOrCreateFolder(drive, DRIVE_FOLDER_ID, 'COTIZACIONES');
-        const rfqFolderId = await findOrCreateFolder(drive, quotesFolderId, rfqCode);
-        const uploadPromises = files.map(fileObject => {
-            const bufferStream = new stream.PassThrough();
-            bufferStream.end(fileObject.buffer);
-            const fileName = `${rfqCode}_COT_${providerName.replace(/\s+/g, '_')}_${fileObject.originalname}`;
-            return drive.files.create({
-                media: { mimeType: fileObject.mimetype, body: bufferStream },
-                requestBody: { name: fileName, parents: [rfqFolderId] },
-                fields: 'id, name, webViewLink',
-            });
-        });
-        const results = await Promise.all(uploadPromises);
-        const uploadedFilesData = results.map((res, index) => ({
-            ...res.data,
-            originalName: files[index].originalname
-        }));
-        console.log(`Archivos de cotización subidos para ${rfqCode}:`, uploadedFilesData);
-        return uploadedFilesData;
-    } catch (error) {
-        console.error(`Error durante el proceso de subida de archivos de cotización para ${rfqCode}:`, error);
-        throw error;
-    }
+  try {
+    const d = drive();
+    const quotesFolderId = await findOrCreateFolder(d, DRIVE_FOLDER_ID, 'COTIZACIONES');
+    const rfqFolderId = await findOrCreateFolder(d, quotesFolderId, rfqCode);
+    const uploadPromises = files.map(fileObject => {
+      const bufferStream = new stream.PassThrough();
+      bufferStream.end(fileObject.buffer);
+      const fileName = `${rfqCode}_COT_${providerName.replace(/\s+/g, '_')}_${fileObject.originalname}`;
+      return d.files.create({
+        media: { mimeType: fileObject.mimetype, body: bufferStream },
+        requestBody: { name: fileName, parents: [rfqFolderId] },
+        fields: 'id, name, webViewLink',
+      });
+    });
+    const results = await Promise.all(uploadPromises);
+    return results.map((res, index) => ({ ...res.data, originalName: files[index].originalname }));
+  } catch (error) {
+    console.error(`Error durante la subida de archivos de cotización para ${rfqCode}:`, error);
+    throw error;
+  }
 };
 
-/**
- * Sube un PDF generado en memoria (Buffer) a Google Drive.
- * @param {Buffer} pdfBuffer - El contenido del PDF.
- * @param {string} fileName - El nombre que tendrá el archivo en Drive.
- * @param {string} rootFolderName - El nombre de la carpeta principal (ej: 'ORDENES DE COMPRA (PDF)').
- * @param {string} subFolderName - El nombre de la subcarpeta (ej: el RFQ o el número de OC).
- * @returns {Promise<object>} - Datos del archivo subido (id, name, webViewLink).
- */
+// Mantengo por compatibilidad, pero mejor usa uploadPdfToOcFolder para OCs
 const uploadPdfBuffer = async (pdfBuffer, fileName, rootFolderName, subFolderName) => {
   try {
-    const drive = google.drive({ version: 'v3', auth: oauth2Client });
-
-    // Lógica genérica para crear la estructura de carpetas
-    const rootFolderId = await findOrCreateFolder(drive, DRIVE_FOLDER_ID, rootFolderName);
-    const targetFolderId = await findOrCreateFolder(drive, rootFolderId, subFolderName);
-
+    const d = drive();
+    const rootFolderId = await findOrCreateFolder(d, DRIVE_FOLDER_ID, rootFolderName);
+    const targetFolderId = await findOrCreateFolder(d, rootFolderId, subFolderName);
     const bufferStream = new stream.PassThrough();
     bufferStream.end(pdfBuffer);
-
-    const result = await drive.files.create({
+    const result = await d.files.create({
       media: { mimeType: 'application/pdf', body: bufferStream },
       requestBody: { name: fileName, parents: [targetFolderId] },
       fields: 'id, name, webViewLink',
     });
-
-    console.log(`PDF subido a Drive en carpeta ${subFolderName}: ${fileName}`);
-    return result.data; // Se devuelve el objeto del archivo creado
-  
+    return result.data;
   } catch (error) {
-    // --- ¡CORRECCIÓN IMPORTANTE! ---
-    // Ahora el error se registra y se propaga hacia el controlador.
     console.error(`Error CRÍTICO al subir PDF a Drive (${fileName}):`, error);
-    // No devolvemos nada, permitiendo que la validación en el controlador falle con un mensaje claro.
-    // Opcionalmente, podrías hacer 'throw error;' para detener la ejecución inmediatamente.
-    return null; // Devolvemos null para que el controlador pueda manejarlo.
+    return null;
   }
 };
 
-/**
- * =================================================================================================
- * -SUBIR PDF DE COTIZACIÓN-RFQ
- * =================================================================================================
- * @description Sube archivos de cotizaciones de proveedores a una estructura de carpetas
- * específica en Google Drive: /COTIZACIONES/[RFQ_CODE]/[Proveedor_Marca]/archivo.pdf
- * @param {object} fileObject - El objeto de archivo que viene de Multer.
- * @param {string} rfqCode - El código del RFQ para la carpeta principal.
- * @param {string} providerName - El nombre del proveedor para la subcarpeta.
- * @returns {Promise<object>} - Datos del archivo subido.
- */
 const uploadQuoteFile = async (fileObject, rfqCode, providerName) => {
-    try {
-        const drive = google.drive({ version: 'v3', auth: oauth2Client });
-        const quotesFolderId = await findOrCreateFolder(drive, DRIVE_FOLDER_ID, 'COTIZACIONES');
-        const rfqFolderId = await findOrCreateFolder(drive, quotesFolderId, rfqCode);
-        const providerFolderId = await findOrCreateFolder(drive, rfqFolderId, providerName.replace(/\s+/g, '_'));
-
-        const bufferStream = new stream.PassThrough();
-        bufferStream.end(fileObject.buffer);
-
-        const result = await drive.files.create({
-            media: { mimeType: fileObject.mimetype, body: bufferStream },
-            requestBody: { name: fileObject.originalname, parents: [providerFolderId] },
-            fields: 'id, name, webViewLink',
-        });
-        
-        console.log(`Archivo de cotización subido para ${rfqCode}: ${fileObject.originalname}`);
-        return result.data;
-    } catch (error) {
-        console.error(`Error durante la subida de archivo de cotización para ${rfqCode}:`, error);
-        throw error;
-    }
+  try {
+    const d = drive();
+    const quotesFolderId = await findOrCreateFolder(d, DRIVE_FOLDER_ID, 'COTIZACIONES');
+    const rfqFolderId = await findOrCreateFolder(d, quotesFolderId, rfqCode);
+    const providerFolderId = await findOrCreateFolder(d, rfqFolderId, providerName.replace(/\s+/g, '_'));
+    const bufferStream = new stream.PassThrough();
+    bufferStream.end(fileObject.buffer);
+    const result = await d.files.create({
+      media: { mimeType: fileObject.mimetype, body: bufferStream },
+      requestBody: { name: fileObject.originalname, parents: [providerFolderId] },
+      fields: 'id, name, webViewLink',
+    });
+    return result.data;
+  } catch (error) {
+    console.error(`Error durante la subida de archivo de cotización para ${rfqCode}:`, error);
+    throw error;
+  }
 };
 
-/**
- * =================================================================================================
- * --- ¡NUEVA FUNCIÓN! ---
- * =================================================================================================
- * @description Descarga el contenido de un archivo de Google Drive a un buffer en memoria.
- * @param {string} fileId - El ID del archivo en Google Drive.
- * @returns {Promise<Buffer>} - Un buffer con los datos del archivo.
- */
 const downloadFileBuffer = async (fileId) => {
-    try {
-        const drive = google.drive({ version: 'v3', auth: oauth2Client });
-        const response = await drive.files.get(
-            { fileId: fileId, alt: 'media' },
-            { responseType: 'arraybuffer' }
-        );
-        return Buffer.from(response.data);
-    } catch (error) {
-        console.error(`Error al descargar el archivo ${fileId} de Drive:`, error);
-        throw new Error(`No se pudo descargar el archivo de Drive con ID ${fileId}.`);
-    }
+  try {
+    const response = await drive().files.get({ fileId, alt: 'media' }, { responseType: 'arraybuffer' });
+    return Buffer.from(response.data);
+  } catch (error) {
+    console.error(`Error al descargar el archivo ${fileId} de Drive:`, error);
+    throw new Error(`No se pudo descargar el archivo de Drive con ID ${fileId}.`);
+  }
 };
 
-/**
- * Busca y obtiene el folderId de una ruta jerárquica tipo ['ROOT', 'SUBFOLDER', ...]
- * NO crea folders nuevos, solo busca. (Safe para obtener el link de la carpeta OC)
- * @param {Array<string>} folderPath - Array con los nombres de la jerarquía, empezando desde la raíz.
- * @returns {Promise<string|null>} El folderId o null si no se encuentra.
- */
 const getFolderIdByPath = async (folderPath) => {
-    try {
-        const drive = google.drive({ version: 'v3', auth: oauth2Client });
-        let parentId = DRIVE_FOLDER_ID; // La carpeta raíz global de tu GDrive
-        for (const folderName of folderPath) {
-            const escapedFolderName = folderName.replace(/'/g, "\\'");
-            const q = `name = '${escapedFolderName}' and mimeType = 'application/vnd.google-apps.folder' and '${parentId}' in parents and trashed = false`;
-            const res = await drive.files.list({
-                q: q,
-                fields: 'files(id, name)',
-                spaces: 'drive',
-            });
-            if (!res.data.files.length) {
-                // Folder not found
-                return null;
-            }
-            parentId = res.data.files[0].id;
-        }
-        return parentId;
-    } catch (err) {
-        console.error('Error en getFolderIdByPath:', err);
-        return null;
+  try {
+    const d = drive();
+    let parentId = DRIVE_FOLDER_ID;
+    for (const folderName of folderPath) {
+      const escaped = folderName.replace(/'/g, "\\'");
+      const q = `name='${escaped}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
+      const res = await d.files.list({ q, fields: 'files(id, name)', spaces: 'drive' });
+      if (!res.data.files.length) return null;
+      parentId = res.data.files[0].id;
     }
+    return parentId;
+  } catch (err) {
+    console.error('Error en getFolderIdByPath:', err);
+    return null;
+  }
 };
 
-module.exports = { 
-    uploadRequisitionFiles,
-    uploadQuoteFiles,
-    uploadPdfBuffer, 
-    uploadQuoteFile,
-    downloadFileBuffer,
-    getFolderIdByPath, 
+// Link directo a la carpeta de una OC
+const getOcFolderWebLink = async (numeroOc) => {
+  const { ocFolderId, webViewLink } = await ensureOcFolder(numeroOc);
+  return { folderId: ocFolderId, webViewLink };
+};
+
+module.exports = {
+  // Nuevos (recomendados para OC)
+  ensureOcFolder,
+  uploadPdfToOcFolder,
+  uploadFileToOcFolder,
+  uploadMulterFileToOcFolder,
+  getOcFolderWebLink,
+
+  // Existentes (compatibilidad)
+  uploadRequisitionFiles,
+  uploadQuoteFiles,
+  uploadPdfBuffer,
+  uploadQuoteFile,
+  downloadFileBuffer,
+  getFolderIdByPath,
 };

@@ -9,17 +9,28 @@ async function getIdToken() {
   return await user.getIdToken();
 }
 
-// CAMBIO: La función ahora acepta un objeto de opciones, incluyendo 'responseType'
+/**
+ * request(path, { method, body, headers, responseType })
+ * - Si body es FormData: NO se fija Content-Type (el navegador agrega boundary)
+ * - responseType: 'json' (default) | 'blob'
+ */
 async function request(path, { method = "GET", body, headers = {}, responseType = 'json' } = {}) {
   const idToken = await getIdToken();
 
-  let fetchHeaders = {
+  // Construcción de headers
+  const fetchHeaders = {
     Authorization: `Bearer ${idToken}`,
     ...headers,
   };
+
   let fetchBody = body;
 
-  if (!(body instanceof FormData) && body !== undefined) {
+  // Si el body es FormData, nos aseguramos de no mandar Content-Type
+  if (body instanceof FormData) {
+    // si alguien lo pasó en options.headers, lo removemos
+    if ('Content-Type' in fetchHeaders) delete fetchHeaders['Content-Type'];
+    fetchBody = body;
+  } else if (body !== undefined) {
     fetchHeaders["Content-Type"] = "application/json";
     fetchBody = JSON.stringify(body);
   }
@@ -30,39 +41,29 @@ async function request(path, { method = "GET", body, headers = {}, responseType 
     body: fetchBody,
   });
 
-  // Si la respuesta no es OK, manejamos el error primero.
+  // Manejo de errores primero
   if (!res.ok) {
     let errorPayload = null;
-    try {
-      errorPayload = await res.json();
-    } catch {
-      // El cuerpo del error puede no ser JSON
-    }
+    try { errorPayload = await res.json(); } catch { /* puede no ser JSON */ }
     const msg = errorPayload?.error || `Error ${res.status} en la petición a ${path}`;
     throw { ...errorPayload, error: msg, status: res.status };
   }
 
-  // Si la respuesta es OK (2xx), procesamos el cuerpo según lo esperado.
+  // Respuestas exitosas
   if (responseType === 'blob') {
-    // Si esperamos un blob, lo devolvemos junto con los encabezados (para el nombre del archivo)
     const blob = await res.blob();
     return { data: blob, headers: res.headers };
   }
-  
-  if (res.status === 204) { // No Content
-    return null;
-  }
-  
-  // Por defecto, intentamos parsear como JSON
+
+  if (res.status === 204) return null;
+
   try {
     return await res.json();
   } catch {
-    // Si falla el parseo de JSON en una respuesta OK, puede ser un error inesperado.
     throw new Error("La respuesta del servidor no es un JSON válido.");
   }
 }
 
-// CAMBIO: Las funciones ahora aceptan un tercer parámetro 'options'
 const api = {
   get: (path, options) => request(path, { method: "GET", ...options }),
   post: (path, body, options) => request(path, { method: "POST", body, ...options }),
