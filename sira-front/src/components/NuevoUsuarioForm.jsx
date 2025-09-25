@@ -66,7 +66,7 @@ export default function NuevoUsuarioForm({ onUsuarioCreado }) {
         className="max-w-2xl mx-auto bg-white rounded-xl shadow-lg p-8 space-y-6"
         autoComplete="off"
       >
-        <h2 className="text-2xl font-bold text-center text-gray-800 mb-4 border-b-2 border-gray-200 pb-3">
+        <h2 className="text-2xl font-bold text-left text-gray-800 mb-4 border-b-2 border-gray-200 pb-3">
           Registrar Nuevo Usuario
         </h2>
 
