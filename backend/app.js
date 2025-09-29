@@ -11,13 +11,20 @@ app.use(express.json());
 app.use(cors());
 
 // ===============================================
-// Endpoint de Health Check
+// NUEVO: Middleware "espía" para ver todas las peticiones
+// ===============================================
+app.use((req, res, next) => {
+  console.log(`Petición recibida: ${req.method} ${req.originalUrl}`);
+  next();
+});
+
+// ===============================================
+// Endpoint de Health Check (MOVIDO AL PRINCIPIO)
 // ===============================================
 app.get('/healthz', (req, res) => {
-  // Este endpoint no debe consultar la BD. Su única función
-  // es confirmar que el proceso del servidor está activo y responde.
   res.status(200).json({ status: 'ok' });
 });
+
 
 // Routers principales
 const requisicionesRoutes = require('./routes/requisiciones.routes');
