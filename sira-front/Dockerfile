@@ -9,6 +9,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+
+RUN echo ">>>>>> VITE_API_URL DENTRO DEL BUILD ES: $VITE_API_URL <<<<<<"
+
 RUN npm run build
 
 # ---- Etapa 2: Producción (Serve) ----
