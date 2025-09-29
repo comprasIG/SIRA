@@ -5,6 +5,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
+import SearchIcon from '@mui/icons-material/Search';
 
 const ListaProductos = () => {
   const [productos, setProductos] = useState([]);
@@ -92,23 +93,32 @@ const ListaProductos = () => {
 
   return (
     <div className="p-6 bg-white rounded-2xl shadow-md">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">
+      <h2 className="text-2xl font-bold text-left text-gray-800 mb-4 border-b-2 border-gray-200 pb-3">
         Catálogo de Productos
       </h2>
 
       {/* 🔎 Barra de búsqueda y selector */}
       <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <input
-        NavigateBeforeIcon
-          type="text"
-          placeholder="🔎 Buscar por SKU o Nombre..."
-          value={busqueda}
-          onChange={(e) => {
-            setBusqueda(e.target.value);
-            setPaginaActual(1); // reiniciar a la página 1 al buscar
-          }}
-          className="w-full sm:w-1/2 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-        />
+      {/* Input con icono */}
+      <div className="relative w-full sm:w-1/2">
+      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
+      {/* Usando material-icons clásico */}
+      <span className="material-icons"><SearchIcon/></span>
+      {/* O si prefieres con @mui/icons-material */}
+      {/* <SearchIcon fontSize="small" /> */}
+    </span>
+
+    <input
+      type="text"
+      placeholder="Buscar por SKU o Nombre..."
+      value={busqueda}
+      onChange={(e) => {
+        setBusqueda(e.target.value);
+        setPaginaActual(1); // reiniciar a la página 1 al buscar
+      }}
+      className="w-full pl-10 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+    />
+  </div>
 
         <div className="flex items-center space-x-2 text-sm">
           <span>Mostrar:</span>
