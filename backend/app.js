@@ -4,11 +4,20 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
-const PORT = 3001; // ajusta si lo necesitas
+const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(express.json());
 app.use(cors());
+
+// ===============================================
+// Endpoint de Health Check
+// ===============================================
+app.get('/healthz', (req, res) => {
+  // Este endpoint no debe consultar la BD. Su única función
+  // es confirmar que el proceso del servidor está activo y responde.
+  res.status(200).json({ status: 'ok' });
+});
 
 // Routers principales
 const requisicionesRoutes = require('./routes/requisiciones.routes');
