@@ -18,6 +18,8 @@ FROM nginx:1.25-alpine
 # para sustituir variables de entorno en archivos.
 RUN apk add --no-cache gettext
 
+COPY --from=build /app/dist /usr/share/nginx/html
+
 # 2. Copiamos nuestra configuración de NGINX como una plantilla.
 COPY nginx.conf /etc/nginx/conf.d/default.conf.template
 
