@@ -21,10 +21,9 @@ app.use((req, res, next) => {
 // ===============================================
 // Endpoint de Health Check (MOVIDO AL PRINCIPIO)
 // ===============================================
-app.get('/healthz', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+app.get('/status', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'Service is up and running' });
 });
-
 
 // Routers principales
 const requisicionesRoutes = require('./routes/requisiciones.routes');
