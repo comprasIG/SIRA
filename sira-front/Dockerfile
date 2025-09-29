@@ -3,6 +3,8 @@
 # ---- Etapa 1: Construcción (Build) ----
 # Esta etapa se queda igual, ¡estaba perfecta!
 FROM node:18-alpine AS build
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -33,4 +35,3 @@ EXPOSE 8080
 # 5. Usamos nuestro script personalizado para iniciar el contenedor.
 CMD ["/start-nginx.sh"]
 
-# ---- FIN DE CAMBIOS ----
