@@ -79,7 +79,7 @@ app.use('/api/finanzas', pagosOCRoutes);
 
 // Ruta base de prueba
 app.get('/', (_req, res) => {
-  res.send('Backend SIRA v3 funcionando!');
+  res.send('Backend SIRA - ¡Despliegue Automático! 🎉');
 });
 
 // Inicia el servidor
