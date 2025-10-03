@@ -1,0 +1,12 @@
+{
+  "bindings": [
+    {
+      "members": [
+        "principal://iam.googleapis.com/projects/386605754193/locations/global/workloadIdentityPools/sira-github-pool/subject/repo:comprasIG/SIRA:ref:refs/heads/develop"
+      ],
+      "role": "roles/iam.workloadIdentityUser"
+    }
+  ],
+  "etag": "BwZAM80CrLo=",
+  "version": 1
+}
