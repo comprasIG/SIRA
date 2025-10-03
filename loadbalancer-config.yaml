@@ -1,0 +1,32 @@
+#C:\SIRA\SIRA\loadbalancer-config.yaml
+# loadbalancer-config.yaml
+---
+name: sira-url-map
+
+# Servicio por defecto si no coincide ningún host (apunta a staging por seguridad)
+defaultService: projects/sira-grupo-ig/global/backendServices/sira-web-stg-backend
+
+# Reglas por cada dominio (host)
+hostRules:
+- hosts:
+  - stg.sira-ig.com
+  pathMatcher: stg-matcher
+- hosts:
+  - sira-ig.com
+  - www.sira-ig.com
+  pathMatcher: prd-matcher
+
+# Definición de los "agentes de tráfico" (path matchers)
+pathMatchers:
+- name: stg-matcher
+  defaultService: projects/sira-grupo-ig/global/backendServices/sira-web-stg-backend
+  pathRules:
+  - paths:
+    - /api/*
+    service: projects/sira-grupo-ig/global/backendServices/sira-api-stg-backend
+- name: prd-matcher
+  defaultService: projects/sira-grupo-ig/global/backendServices/sira-web-prd-backend
+  pathRules:
+  - paths:
+    - /api/*
+    service: projects/sira-grupo-ig/global/backendServices/sira-api-prd-backend
