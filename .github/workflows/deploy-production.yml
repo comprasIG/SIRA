@@ -1,13 +1,13 @@
 #C:\SIRA\SIRA\.github\workflows\deploy-production.yml
 # .github/workflows/deploy-production.yml
-#PRUEBA 3 
+#PRUEBA 5
 
 name: Desplegar a Producción
 
 on:
   push:
     tags:
-      - 'v*.*.*' # Se activa al crear un tag que empiece con 'v', ej. v1.0.0
+      - 'v*.*.*'
 
 env:
   PROJECT_ID: sira-grupo-ig
@@ -19,26 +19,30 @@ jobs:
     name: Desplegar Backend a Producción
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout del código
         uses: actions/checkout@v4
 
       - name: Autenticar con Google Cloud
+        id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: 'projects/386605754193/locations/global/workloadIdentityPools/sira-github-pool/providers/sira-github-provider'
           service_account: 'sa-sira-deployer@sira-grupo-ig.iam.gserviceaccount.com'
+          # 👉 Emitir access token para usarlo directo en Docker
+          token_format: 'access_token'
+          access_token_scopes: 'https://www.googleapis.com/auth/cloud-platform'
 
       - name: Configurar gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      # 🔐 Login directo a Artifact Registry con access-token (evita docker-credential-gcloud)
+      # 🔐 Login directo a Artifact Registry con el token del step "auth"
       - name: Login a Artifact Registry (token)
         run: |
-          gcloud auth print-access-token | \
+          echo "${{ steps.auth.outputs.access_token }}" | \
             docker login -u oauth2accesstoken --password-stdin \
             https://${{ env.REGION }}-docker.pkg.dev
 
@@ -64,26 +68,28 @@ jobs:
     runs-on: ubuntu-latest
     needs: deploy-backend
     permissions:
-      contents: 'read'
-      id-token: 'write'
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout del código
         uses: actions/checkout@v4
 
       - name: Autenticar con Google Cloud
+        id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: 'projects/386605754193/locations/global/workloadIdentityPools/sira-github-pool/providers/sira-github-provider'
           service_account: 'sa-sira-deployer@sira-grupo-ig.iam.gserviceaccount.com'
+          token_format: 'access_token'
+          access_token_scopes: 'https://www.googleapis.com/auth/cloud-platform'
 
       - name: Configurar gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      # 🔐 Login directo a Artifact Registry con access-token (igual que en backend)
       - name: Login a Artifact Registry (token)
         run: |
-          gcloud auth print-access-token | \
+          echo "${{ steps.auth.outputs.access_token }}" | \
             docker login -u oauth2accesstoken --password-stdin \
             https://${{ env.REGION }}-docker.pkg.dev
 
