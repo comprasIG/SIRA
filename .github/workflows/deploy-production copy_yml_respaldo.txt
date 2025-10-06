@@ -1,0 +1,72 @@
+#C:\SIRA\SIRA\.github\workflows\deploy-production.yml
+# .github/workflows/deploy-production.yml
+
+name: Desplegar a Producción
+
+on:
+  push:
+    tags:
+      - 'v*.*.*' # Se activa al crear un tag que empiece con 'v', ej. v1.0.0
+
+env:
+  PROJECT_ID: sira-grupo-ig
+  REGION: us-central1
+  REPO_NAME: sira-artifacts
+
+jobs:
+  deploy-backend:
+    name: Desplegar Backend a Producción
+    runs-on: ubuntu-latest
+    permissions: { contents: 'read', id-token: 'write' }
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Autenticar con Google Cloud
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: 'projects/386605754193/locations/global/workloadIdentityPools/sira-github-pool/providers/sira-github-provider'
+          service_account: 'sa-sira-deployer@sira-grupo-ig.iam.gserviceaccount.com'
+
+      - name: Configurar gcloud y Docker
+        uses: 'google-github-actions/setup-gcloud@v2'
+      - run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Construir y Subir Imagen de Backend
+        run: |-
+          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/sira-api-prd:${{ github.ref_name }} ./backend
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/sira-api-prd:${{ github.ref_name }}
+
+      - name: Desplegar Backend a Cloud Run
+        run: |-
+          gcloud run deploy sira-api-prd --image="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/sira-api-prd:${{ github.ref_name }}" --region="${{ env.REGION }}" --platform="managed" --service-account="sa-sira-deployer@sira-grupo-ig.iam.gserviceaccount.com" --add-cloudsql-instances="sira-grupo-ig:us-central1:grupo-ig-main-db" --no-allow-unauthenticated --set-env-vars="NODE_ENV=production,DB_NAME=sira_prod,INSTANCE_UNIX_SOCKET=/cloudsql/sira-grupo-ig:us-central1:grupo-ig-main-db,SMTP_HOST=smtp.hostinger.com,SMTP_PORT=465" --set-secrets="DB_USER=db-user-prd:latest,DB_PASSWORD=db-pass-prd:latest,JWT_SECRET=jwt-secret-prd:latest,GOOGLE_CLIENT_ID=google-client-id-prd:latest,GOOGLE_CLIENT_SECRET=google-client-secret-prd:latest,GOOGLE_REFRESH_TOKEN=google-refresh-token-prd:latest,DRIVE_FOLDER_ID=drive-folder-id-prd:latest,SMTP_USER=smtp-user-prd:latest,SMTP_PASSWORD=smtp-password-prd:latest"
+
+  deploy-frontend:
+    name: Desplegar Frontend a Producción
+    runs-on: ubuntu-latest
+    needs: deploy-backend # Espera a que el backend se despliegue con éxito
+    permissions: { contents: 'read', id-token: 'write' }
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Autenticar con Google Cloud
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: 'projects/386605754193/locations/global/workloadIdentityPools/sira-github-pool/providers/sira-github-provider'
+          service_account: 'sa-sira-deployer@sira-grupo-ig.iam.gserviceaccount.com'
+
+      - name: Configurar gcloud y Docker
+        uses: 'google-github-actions/setup-gcloud@v2'
+      - run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Construir y Subir Imagen de Frontend
+        run: |-
+          docker build --build-arg VITE_API_URL="${{ secrets.PRODUCTION_API_URL }}" -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/sira-web-prd:${{ github.ref_name }} ./sira-front
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/sira-web-prd:${{ github.ref_name }}
+
+      - name: Desplegar Frontend a Cloud Run
+        run: |-
+          gcloud run deploy sira-web-prd --image="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/sira-web-prd:${{ github.ref_name }}" --region="${{ env.REGION }}" --platform="managed" --allow-unauthenticated

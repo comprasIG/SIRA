@@ -2,11 +2,19 @@
   "bindings": [
     {
       "members": [
-        "principal://iam.googleapis.com/projects/386605754193/locations/global/workloadIdentityPools/sira-github-pool/subject/repo:comprasIG/SIRA:ref:refs/heads/develop"
+        "principal://iam.googleapis.com/projects/386605754193/locations/global/workloadIdentityPools/sira-github-pool/subject/repo:comprasIG/SIRA:ref:refs/heads/develop",
+        "principal://iam.googleapis.com/projects/386605754193/locations/global/workloadIdentityPools/sira-github-pool/subject/repo:comprasIG/SIRA:ref:refs/tags/*"
+      ],
+      "role": "roles/iam.serviceAccountTokenCreator"
+    },
+    {
+      "members": [
+        "principal://iam.googleapis.com/projects/386605754193/locations/global/workloadIdentityPools/sira-github-pool/subject/repo:comprasIG/SIRA:ref:refs/heads/develop",
+        "principal://iam.googleapis.com/projects/386605754193/locations/global/workloadIdentityPools/sira-github-pool/subject/repo:comprasIG/SIRA:ref:refs/tags/*"
       ],
       "role": "roles/iam.workloadIdentityUser"
     }
   ],
-  "etag": "BwZAM80CrLo=",
+  "etag": "BwZAdLPyuAI=",
   "version": 1
 }
