@@ -1,6 +1,7 @@
 #C:\SIRA\SIRA\.github\workflows\deploy-production.yml
 # .github/workflows/deploy-production.yml
-#PRUEBA 2
+#PRUEBA 3 
+
 name: Desplegar a Producción
 
 on:
@@ -34,8 +35,12 @@ jobs:
       - name: Configurar gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configurar Docker
-        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+      # 🔐 Login directo a Artifact Registry con access-token (evita docker-credential-gcloud)
+      - name: Login a Artifact Registry (token)
+        run: |
+          gcloud auth print-access-token | \
+            docker login -u oauth2accesstoken --password-stdin \
+            https://${{ env.REGION }}-docker.pkg.dev
 
       - name: Construir y Subir Imagen de Backend
         run: |
@@ -75,12 +80,17 @@ jobs:
       - name: Configurar gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configurar Docker
-        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+      # 🔐 Login directo a Artifact Registry con access-token (igual que en backend)
+      - name: Login a Artifact Registry (token)
+        run: |
+          gcloud auth print-access-token | \
+            docker login -u oauth2accesstoken --password-stdin \
+            https://${{ env.REGION }}-docker.pkg.dev
 
       - name: Construir y Subir Imagen de Frontend
         run: |
-          docker build --build-arg VITE_API_URL="${{ secrets.PRODUCTION_API_URL }}" -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/sira-web-prd:${{ github.ref_name }} ./sira-front
+          docker build --build-arg VITE_API_URL="${{ secrets.PRODUCTION_API_URL }}" \
+            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/sira-web-prd:${{ github.ref_name }} ./sira-front
           docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/sira-web-prd:${{ github.ref_name }}
 
       - name: Desplegar Frontend a Cloud Run
