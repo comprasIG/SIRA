@@ -9,5 +9,11 @@ import React from 'react';
 import REC_OCForm from '../components/REC_OC/REC_OCForm';
 
 export default function REC_OC() {
-  return <REC_OCForm />;
+  return  (
+    <div className="container mt-4">
+      <h1 className="mb-4">Recolección de OCs</h1>
+      <REC_OCForm />
+    </div>
+  );
 }
+

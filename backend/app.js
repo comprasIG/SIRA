@@ -77,8 +77,6 @@ app.use('/api/finanzas', finanzasRoutes);
 const pagosOCRoutes = require('./routes/finanzas/pagosOC.routes');
 app.use('/api/finanzas', pagosOCRoutes);
 
-const recOcRoutes = require('./routes/rec_oc.routes');
-app.use('/api/rec_oc', recOcRoutes);
 
 
 // Ruta base de prueba
