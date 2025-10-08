@@ -140,21 +140,6 @@ const generarOcsDesdeRfq = async (req, res) => {
                     [nuevaOcId, item.requisicion_detalle_id]
                 );
             }
-           // b. Sumamos la cantidad de este item a la columna 'cantidad_procesada'.
-                await client.query(
-                    `UPDATE requisiciones_detalle 
-                     SET cantidad_procesada = cantidad_procesada + $1 
-                     WHERE id = $2`,
-                    [item.cantidad_cotizada, item.requisicion_detalle_id]
-                );
-
-                // c. Verificamos si la cantidad total ya fue cubierta para "cerrar" la línea.
-                await client.query(
-                    `UPDATE requisiciones_detalle
-                     SET status_compra = $1
-                     WHERE id = $2 AND cantidad_procesada >= cantidad`,
-                    [nuevaOcId, item.requisicion_detalle_id] // Usamos el ID de la OC como referencia de cierre
-                );
             for (const file of quoteFilesQuery.rows) {
                 try {
                     const fileId = file.ruta_archivo.split('/view')[0].split('/').pop();
