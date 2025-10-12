@@ -72,6 +72,7 @@ const procesarOcParaRecoleccion = async (req, res) => {
         numeroGuia,
         comentarioRecoleccion,
         paqueteriaPago,
+        entregaResponsable, // <<< NUEVO CAMPO
         notificarRecoleccion,
         notificarProveedor,
     } = req.body;
@@ -93,7 +94,6 @@ const procesarOcParaRecoleccion = async (req, res) => {
             for (const file of req.files) {
                 const fileName = `EVIDENCIA_${oc.numero_oc}_${Date.now()}_${file.originalname}`;
                 const driveFile = await uploadMulterFileToOcFolder(file, oc.numero_oc, fileName);
-
                 const insertRes = await client.query(
                     `INSERT INTO archivos_recoleccion_oc (orden_compra_id, archivo_link, tipo) VALUES ($1, $2, $3) RETURNING *`,
                     [ordenCompraId, driveFile.webViewLink, 'EVIDENCIA_EMBARQUE']
@@ -114,24 +114,28 @@ const procesarOcParaRecoleccion = async (req, res) => {
                numero_guia = $4,
                comentario_recoleccion = $5,
                paqueteria_pago = $6,
+               entrega_responsable = $7, -- <<< NUEVA LÍNEA
                actualizado_en = now()
              WHERE id = $1
              RETURNING id, status`,
-            [ordenCompraId, metodoRecoleccionId, finalPaqueteriaId, finalNumeroGuia, comentarioRecoleccion, paqueteriaPago]
+            [ordenCompraId, metodoRecoleccionId, finalPaqueteriaId, finalNumeroGuia, comentarioRecoleccion, paqueteriaPago, entregaResponsable]
         );
 
+        // Notificaciones simuladas
         if (notificarRecoleccion === 'true') {
             await sendWhatsAppMessage('RECOLECCIONES_GROUP', `Nueva OC para recolección: ${oc.numero_oc}`);
         }
         if (notificarProveedor === 'true') {
+            // El mensaje podría variar según 'entregaResponsable' en el futuro
             await sendWhatsAppMessage('PROVEEDOR_CONTACT', `Su OC ${oc.numero_oc} está en proceso de recolección.`);
         }
 
+        // Registro en el historial
         const detallesHistorial = {
             accion: 'Paso a Recolección',
             nuevo_estado: 'EN_PROCESO',
             metodoRecoleccionId, paqueteriaId: finalPaqueteriaId, numeroGuia: finalNumeroGuia,
-            paqueteriaPago, comentarioRecoleccion,
+            paqueteriaPago, comentarioRecoleccion, entregaResponsable,
             notificaciones: { recoleccion: notificarRecoleccion, proveedor: notificarProveedor },
             archivos: archivosSubidos.map(a => a.archivo_link),
         };
