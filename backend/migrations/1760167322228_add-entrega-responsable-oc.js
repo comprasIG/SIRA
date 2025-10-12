@@ -9,15 +9,16 @@ export const shorthands = undefined;
  * @returns {Promise<void> | void}
  */
 export const up = (pgm) => {
-   pgm.sql(`
-    INSERT INTO public.catalogo_monedas (codigo, nombre) VALUES
-        ('MXN', 'Peso Mexicano'),
-        ('USD', 'Dólar Estadounidense'),
-        ('EUR', 'Euro'),
-        ('GBP', 'Libra Esterlina')
-    ON CONFLICT (codigo) DO NOTHING;
-  `);
+ pgm.addColumn('ordenes_compra', {
+    entrega_responsable: {
+      type: 'varchar(30)',
+      notNull: false,
+      comment: 'Quién entrega: EQUIPO_RECOLECCION | PROVEEDOR'
+    }
+  });
 
+  // Opcional: índice si vas a filtrar por esto
+  // pgm.createIndex('ordenes_compra', 'entrega_responsable');
 };
 
 /**
@@ -26,7 +27,7 @@ export const up = (pgm) => {
  * @returns {Promise<void> | void}
  */
 export const down = (pgm) => {
-     pgm.sql(`
-        DELETE FROM public.catalogo_monedas WHERE codigo IN ('MXN', 'USD', 'EUR', 'GBP');
-    `);
+     // pgm.dropIndex('ordenes_compra', 'entrega_responsable');
+  pgm.dropColumn('ordenes_compra', 'entrega_responsable');
+  
 };

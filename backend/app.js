@@ -77,6 +77,11 @@ app.use('/api/finanzas', finanzasRoutes);
 const pagosOCRoutes = require('./routes/finanzas/pagosOC.routes');
 app.use('/api/finanzas', pagosOCRoutes);
 
+const recoleccionRoutes = require('./routes/recoleccion.routes');
+app.use('/api/recoleccion', recoleccionRoutes);
+
+
+
 // Ruta base de prueba
 app.get('/', (_req, res) => {
   res.send('Backend SIRA - ¡Despliegue Automático! V1.0.7🎉🎉');
