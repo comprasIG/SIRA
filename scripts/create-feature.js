@@ -21,11 +21,19 @@ async function main() {
     { type: 'input', name: 'icon', message: 'Ícono de Material-UI (o presiona Enter para usar el default):', default: 'HelpOutline' },
   ]);
 
-  const { featureName, route, module, icon, code } = answers;
+  let { featureName, route, module, icon, code } = answers;
   if (!featureName || !route || !module || !code) {
     console.error('❌ Los primeros 4 campos son obligatorios. Abortando.');
     return;
   }
+
+  // =========================================================================================
+  // ¡NUEVA LÍNEA!
+  // Nos aseguramos de que la ruta siempre empiece con una diagonal.
+  if (!route.startsWith('/')) {
+    route = '/' + route;
+  }
+  // =========================================================================================
 
   const componentName = toPascalCase(featureName.replace(/ /g, '-'));
   const componentFolder = toKebabCase(module);
@@ -33,15 +41,12 @@ async function main() {
   const filesCreated = [];
 
   try {
-    // --- 1. Generar Migración ---
+    // ... (El resto del script no cambia)
+
     const timestamp = Date.now();
     const migrationFileName = `${timestamp}_agregar-funcion-${toKebabCase(code)}.js`;
     const migrationPath = path.join('backend', 'migrations', migrationFileName);
     
-    // =========================================================================================
-    // ¡CAMBIO CLAVE!
-    // Ahora inyectamos los valores ya escapados directamente en la consulta SQL del template.
-    // =========================================================================================
     const migrationContent = `
 /** @type {import('node-pg-migrate').ColumnDefinitions | undefined} */
 export const shorthands = undefined;
@@ -54,7 +59,7 @@ export const up = async (pgm) => {
       nombre = EXCLUDED.nombre,
       modulo = EXCLUDED.modulo,
       icono = EXCLUDED.icono,
-      ruta = EXcluded.ruta;
+      ruta = EXCLUDED.ruta;
   \`);
 };
 /** @param pgm {import('node-pg-migrate').MigrationBuilder} */
@@ -66,12 +71,10 @@ export const down = async (pgm) => {
     filesCreated.push(migrationPath);
     console.log(`✅ Migración creada: ${migrationPath}`);
 
-    // --- 2. Ejecutar Migración ---
     console.log('🔄 Ejecutando migración en el backend...');
     execSync('npm run migrate up', { cwd: './backend', stdio: 'inherit' });
     console.log('✅ Migración aplicada exitosamente.');
 
-    // --- 3. Generar Archivos del Frontend ---
     const pageTemplate = await fs.readFile(path.join('scripts', 'templates', 'Page.jsx.template'), 'utf-8');
     const componentTemplate = await fs.readFile(path.join('scripts', 'templates', 'Component.jsx.template'), 'utf-8');
     
@@ -91,7 +94,6 @@ export const down = async (pgm) => {
     filesCreated.push(componentPath);
     console.log(`✅ Componente creado: ${componentPath}`);
 
-    // --- 4. Modificar App.jsx ---
     console.log('🔄 Modificando App.jsx para añadir la nueva ruta...');
     const appPath = path.join('sira-front', 'src', 'App.jsx');
     let appContent = await fs.readFile(appPath, 'utf-8');
@@ -107,7 +109,6 @@ export const down = async (pgm) => {
       throw new Error(`No se encontró el marcador de ruta en App.jsx: ${routeMarker}`);
     }
 
-    // --- 5. Automatizar Git ---
     console.log('🔄 Automatizando Git...');
     execSync(`git checkout -b ${branchName}`);
     console.log(`✅ Rama creada y seleccionada: ${branchName}`);
@@ -116,7 +117,6 @@ export const down = async (pgm) => {
     execSync(`git commit -m "feat: scaffold para la funcionalidad '${featureName}'"`);
     console.log('✅ Commit inicial realizado.');
 
-    // --- Mensaje Final ---
     console.log('\n🎉 ¡Proceso completado! La nueva funcionalidad está lista para desarrollar.');
     console.log(`   - Tu nueva rama es: ${branchName}`);
     console.log('   - El enlace ya debería aparecer en el Sidebar (para los roles con permiso).');
