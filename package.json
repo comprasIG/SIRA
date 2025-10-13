@@ -4,6 +4,10 @@
     "react-hook-form": "^7.62.0"
   },
   "scripts": {
-  "new-feature": "node scripts/create-feature.js"
-}
+    "new-feature": "node scripts/create-feature.js"
+  },
+  "devDependencies": {
+    "fs-extra": "^11.3.2",
+    "inquirer": "^12.9.6"
+  }
 }

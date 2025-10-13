@@ -71,6 +71,8 @@ console.log(import.meta.env.VITE_API_URL); // Verifica que la variable de entorn
           <Route path="/agregar-producto" element={<RutaProtegida permiso="AGREGAR_PRODUCTO"><MainLayout><AgregarProducto /></MainLayout></RutaProtegida>} />
           <Route path="/lista-producto" element={<RutaProtegida permiso="AGREGAR_PRODUCTO"><MainLayout><ListaProductos /></MainLayout></RutaProtegida>}/>
           <Route  path="/config/notificaciones" element={<RutaProtegida permiso="SUPERUSUARIO"><MainLayout> <NotificacionesPage /></MainLayout></RutaProtegida>}/>
+         {/* --- AÑADIR NUEVAS RUTAS AUTOMÁTICAMENTE AQUÍ --- */}
+         
           {/* Redirección y página no encontrada */}
           <Route path="/" element={<Navigate to={usuario ? "/dashboard" : "/login"} replace />} />
           <Route path="*" element={<Error404 />} />
