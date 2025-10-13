@@ -27,34 +27,39 @@ async function main() {
     return;
   }
 
-  // --- Preparación de Nombres y Rutas ---
   const componentName = toPascalCase(featureName.replace(/ /g, '-'));
   const componentFolder = toKebabCase(module);
   const branchName = `feature/${featureName.toLowerCase().replace(/ /g, '-').replace(/[^a-z0-9-]/g, '')}`;
-
-  const filesCreated = []; // Registro de archivos creados para poder borrarlos si algo falla
+  const filesCreated = [];
 
   try {
     // --- 1. Generar Migración ---
     const timestamp = Date.now();
     const migrationFileName = `${timestamp}_agregar-funcion-${toKebabCase(code)}.js`;
     const migrationPath = path.join('backend', 'migrations', migrationFileName);
+    
+    // =========================================================================================
+    // ¡CAMBIO CLAVE!
+    // Ahora inyectamos los valores ya escapados directamente en la consulta SQL del template.
+    // =========================================================================================
     const migrationContent = `
 /** @type {import('node-pg-migrate').ColumnDefinitions | undefined} */
 export const shorthands = undefined;
 /** @param pgm {import('node-pg-migrate').MigrationBuilder} */
 export const up = async (pgm) => {
-  const code = ${escapeSql(code)};
-  const nombre = ${escapeSql(featureName)};
-  const modulo = ${escapeSql(module)};
-  const icono = ${escapeSql(icon)};
-  const ruta = ${escapeSql(route)};
-  await pgm.sql(\`INSERT INTO public.funciones (codigo, nombre, modulo, icono, ruta) VALUES (\${code}, \${nombre}, \${modulo}, \${icono}, \${ruta}) ON CONFLICT (codigo) DO UPDATE SET nombre = EXCLUDED.nombre, modulo = EXCLUDED.modulo, icono = EXCLUDED.icono, ruta = EXCLUDED.ruta;\`);
+  await pgm.sql(\`
+    INSERT INTO public.funciones (codigo, nombre, modulo, icono, ruta)
+    VALUES (${escapeSql(code)}, ${escapeSql(featureName)}, ${escapeSql(module)}, ${escapeSql(icon)}, ${escapeSql(route)})
+    ON CONFLICT (codigo) DO UPDATE SET
+      nombre = EXCLUDED.nombre,
+      modulo = EXCLUDED.modulo,
+      icono = EXCLUDED.icono,
+      ruta = EXcluded.ruta;
+  \`);
 };
 /** @param pgm {import('node-pg-migrate').MigrationBuilder} */
 export const down = async (pgm) => {
-  const code = ${escapeSql(code)};
-  await pgm.sql(\`DELETE FROM public.funciones WHERE codigo = \${code};\`);
+  await pgm.sql(\`DELETE FROM public.funciones WHERE codigo = ${escapeSql(code)};\`);
 };
 `;
     await fs.writeFile(migrationPath, migrationContent);
@@ -116,14 +121,13 @@ export const down = async (pgm) => {
     console.log(`   - Tu nueva rama es: ${branchName}`);
     console.log('   - El enlace ya debería aparecer en el Sidebar (para los roles con permiso).');
     if (icon === 'HelpOutline') {
-      console.log('   - 🟡 Recuerda cambiar el ícono por defecto en la BD y agregarlo al `Sidebar.jsx`.');
+      console.log('   - 🟡 Recuerda cambiar el ícono por defecto en la BD y agregarlo al \`Sidebar.jsx\`.');
     }
 
   } catch (error) {
     console.error('❌ ¡Oh no! Algo salió mal durante el proceso.');
     console.error(error.message);
 
-    // --- Lógica de Reversión (Rollback) ---
     console.log('🔄 Revirtiendo cambios...');
     if (filesCreated.length > 0) {
       for (const file of filesCreated) {
@@ -135,8 +139,6 @@ export const down = async (pgm) => {
         }
       }
     }
-    // Nota: La migración de BD no se revierte automáticamente aquí,
-    // pero como es idempotente, no causará problemas.
     console.log('🔥 Reversión completada. Tu proyecto está limpio.');
   }
 }
