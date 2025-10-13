@@ -1,12 +1,11 @@
 // C:\SIRA\sira-front\src\components\layout\Sidebar.jsx
 
+import React, { useEffect, useMemo, useRef } from 'react';
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../context/authContext";
 import clsx from "clsx";
-import React, { useEffect, useRef } from 'react';
 
-
-// Iconos de Material-UI
+// Importa todos los íconos que definiste en la base de datos
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import DescriptionIcon from '@mui/icons-material/Description';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
@@ -19,108 +18,91 @@ import GroupIcon from '@mui/icons-material/Group';
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
 import AddBusinessOutlinedIcon from '@mui/icons-material/AddBusinessOutlined';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
-import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'; // Icono para la nueva opción
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import Warehouse from '@mui/icons-material/Warehouse'; // Ícono agregado
 
+// Mapa de íconos: Convierte el string de la BD al componente de React.
+const iconMap = {
+  DashboardIcon: <DashboardIcon sx={{ fontSize: 20 }} />,
+  DescriptionIcon: <DescriptionIcon sx={{ fontSize: 20 }} />,
+  CheckCircleOutlineIcon: <CheckCircleOutlineIcon sx={{ fontSize: 20 }} />,
+  ShoppingCartIcon: <ShoppingCartIcon sx={{ fontSize: 20 }} />,
+  PlaylistAddCheckIcon: <PlaylistAddCheckIcon sx={{ fontSize: 20 }} />,
+  FactCheckIcon: <FactCheckIcon sx={{ fontSize: 20 }} />,
+  PriceCheckIcon: <PriceCheckIcon sx={{ fontSize: 20 }} />,
+  InventoryIcon: <InventoryIcon sx={{ fontSize: 20 }} />,
+  GroupIcon: <GroupIcon sx={{ fontSize: 20 }} />,
+  RequestQuoteIcon: <RequestQuoteIcon sx={{ fontSize: 20 }} />,
+  AddBusinessOutlinedIcon: <AddBusinessOutlinedIcon sx={{ fontSize: 20 }} />,
+  FactCheckOutlinedIcon: <FactCheckOutlinedIcon sx={{ fontSize: 20 }} />,
+  AdminPanelSettingsIcon: <AdminPanelSettingsIcon sx={{ fontSize: 20 }} />,
+  Warehouse: <Warehouse sx={{ fontSize: 20 }} />, // Ícono agregado
+};
 
 export default function Sidebar({ isOpen, toggleSidebar }) {
-  const { funcionesPermitidas, usuario } = useAuth();
+  // 'funcionesPermitidas' ahora es un array de objetos completos.
+  const { funcionesPermitidas } = useAuth();
   const timerRef = useRef(null);
 
-  // Lógica de temporizador mejorada
+  // Lógica del temporizador para cerrar el sidebar (sin cambios)
   const startTimer = () => {
-    // Siempre limpia el temporizador anterior antes de iniciar uno nuevo
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      // Solo cierra si todavía está abierto
-      if (isOpen) {
-        toggleSidebar();
-      }
-    }, 5000); // 5 segundos
+      if (isOpen) toggleSidebar();
+    }, 5000);
   };
-
-  const stopTimer = () => {
-    clearTimeout(timerRef.current);
-  };
+  const stopTimer = () => clearTimeout(timerRef.current);
 
   useEffect(() => {
-    // Este efecto ahora solo reacciona a la apertura del sidebar
-    if (isOpen) {
-      startTimer();
-    } else {
-      stopTimer(); // Si se cierra por cualquier motivo, se detiene el timer.
-    }
-
-    // Limpieza al desmontar el componente
+    if (isOpen) startTimer(); else stopTimer();
     return () => clearTimeout(timerRef.current);
-  }, [isOpen]); // Dependencia explícita en isOpen
+  }, [isOpen, toggleSidebar]);
 
-  const menuGroups = [
-    {
-      title: "Procesos",
-      items: [
-        { label: "Generar Requisición", to: "/G_REQ", permiso: "G_REQ", icon: <DescriptionIcon sx={{ fontSize: 20 }} /> },
-        { label: "Validar Requisición", to: "/VB_REQ", permiso: "VB_REQ", icon: <CheckCircleOutlineIcon sx={{ fontSize: 20 }} /> },
-        { label: "Generar Cotización (RFQ)", to: "/G_RFQ", permiso: "G_RFQ", icon: <RequestQuoteIcon sx={{ fontSize: 20 }} /> },
-        { label: "Validar Cotización (RFQ)", to: "/VB_RFQ", permiso: "VB_RFQ", icon: <PlaylistAddCheckIcon sx={{ fontSize: 20 }} /> },
-        { label: "Generar Orden Compra", to: "/G_OC", permiso: "G_OC", icon: <ShoppingCartIcon sx={{ fontSize: 20 }} /> },
-        { label: "Validar Orden Compra", to: "/VB_OC", permiso: "VB_OC", icon: <FactCheckIcon sx={{ fontSize: 20 }} /> },
-        { label: "Recolectar OC", to: "/REC_OC", permiso: "REC_OC", icon: <InventoryIcon sx={{ fontSize: 20 }} /> },
-        { label: "Registrar Pago", to: "/PAY_OC", permiso: "PAY_OC", icon: <PriceCheckIcon sx={{ fontSize: 20 }} /> },
-      ],
-    },
-    {
-      title: "Administración",
-      items: [
-        { label: "Usuarios", to: "/USUARIOS", permiso: "USUARIOS", icon: <GroupIcon sx={{ fontSize: 20 }} /> },
-        { label: "Agregar Producto", to: "/agregar-producto", permiso: "AGREGAR_PRODUCTO", icon: <AddBusinessOutlinedIcon sx={{ fontSize: 20 }} /> },
-        { label: "Ver Productos", to: "/lista-producto", permiso: "AGREGAR_PRODUCTO", icon: <FactCheckOutlinedIcon sx={{ fontSize: 20 }} /> },
-         { 
-          label: "Grupos de Notificación", 
-          to: "/config/notificaciones", 
-          permiso: "SUPERUSUARIO", // Usamos un permiso especial que solo el superusuario tendrá
-          icon: <AdminPanelSettingsIcon sx={{ fontSize: 20 }} /> 
-        },
-      ],
-    },
-  ];
+  // Agrupamos dinámicamente las funciones por 'módulo' usando useMemo para optimizar.
+  const menuGroups = useMemo(() => {
+    if (!funcionesPermitidas || funcionesPermitidas.length === 0) {
+      return {};
+    }
+    return funcionesPermitidas.reduce((acc, func) => {
+      const { modulo = 'General' } = func; // Módulo por defecto si alguno no lo tuviera
+      if (!acc[modulo]) {
+        acc[modulo] = [];
+      }
+      acc[modulo].push(func);
+      return acc;
+    }, {});
+  }, [funcionesPermitidas]);
 
+  const handleLinkClick = () => {
+    if (isOpen) toggleSidebar();
+  };
 
   const linkBaseStyle = "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors duration-200";
   const linkInactiveStyle = "text-gray-300 hover:bg-gray-700 hover:text-white";
   const linkActiveStyle = "bg-indigo-600 text-white font-semibold shadow-inner";
-  
-  const handleLinkClick = () => {
-    // Al hacer clic, simplemente cierra el sidebar (si está abierto)
-    if (isOpen) {
-      toggleSidebar();
-    }
-  };
 
-   const renderMenuItems = (group) => {
-    if (usuario?.es_superusuario) {
-      // El superusuario ve todos los ítems que no tengan un permiso específico o que tengan el permiso SUPERUSUARIO
-      return group.items
-        .filter(item => !item.permiso || funcionesPermitidas.includes(item.permiso) || item.permiso === "SUPERUSUARIO")
-        .map(renderLink);
-    }
-    // Los usuarios normales ven solo los ítems a los que tienen permiso explícito
-    return group.items
-      .filter(item => funcionesPermitidas.includes(item.permiso))
-      .map(renderLink);
-  };
-  
+  // Función reutilizable para renderizar un enlace
   const renderLink = (item) => (
     <NavLink
-      key={item.to}
-      to={item.to}
+      key={item.codigo}
+      to={item.ruta}
       onClick={handleLinkClick}
       className={({ isActive }) =>
         clsx(linkBaseStyle, isActive ? linkActiveStyle : linkInactiveStyle)
       }
     >
-      {item.icon}
-      <span>{item.label}</span>
+      {/* Usamos el mapa para obtener el componente del ícono. Ponemos un fallback por si acaso. */}
+      {iconMap[item.icono] || <DashboardIcon sx={{ fontSize: 20 }} />}
+      <span>{item.nombre}</span>
     </NavLink>
+  );
+
+  // Separamos los módulos para renderizarlos en el orden deseado
+  const dashboardItems = menuGroups['Dashboard'] || [];
+  const configItems = menuGroups['Configuracion'] || [];
+  
+  const processModules = Object.keys(menuGroups).filter(
+    (modulo) => modulo !== 'Dashboard' && modulo !== 'Configuracion'
   );
 
   return (
@@ -130,38 +112,38 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}
       onMouseEnter={stopTimer}
-      onMouseLeave={isOpen ? startTimer : undefined} // Solo inicia el timer si el sidebar está abierto
+      onMouseLeave={isOpen ? startTimer : undefined}
     >
-      <div className="h-16 flex items-center px-4">
-        {/* Espacio para el header que ahora es parte del layout principal */}
-      </div>
-      <nav className="p-4 space-y-2 overflow-y-auto" style={{height: 'calc(100vh - 4rem)'}}>
-        <NavLink
-          to="/dashboard"
-          onClick={handleLinkClick}
-          className={({ isActive }) =>
-            clsx(linkBaseStyle, isActive ? linkActiveStyle : linkInactiveStyle)
-          }
-        >
-          <DashboardIcon sx={{ fontSize: 20 }} />
-          <span>Dashboard</span>
-        </NavLink>
+      <div className="h-16 flex items-center px-4" /> {/* Espacio para header */}
+      
+      <nav className="p-4 space-y-2 overflow-y-auto" style={{ height: 'calc(100vh - 4rem)' }}>
         
-        {menuGroups.map((group) => {
-          const itemsToRender = renderMenuItems(group);
-          if (itemsToRender.length === 0) return null;
-          
-          return (
-            <div key={group.title} className="pt-4">
-              <h3 className="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                {group.title}
-              </h3>
-              <div className="space-y-1">
-                {itemsToRender}
-              </div>
+        {/* Sección 1: Dashboard (siempre al principio) */}
+        {dashboardItems.map(renderLink)}
+
+        {/* Sección 2: Módulos de Procesos (generados dinámicamente) */}
+        {processModules.map((modulo) => (
+          <div key={modulo} className="pt-4">
+            <h3 className="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              {modulo}
+            </h3>
+            <div className="space-y-1">
+              {menuGroups[modulo].map(renderLink)}
             </div>
-          );
-        })}
+          </div>
+        ))}
+
+        {/* Sección 3: Módulo de Configuración (siempre al final) */}
+        {configItems.length > 0 && (
+          <div className="pt-4">
+            <h3 className="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              Configuración
+            </h3>
+            <div className="space-y-1">
+              {configItems.map(renderLink)}
+            </div>
+          </div>
+        )}
       </nav>
     </aside>
   );
