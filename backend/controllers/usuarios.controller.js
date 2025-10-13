@@ -55,8 +55,11 @@ const getUsuariosConFunciones = async (req, res) => {
 };
 
 /**
- * Endpoint seguro: Devuelve el usuario autenticado con sus datos SIRA,
- * SOLO si está en la base y activo. Agrega Cache-Control: no-store para evitar caché.
+ * =================================================================================================
+ * ¡FUNCIÓN MODIFICADA!
+ * =================================================================================================
+ * Endpoint seguro: Devuelve el usuario autenticado con sus datos SIRA
+ * y una lista de OBJETOS de función completos para el sidebar dinámico.
  */
 const getUsuarioActual = async (req, res) => {
   const correo_google = req.usuario?.correo_google;
@@ -67,10 +70,10 @@ const getUsuarioActual = async (req, res) => {
 
   try {
     const result = await pool.query(`
-      SELECT 
+      SELECT
         u.id, u.nombre, u.correo, u.correo_google,
         u.whatsapp, u.activo, u.es_superusuario,
-        u.departamento_id,
+        u.departamento_id, u.role_id,
         d.codigo AS abreviatura,
         r.nombre AS rol,
         d.nombre AS departamento
@@ -82,34 +85,36 @@ const getUsuarioActual = async (req, res) => {
     `, [correo_google]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Usuario no encontrado" });
+      return res.status(404).json({ error: "Usuario no encontrado en SIRA" });
     }
 
     const usuario = result.rows[0];
 
-    // Si el usuario existe pero NO está activo
     if (!usuario.activo) {
       return res.status(403).json({ error: "Usuario inactivo o no autorizado" });
     }
 
-    // Superusuario: obtiene todas las funciones
+    let funcionesResult;
+    // La consulta ahora selecciona todos los campos necesarios para el sidebar.
+    const camposDeFuncion = 'f.codigo, f.nombre, f.modulo, f.icono, f.ruta';
+
     if (usuario.es_superusuario) {
-      const todas = await pool.query(`SELECT codigo FROM funciones ORDER BY codigo`);
-      usuario.funciones = todas.rows.map(f => f.codigo);
+      // Superusuario obtiene TODAS las funciones de la tabla.
+      funcionesResult = await pool.query(`SELECT ${camposDeFuncion} FROM funciones f ORDER BY f.modulo, f.nombre`);
     } else {
-      const funciones = await pool.query(`
-        SELECT f.codigo
+      // Usuario normal obtiene solo las funciones de su rol.
+      funcionesResult = await pool.query(`
+        SELECT ${camposDeFuncion}
         FROM rol_funcion rf
         JOIN funciones f ON f.id = rf.funcion_id
-        WHERE rf.rol_id = (
-          SELECT role_id FROM usuarios WHERE correo_google = $1
-        )
-        ORDER BY f.codigo
-      `, [correo_google]);
-      usuario.funciones = funciones.rows.map(f => f.codigo);
+        WHERE rf.rol_id = $1
+        ORDER BY f.modulo, f.nombre
+      `, [usuario.role_id]);
     }
 
-    // 👇🏽 SOLUCIÓN: Desactiva caché para este endpoint
+    // El payload final ahora incluye la lista de objetos 'funciones'.
+    usuario.funciones = funcionesResult.rows;
+
     res.set('Cache-Control', 'no-store');
     return res.json(usuario);
 
@@ -118,6 +123,7 @@ const getUsuarioActual = async (req, res) => {
     return res.status(500).json({ error: "Error al consultar usuario actual" });
   }
 };
+
 
 /**
  * Crea un nuevo usuario SIRA en la base de datos.
