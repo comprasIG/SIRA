@@ -1,4 +1,4 @@
-import PickInPage from "./pages/PickInPage";
+
 //C:\SIRA\sira-front\src\App.jsx
 // src/App.jsx
 import React from "react";
@@ -31,6 +31,8 @@ import Error404 from "./pages/Error404";
 import AgregarProducto from "./pages/AgregarProducto";
 import ListaProductos from "./pages/ListaProductos";
 import NotificacionesPage from './pages/NotificacionesPage';
+import PickInPage from "./pages/PickInPage";
+
 
 
 
@@ -72,7 +74,7 @@ console.log(import.meta.env.VITE_API_URL); // Verifica que la variable de entorn
           <Route path="/agregar-producto" element={<RutaProtegida permiso="AGREGAR_PRODUCTO"><MainLayout><AgregarProducto /></MainLayout></RutaProtegida>} />
           <Route path="/lista-producto" element={<RutaProtegida permiso="AGREGAR_PRODUCTO"><MainLayout><ListaProductos /></MainLayout></RutaProtegida>}/>
           <Route  path="/config/notificaciones" element={<RutaProtegida permiso="SUPERUSUARIO"><MainLayout> <NotificacionesPage /></MainLayout></RutaProtegida>}/>
-                   <Route path="PICK_IN" element={<RutaProtegida permiso="PICK_IN"><MainLayout><PickInPage /></MainLayout></RutaProtegida>}/>
+          <Route path="/PICK_IN" element={<RutaProtegida permiso="PICK_IN"><MainLayout><PickInPage /></MainLayout></RutaProtegida>}/>
           {/* --- AÑADIR NUEVAS RUTAS AUTOMÁTICAMENTE AQUÍ --- */}
          
           {/* Redirección y página no encontrada */}
