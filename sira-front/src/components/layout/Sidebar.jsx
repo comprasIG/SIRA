@@ -20,6 +20,7 @@ import AddBusinessOutlinedIcon from '@mui/icons-material/AddBusinessOutlined';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import Warehouse from '@mui/icons-material/Warehouse'; // Ícono agregado
+import HelpOutline from '@mui/icons-material/HelpOutline'; // ¡NUEVO!
 
 // Mapa de íconos: Convierte el string de la BD al componente de React.
 const iconMap = {
@@ -37,6 +38,7 @@ const iconMap = {
   FactCheckOutlinedIcon: <FactCheckOutlinedIcon sx={{ fontSize: 20 }} />,
   AdminPanelSettingsIcon: <AdminPanelSettingsIcon sx={{ fontSize: 20 }} />,
   Warehouse: <Warehouse sx={{ fontSize: 20 }} />, // Ícono agregado
+  HelpOutline: <HelpOutline sx={{ fontSize: 20, color: '#fdd835' }} />, 
 };
 
 export default function Sidebar({ isOpen, toggleSidebar }) {

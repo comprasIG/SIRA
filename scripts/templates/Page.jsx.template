@@ -1,0 +1,12 @@
+// src/pages/{{ComponentName}}Page.jsx
+import React from 'react';
+import {{ComponentName}} from '../components/{{ComponentFolder}}/{{ComponentName}}';
+
+export default function {{ComponentName}}Page() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-4">Módulo: {{FeatureName}}</h1>
+      <{{ComponentName}} />
+    </div>
+  );
+}
