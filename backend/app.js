@@ -80,6 +80,8 @@ app.use('/api/finanzas', pagosOCRoutes);
 const recoleccionRoutes = require('./routes/recoleccion.routes');
 app.use('/api/recoleccion', recoleccionRoutes);
 
+const ingresoRoutes = require('./routes/ingreso.routes');
+app.use('/api/ingreso', ingresoRoutes);
 
 
 // Ruta base de prueba
