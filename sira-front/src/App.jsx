@@ -1,3 +1,4 @@
+import UnidadesPage from "./pages/UnidadesPage";
 import InventarioPage from "./pages/InventarioPage";
 
 //C:\SIRA\sira-front\src\App.jsx
@@ -77,6 +78,7 @@ console.log(import.meta.env.VITE_API_URL); // Verifica que la variable de entorn
           <Route  path="/config/notificaciones" element={<RutaProtegida permiso="SUPERUSUARIO"><MainLayout> <NotificacionesPage /></MainLayout></RutaProtegida>}/>
           <Route path="/PICK_IN" element={<RutaProtegida permiso="PICK_IN"><MainLayout><PickInPage /></MainLayout></RutaProtegida>}/>
                     <Route path="/INV" element={<RutaProtegida permiso="INV"><MainLayout><InventarioPage /></MainLayout></RutaProtegida>}/>
+                    <Route path="/unidades" element={<RutaProtegida permiso="UNIDADES"><MainLayout><UnidadesPage /></MainLayout></RutaProtegida>}/>
           {/* --- AÑADIR NUEVAS RUTAS AUTOMÁTICAMENTE AQUÍ --- */}
          
           {/* Redirección y página no encontrada */}
