@@ -86,6 +86,9 @@ app.use('/api/ingreso', ingresoRoutes);
 const retiroRoutes = require('./routes/retiro.routes');
 app.use('/api/retiro', retiroRoutes);
 
+const inventarioRoutes = require('./routes/inventario.routes');
+app.use('/api/inventario', inventarioRoutes);
+
 // Ruta base de prueba
 app.get('/', (_req, res) => {
   res.send('Backend SIRA - ¡Despliegue Automático! V1.0.7🎉🎉');

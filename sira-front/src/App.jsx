@@ -36,7 +36,6 @@ import NotificacionesPage from './pages/NotificacionesPage';
 import PickInPage from "./pages/PickInPage";
 
 
-
 // Tus importaciones de layout y rutas
 import MainLayout from "./components/layout/MainLayout";
 import RutaProtegida from "./routes/RutaProtegida";
