@@ -5,13 +5,35 @@ import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { styled } from '@mui/material/styles';
 
-const ModalBox = styled(Box)(({ theme }) => ({ /* ... (igual que antes) ... */ }));
-const ContentBox = styled(Box)({ /* ... (igual que antes) ... */ });
+// Definición completa de ModalBox
+const ModalBox = styled(Box)(({ theme }) => ({
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: '90%',
+    maxWidth: 700,
+    maxHeight: '90vh',
+    backgroundColor: theme.palette.background.paper, // Fondo sólido
+    boxShadow: 24,
+    p: 4,
+    borderRadius: 2,
+    display: 'flex',
+    flexDirection: 'column',
+}));
+
+// Definición completa de ContentBox
+const ContentBox = styled(Box)({
+    overflowY: 'auto',
+    flexGrow: 1,
+    marginTop: 2,
+    marginBottom: 2,
+});
 
 export default function MoverAsignacionModal({ open, onClose, material, filterOptions, getDetalleAsignaciones, onSubmit, isSubmitting }) {
     const [asignaciones, setAsignaciones] = useState([]);
     const [loadingAsignaciones, setLoadingAsignaciones] = useState(true);
-    const [selectedAsignacionId, setSelectedAsignacionId] = useState(''); // ID de la fila en inventario_asignado
+    const [selectedAsignacionId, setSelectedAsignacionId] = useState('');
     const [selectedSitio, setSelectedSitio] = useState(null);
     const [selectedProyecto, setSelectedProyecto] = useState(null);
 
@@ -21,16 +43,18 @@ export default function MoverAsignacionModal({ open, onClose, material, filterOp
             setSelectedAsignacionId('');
             setSelectedSitio(null);
             setSelectedProyecto(null);
+            // Llama a la función pasada como prop para obtener las asignaciones
             getDetalleAsignaciones(material.material_id)
                 .then(data => setAsignaciones(data || []))
                 .finally(() => setLoadingAsignaciones(false));
         }
     }, [open, material, getDetalleAsignaciones]);
 
+    // Usa todosProyectos y todosSitios para el destino
     const proyectosFiltrados = useMemo(() => {
         if (!selectedSitio) return [];
-        return (filterOptions.proyectos || []).filter(p => p.sitio_id === selectedSitio.id);
-    }, [selectedSitio, filterOptions.proyectos]);
+        return (filterOptions.todosProyectos || []).filter(p => p.sitio_id === selectedSitio.id);
+    }, [selectedSitio, filterOptions.todosProyectos]);
 
      useEffect(() => { // Limpia proyecto si cambia sitio
         if(selectedSitio && selectedProyecto && selectedProyecto.sitio_id !== selectedSitio.id) {
@@ -52,13 +76,13 @@ export default function MoverAsignacionModal({ open, onClose, material, filterOp
 
     return (
         <Modal open={open} onClose={onClose}>
-            <ModalBox sx={{ maxWidth: 700 }}>
+            <ModalBox>
                  <Stack direction="row" justifyContent="space-between" alignItems="center">
-                    <Typography variant="h6">Mover Asignación: {material?.material_nombre}</Typography>
+                    <Typography variant="h6">Mover Asignación: {material?.material_nombre || 'Cargando...'}</Typography>
                     <IconButton onClick={onClose}><CloseIcon /></IconButton>
                 </Stack>
                 <ContentBox>
-                    {loadingAsignaciones ? <CircularProgress /> : (
+                    {loadingAsignaciones ? <CircularProgress sx={{ display: 'block', margin: 'auto' }} /> : (
                         <Stack spacing={3} sx={{ mt: 2 }}>
                             <FormControl component="fieldset">
                                 <FormLabel component="legend">1. Selecciona la asignación actual a mover:</FormLabel>
@@ -67,6 +91,7 @@ export default function MoverAsignacionModal({ open, onClose, material, filterOp
                                         value={selectedAsignacionId}
                                         onChange={(e) => setSelectedAsignacionId(e.target.value)}
                                     >
+                                        {/* Lista scrollable si hay muchas asignaciones */}
                                         <List dense sx={{ maxHeight: 150, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
                                             {asignaciones.map((asig) => (
                                                 <ListItem key={asig.asignacion_id} disablePadding>
@@ -74,7 +99,7 @@ export default function MoverAsignacionModal({ open, onClose, material, filterOp
                                                         value={String(asig.asignacion_id)}
                                                         control={<Radio size="small" />}
                                                         label={`${asig.cantidad} ${material?.unidad_simbolo || ''} - ${asig.proyecto_nombre} (${asig.sitio_nombre})`}
-                                                        sx={{ width: '100%', ml: 0 }}
+                                                        sx={{ width: '100%', ml: 0 }} // Ocupa todo el ancho
                                                     />
                                                 </ListItem>
                                             ))}
@@ -85,7 +110,7 @@ export default function MoverAsignacionModal({ open, onClose, material, filterOp
 
                             <Typography variant="subtitle1">2. Selecciona el nuevo destino:</Typography>
                              <Autocomplete fullWidth
-                                options={filterOptions.sitios || []} // Usamos todos los sitios como posible destino
+                                options={filterOptions.todosSitios || []} // Usa todos los sitios
                                 getOptionLabel={(o) => o.nombre || ''}
                                 value={selectedSitio}
                                 onChange={(_, v) => setSelectedSitio(v)}
@@ -118,5 +143,3 @@ export default function MoverAsignacionModal({ open, onClose, material, filterOp
         </Modal>
     );
 }
-
-// Reemplaza los estilos de ModalBox y ContentBox si los copiaste
