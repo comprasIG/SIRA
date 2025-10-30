@@ -2,10 +2,11 @@
 import React from 'react';
 import { TableRow, TableCell, IconButton, Stack, Tooltip } from '@mui/material';
 import InfoIcon from '@mui/icons-material/Info';
-import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn'; // Icono para Apartar
-import MoveUpIcon from '@mui/icons-material/MoveUp'; // Icono para Mover
+import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
+import MoveUpIcon from '@mui/icons-material/MoveUp';
 
 export default function InventarioItemRow({ item, onOpenModal }) {
+    // Usamos los totales sumados
     const disponible = parseFloat(item.total_stock) || 0;
     const apartado = parseFloat(item.total_asignado) || 0;
     const unidad = item.unidad_simbolo;
@@ -15,15 +16,17 @@ export default function InventarioItemRow({ item, onOpenModal }) {
     const canShowInfo = apartado > 0;
 
     return (
-        <TableRow hover sx={{ '& > *': { verticalAlign: 'top' } }}>
+        // Aseguramos fondo blanco para filas hover
+        <TableRow hover sx={{ '& > *': { verticalAlign: 'top' }, backgroundColor: 'background.paper' }}>
             <TableCell>{item.sku || '-'}</TableCell>
             <TableCell>{item.material_nombre}</TableCell>
-            <TableCell align="right">{disponible} {unidad}</TableCell>
-            <TableCell align="right">{apartado} {unidad}</TableCell>
+            {/* Formateamos números */}
+            <TableCell align="right">{disponible.toLocaleString('es-MX')} {unidad}</TableCell>
+            <TableCell align="right">{apartado.toLocaleString('es-MX')} {unidad}</TableCell>
             <TableCell align="center">
                 <Stack direction="row" spacing={0.5} justifyContent="center">
                     <Tooltip title="Ver detalle de apartados">
-                        <span> {/* Span necesario para Tooltip en botón deshabilitado */}
+                        <span>
                             <IconButton
                                 size="small"
                                 onClick={() => onOpenModal('info', item)}

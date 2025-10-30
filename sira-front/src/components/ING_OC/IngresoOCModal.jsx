@@ -12,12 +12,9 @@ const ModalBox = styled(Box)(({ theme }) => ({
     left: '50%',
     transform: 'translate(-50%, -50%)',
     width: '90%',
-    maxWidth: '800px', // Más ancho para la tabla
+    maxWidth: '800px',
     maxHeight: '90vh',
-    backgroundColor: theme.palette.background.paper,
-    boxShadow: theme.shadows[5], // copilot
-    padding: theme.spacing(2, 4), // copilot
-    bgcolor: 'background.paper',
+    backgroundColor: theme.palette.background.paper, // Fondo sólido
     boxShadow: 24,
     p: 4,
     borderRadius: 2,
@@ -26,14 +23,14 @@ const ModalBox = styled(Box)(({ theme }) => ({
 }));
 
 const ContentBox = styled(Box)({
-    overflowY: 'auto', // Scroll si el contenido es muy largo
+    overflowY: 'auto',
     flexGrow: 1,
     marginTop: 2,
     marginBottom: 2,
 });
 
 const ItemRow = styled(Box, {
-    shouldForwardProp: (prop) => prop !== 'hasIssue' // Evita pasar 'hasIssue' al DOM
+    shouldForwardProp: (prop) => prop !== 'hasIssue' // Filtra prop 'hasIssue'
 })(({ theme, hasIssue }) => ({
     display: 'grid',
     gridTemplateColumns: '1fr auto auto auto auto',
@@ -44,31 +41,31 @@ const ItemRow = styled(Box, {
     backgroundColor: hasIssue ? theme.palette.error.lighter : 'transparent',
 }));
 
+
 export default function IngresoOCModal({ open, onClose, oc, detalles, loadingDetalles, ubicaciones, tiposIncidencia, onRegistrar }) {
 
     const [itemsState, setItemsState] = useState([]);
     const [selectedUbicacion, setSelectedUbicacion] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Inicializa el estado interno cuando cambian los detalles cargados
     useEffect(() => {
         if (detalles && detalles.length > 0) {
             setItemsState(detalles.map(d => ({
-                ...d,
-                cantidad_a_ingresar: '', // Input para cantidad ahora
+                ...d, // Aquí ya vienen detalle_id, material_id, precio_unitario, moneda
+                cantidad_a_ingresar: '',
                 showIncidenciaForm: false,
-                incidencia: { // Estado para el formulario de incidencia
+                incidencia: {
                     tipo_id: '',
                     cantidad_afectada: '',
                     descripcion: ''
                 }
             })));
         } else {
-            setItemsState([]); // Limpia si no hay detalles o se cierra el modal
+            setItemsState([]);
         }
-        setSelectedUbicacion(''); // Resetea ubicación al abrir
-        setIsSubmitting(false); // Resetea estado de envío
-    }, [detalles, open]); // Depende de 'open' para resetear al reabrir
+        setSelectedUbicacion('');
+        setIsSubmitting(false);
+    }, [detalles, open]);
 
     const handleItemChange = (detalle_id, field, value) => {
         setItemsState(prev => prev.map(item =>
@@ -90,36 +87,40 @@ export default function IngresoOCModal({ open, onClose, oc, detalles, loadingDet
 
     const handleIngresarTodo = () => {
          setItemsState(prev => prev.map(item => {
-            const faltante = Math.max(0, item.cantidad_pedida - item.cantidad_recibida);
+            const faltante = Math.max(0, parseFloat(item.cantidad_pedida) - parseFloat(item.cantidad_recibida));
             return {
                 ...item,
-                cantidad_a_ingresar: faltante > 0 ? faltante.toString() : '', // Solo llena si falta
-                showIncidenciaForm: false, // Oculta incidencias
+                cantidad_a_ingresar: faltante > 0 ? faltante.toString() : '',
+                showIncidenciaForm: false,
                 incidencia: { tipo_id: '', cantidad_afectada: '', descripcion: '' }
             };
          }));
     };
 
     const handleSubmit = async () => {
-        const isStockProject = oc?.proyecto_nombre === 'STOCK ALMACEN'; // Determina si es stock
+        const isStockProject = oc?.proyecto_nombre === 'STOCK ALMACEN';
         if(isStockProject && !selectedUbicacion) {
             alert('Debes seleccionar una ubicación de destino para ingresos a STOCK.');
             return;
         }
 
+        // --- SECCIÓN MODIFICADA ---
+        // Ahora pasamos también precio_unitario y moneda desde el estado del item
         const itemsPayload = itemsState
-            .filter(item => parseFloat(item.cantidad_a_ingresar) > 0 || item.incidencia?.tipo_id) // Solo enviar items con cantidad > 0 o incidencia
+            .filter(item => parseFloat(item.cantidad_a_ingresar) > 0 || item.incidencia?.tipo_id)
             .map(item => ({
                 detalle_id: item.detalle_id,
                 material_id: item.material_id,
                 cantidad_ingresada_ahora: parseFloat(item.cantidad_a_ingresar) || 0,
-                // Incluir incidencia solo si se seleccionó un tipo
+                precio_unitario: item.precio_unitario, // <<< AÑADIDO
+                moneda: item.moneda,                 // <<< AÑADIDO
                 incidencia: item.incidencia?.tipo_id ? {
                     tipo_id: item.incidencia.tipo_id,
-                    cantidad_afectada: parseFloat(item.incidencia.cantidad_afectada) || null, // null si está vacío
+                    cantidad_afectada: parseFloat(item.incidencia.cantidad_afectada) || null,
                     descripcion: item.incidencia.descripcion
-                } : null // null si no hay incidencia reportada
+                } : null
             }));
+        // --- FIN SECCIÓN MODIFICADA ---
 
         if (itemsPayload.length === 0) {
             alert('No has ingresado ninguna cantidad ni reportado incidencias.');
@@ -135,12 +136,9 @@ export default function IngresoOCModal({ open, onClose, oc, detalles, loadingDet
         setIsSubmitting(true);
         try {
             await onRegistrar(payload);
-            // El onClose y refresh se manejan en el componente padre (ING_OCForm)
         } catch (error) {
-           // El error ya se muestra con toast desde el hook
-           setIsSubmitting(false); // Permite reintentar
+           setIsSubmitting(false);
         }
-         // No reseteamos isSubmitting aquí si tiene éxito, porque el modal se cierra
     };
 
     const isStock = oc?.proyecto_nombre === 'STOCK ALMACEN';
@@ -156,7 +154,7 @@ export default function IngresoOCModal({ open, onClose, oc, detalles, loadingDet
                 <Typography variant="body2" color="text.secondary">Proyecto: {oc?.proyecto_nombre} {isStock && '(Ingreso a STOCK)'}</Typography>
 
                 <ContentBox>
-                    {loadingDetalles ? <CircularProgress /> : (
+                    {loadingDetalles ? <CircularProgress sx={{ display: 'block', margin: 'auto' }} /> : (
                         <>
                             {isStock && (
                                 <Autocomplete sx={{ mb: 2 }}
@@ -177,16 +175,17 @@ export default function IngresoOCModal({ open, onClose, oc, detalles, loadingDet
                                 <Typography variant="caption" align="right">Pedido</Typography>
                                 <Typography variant="caption" align="right">Recibido</Typography>
                                 <Typography variant="caption" align="right">Ingresar Ahora</Typography>
+                                <Typography variant="caption" align="center">Incidencia</Typography>
                              </ItemRow>
 
                             {/* Items */}
                             {itemsState.map(item => (
                                 <Box key={item.detalle_id}>
-                                    <ItemRow hasIssue={item.incidencia?.tipo_id}>
+                                    <ItemRow hasIssue={!!item.incidencia?.tipo_id}>
                                         <Stack>
                                              <Typography variant="body2">{item.material_nombre}</Typography>
                                              <Typography variant="caption" color="text.secondary">
-                                                 {`Faltan: ${Math.max(0, item.cantidad_pedida - item.cantidad_recibida)} ${item.unidad_simbolo}`}
+                                                 {`Faltan: ${Math.max(0, parseFloat(item.cantidad_pedida) - parseFloat(item.cantidad_recibida))} ${item.unidad_simbolo}`}
                                              </Typography>
                                         </Stack>
                                         <Typography variant="body2" align="right">{item.cantidad_pedida} {item.unidad_simbolo}</Typography>
@@ -196,17 +195,20 @@ export default function IngresoOCModal({ open, onClose, oc, detalles, loadingDet
                                             value={item.cantidad_a_ingresar}
                                             onChange={(e) => handleItemChange(item.detalle_id, 'cantidad_a_ingresar', e.target.value)}
                                             sx={{ maxWidth: '80px', textAlign: 'right' }}
-                                            inputProps={{ min: 0, step: 'any' }}
+                                            inputProps={{ min: 0, step: 'any', style: { textAlign: 'right' } }}
+                                            disabled={!!item.incidencia?.tipo_id}
                                         />
                                         <Tooltip title="Reportar Incidencia">
-                                            <IconButton size="small" onClick={() => toggleIncidenciaForm(item.detalle_id)} color={item.incidencia?.tipo_id ? 'error' : 'default'}>
-                                                <ReportProblemOutlinedIcon />
-                                            </IconButton>
+                                            <Box sx={{ display: 'flex', justifyContent: 'center'}}>
+                                                <IconButton size="small" onClick={() => toggleIncidenciaForm(item.detalle_id)} color={item.incidencia?.tipo_id ? 'error' : 'default'}>
+                                                    <ReportProblemOutlinedIcon />
+                                                </IconButton>
+                                            </Box>
                                         </Tooltip>
                                     </ItemRow>
                                     {/* Formulario de Incidencia Colapsable */}
                                     <Collapse in={item.showIncidenciaForm}>
-                                        <Paper sx={{ p: 2, my: 1, bgcolor: 'error.lighter' }}>
+                                        <Paper sx={{ p: 2, my: 1, bgcolor: 'error.lighter', borderLeft: '4px solid', borderColor: 'error.main' }}>
                                             <Typography variant="subtitle2" color="error.dark" gutterBottom>Reportar Incidencia para: {item.material_nombre}</Typography>
                                             <Stack spacing={1}>
                                                 <Autocomplete size="small"
@@ -219,12 +221,18 @@ export default function IngresoOCModal({ open, onClose, oc, detalles, loadingDet
                                                  <TextField size="small" label="Cantidad Afectada (Opcional)" type="number"
                                                     value={item.incidencia.cantidad_afectada}
                                                     onChange={(e) => handleIncidenciaChange(item.detalle_id, 'cantidad_afectada', e.target.value)}
+                                                    inputProps={{ min: 0, step: 'any' }}
                                                 />
                                                  <TextField size="small" label="Descripción del Problema" multiline rows={2} required
                                                     value={item.incidencia.descripcion}
                                                      onChange={(e) => handleIncidenciaChange(item.detalle_id, 'descripcion', e.target.value)}
                                                 />
-                                                <Button size="small" variant="outlined" color="error" onClick={() => handleIncidenciaChange(item.detalle_id, 'tipo_id', '')}>Limpiar Incidencia</Button>
+                                                <Button size="small" variant="text" color="inherit" sx={{ alignSelf: 'flex-start'}} onClick={() => {
+                                                    toggleIncidenciaForm(item.detalle_id);
+                                                    handleIncidenciaChange(item.detalle_id, 'tipo_id', '');
+                                                    handleIncidenciaChange(item.detalle_id, 'cantidad_afectada', '');
+                                                    handleIncidenciaChange(item.detalle_id, 'descripcion', '');
+                                                }}>Cancelar Incidencia</Button>
                                             </Stack>
                                         </Paper>
                                     </Collapse>
@@ -240,7 +248,7 @@ export default function IngresoOCModal({ open, onClose, oc, detalles, loadingDet
                     <Button
                         variant="contained"
                         onClick={handleSubmit}
-                        disabled={loadingDetalles || isSubmitting}
+                        disabled={loadingDetalles || isSubmitting || itemsState.length === 0}
                         startIcon={isSubmitting ? <CircularProgress size={20} color="inherit"/> : <CheckCircleOutlineIcon />}
                     >
                         {isSubmitting ? 'Registrando...' : 'Registrar Ingreso'}

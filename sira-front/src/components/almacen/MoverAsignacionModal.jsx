@@ -5,58 +5,42 @@ import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { styled } from '@mui/material/styles';
 
-// Definición completa de ModalBox
-const ModalBox = styled(Box)(({ theme }) => ({
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
-    width: '90%',
-    maxWidth: 700,
-    maxHeight: '90vh',
-    backgroundColor: theme.palette.background.paper, // Fondo sólido
-    boxShadow: 24,
-    p: 4,
-    borderRadius: 2,
-    display: 'flex',
-    flexDirection: 'column',
+const ModalBox = styled(Box)(({ theme }) => ({ /* (Definición completa como en la respuesta anterior) */
+    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+    width: '90%', maxWidth: 700, maxHeight: '90vh',
+    backgroundColor: theme.palette.background.paper,
+    boxShadow: 24, p: 4, borderRadius: 2,
+    display: 'flex', flexDirection: 'column',
 }));
-
-// Definición completa de ContentBox
-const ContentBox = styled(Box)({
-    overflowY: 'auto',
-    flexGrow: 1,
-    marginTop: 2,
-    marginBottom: 2,
+const ContentBox = styled(Box)({ /* (Definición completa como en la respuesta anterior) */
+    overflowY: 'auto', flexGrow: 1, marginTop: 2, marginBottom: 2,
 });
 
-export default function MoverAsignacionModal({ open, onClose, material, filterOptions, getDetalleAsignaciones, onSubmit, isSubmitting }) {
-    const [asignaciones, setAsignaciones] = useState([]);
-    const [loadingAsignaciones, setLoadingAsignaciones] = useState(true);
+// --- CAMBIO: Recibe 'asignaciones' como prop, ya no 'getDetalleAsignaciones' ---
+export default function MoverAsignacionModal({ open, onClose, material, filterOptions, asignaciones, onSubmit, isSubmitting }) {
+    
+    // const [asignaciones, setAsignaciones] = useState([]); // Ya no se maneja aquí
+    const loadingAsignaciones = asignaciones === null; // Determina si carga
     const [selectedAsignacionId, setSelectedAsignacionId] = useState('');
     const [selectedSitio, setSelectedSitio] = useState(null);
     const [selectedProyecto, setSelectedProyecto] = useState(null);
 
+    // Limpia el estado al abrir el modal
     useEffect(() => {
-        if (open && material) {
-            setLoadingAsignaciones(true);
+        if (open) {
             setSelectedAsignacionId('');
             setSelectedSitio(null);
             setSelectedProyecto(null);
-            // Llama a la función pasada como prop para obtener las asignaciones
-            getDetalleAsignaciones(material.material_id)
-                .then(data => setAsignaciones(data || []))
-                .finally(() => setLoadingAsignaciones(false));
+            // No necesita cargar asignaciones, ya vienen como prop
         }
-    }, [open, material, getDetalleAsignaciones]);
+    }, [open]);
 
-    // Usa todosProyectos y todosSitios para el destino
     const proyectosFiltrados = useMemo(() => {
         if (!selectedSitio) return [];
         return (filterOptions.todosProyectos || []).filter(p => p.sitio_id === selectedSitio.id);
     }, [selectedSitio, filterOptions.todosProyectos]);
 
-     useEffect(() => { // Limpia proyecto si cambia sitio
+     useEffect(() => {
         if(selectedSitio && selectedProyecto && selectedProyecto.sitio_id !== selectedSitio.id) {
             setSelectedProyecto(null);
         }
@@ -86,12 +70,11 @@ export default function MoverAsignacionModal({ open, onClose, material, filterOp
                         <Stack spacing={3} sx={{ mt: 2 }}>
                             <FormControl component="fieldset">
                                 <FormLabel component="legend">1. Selecciona la asignación actual a mover:</FormLabel>
-                                {asignaciones.length === 0 ? <Typography variant="body2" color="text.secondary">No hay asignaciones para mover de este material.</Typography> : (
+                                {(!asignaciones || asignaciones.length === 0) ? <Typography variant="body2" color="text.secondary">No hay asignaciones para mover de este material.</Typography> : (
                                     <RadioGroup
                                         value={selectedAsignacionId}
                                         onChange={(e) => setSelectedAsignacionId(e.target.value)}
                                     >
-                                        {/* Lista scrollable si hay muchas asignaciones */}
                                         <List dense sx={{ maxHeight: 150, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
                                             {asignaciones.map((asig) => (
                                                 <ListItem key={asig.asignacion_id} disablePadding>
@@ -99,7 +82,7 @@ export default function MoverAsignacionModal({ open, onClose, material, filterOp
                                                         value={String(asig.asignacion_id)}
                                                         control={<Radio size="small" />}
                                                         label={`${asig.cantidad} ${material?.unidad_simbolo || ''} - ${asig.proyecto_nombre} (${asig.sitio_nombre})`}
-                                                        sx={{ width: '100%', ml: 0 }} // Ocupa todo el ancho
+                                                        sx={{ width: '100%', ml: 0 }}
                                                     />
                                                 </ListItem>
                                             ))}
@@ -110,12 +93,12 @@ export default function MoverAsignacionModal({ open, onClose, material, filterOp
 
                             <Typography variant="subtitle1">2. Selecciona el nuevo destino:</Typography>
                              <Autocomplete fullWidth
-                                options={filterOptions.todosSitios || []} // Usa todos los sitios
+                                options={filterOptions.todosSitios || []}
                                 getOptionLabel={(o) => o.nombre || ''}
                                 value={selectedSitio}
                                 onChange={(_, v) => setSelectedSitio(v)}
                                 renderInput={(params) => <TextField {...params} label="Nuevo Sitio Destino" required />}
-                                disabled={!selectedAsignacionId} // Deshabilita hasta seleccionar origen
+                                disabled={!selectedAsignacionId}
                             />
                             <Autocomplete fullWidth
                                 options={proyectosFiltrados}
@@ -123,7 +106,7 @@ export default function MoverAsignacionModal({ open, onClose, material, filterOp
                                 value={selectedProyecto}
                                 onChange={(_, v) => setSelectedProyecto(v)}
                                 renderInput={(params) => <TextField {...params} label="Nuevo Proyecto Destino" required />}
-                                disabled={!selectedSitio} // Deshabilita hasta seleccionar sitio
+                                disabled={!selectedSitio}
                             />
                         </Stack>
                     )}

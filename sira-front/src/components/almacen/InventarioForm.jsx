@@ -2,17 +2,28 @@
 import React, { useState } from 'react';
 import { useInventario } from '../../hooks/useInventario';
 import { Box, Paper, Grid, Typography, CircularProgress, TableContainer, Table, TableHead, TableBody, TableRow, TableCell } from '@mui/material';
-import KPICard from '../REC_OC/KPICard'; // Reutilizamos KPI Card
-import FiltrosInventario from './FiltrosInventario'; // Creamos este
-import InventarioItemRow from './InventarioItemRow'; // Creamos este
-import DetalleAsignacionesModal from './DetalleAsignacionesModal'; // Creamos este
-import ApartarStockModal from './ApartarStockModal'; // Creamos este
-import MoverAsignacionModal from './MoverAsignacionModal'; // Creamos este
-
-// Iconos para KPIs (Ejemplos)
+import KPICard from '../REC_OC/KPICard';
+import FiltrosInventario from './FiltrosInventario';
+import InventarioItemRow from './InventarioItemRow';
+import DetalleAsignacionesModal from './DetalleAsignacionesModal';
+import ApartarStockModal from './ApartarStockModal';
+import MoverAsignacionModal from './MoverAsignacionModal';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import CategoryIcon from '@mui/icons-material/Category';
+
+// Helper para formatear moneda
+const formatCurrency = (value, currency) => {
+  try {
+    return new Intl.NumberFormat('es-MX', {
+      style: 'currency',
+      currency: currency || 'MXN', // Default a MXN si la moneda es null/undefined
+    }).format(value);
+  } catch (e) {
+    // Fallback si la moneda no es válida (ej. 'USD', 'MXN')
+    return `$${Number(value).toFixed(2)} ${currency || ''}`;
+  }
+};
 
 export default function InventarioForm() {
     const {
@@ -21,15 +32,19 @@ export default function InventarioForm() {
         isSubmittingAction
     } = useInventario();
 
-    // Estado para los modales
-    const [modalState, setModalState] = useState({ type: null, data: null }); // type: 'info', 'apartar', 'mover'
+    const [modalState, setModalState] = useState({ type: null, data: null });
 
     const handleOpenModal = async (type, material) => {
-        if (type === 'info') {
+        setModalState({ type, data: { material, asignaciones: null } }); // Pone asignaciones en null para mostrar carga
+        if (type === 'info' || type === 'mover') {
             const asignaciones = await getDetalleAsignaciones(material.material_id);
-            setModalState({ type, data: { material, asignaciones } });
-        } else {
-            setModalState({ type, data: { material } }); // Pasa el material a los modales de acción
+            // Actualiza el estado del modal solo si el modal sigue abierto para ese tipo y material
+            setModalState(prev => {
+                if (prev.type === type && prev.data.material.material_id === material.material_id) {
+                    return { ...prev, data: { ...prev.data, asignaciones } };
+                }
+                return prev; // Si el usuario cerró el modal mientras cargaba, no hace nada
+            });
         }
     };
 
@@ -47,14 +62,39 @@ export default function InventarioForm() {
         if (success) handleCloseModal();
     };
 
-
+    // --- LÓGICA DE RENDERIZADO DE KPIs ACTUALIZADA ---
     return (
         <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
             {/* KPIs */}
             <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} sm={4}><KPICard title="Valor Disponible (Est.)" value={"$ TBD"} icon={<AttachMoneyIcon />} color="#4caf50" comment="Cálculo Pendiente" /></Grid>
-                <Grid item xs={12} sm={4}><KPICard title="Valor Apartado" value={"$ TBD"} icon={<AssignmentTurnedInIcon />} color="#ff9800" comment="Cálculo Pendiente" /></Grid>
-                <Grid item xs={12} sm={4}><KPICard title="SKUs Activos" value={kpis.skus || 0} icon={<CategoryIcon />} color="#2196f3" /></Grid>
+                {/* KPI de SKUs (siempre se muestra) */}
+                <Grid item xs={12} sm={4} md={3}>
+                    <KPICard title="SKUs Activos" value={kpis.kpi_skus || 0} icon={<CategoryIcon />} color="#2196f3" />
+                </Grid>
+
+                {/* KPIs de Valor Disponible (iterando) */}
+                {(kpis.valores_disponibles || []).map(kpi => (
+                    <Grid item xs={6} sm={4} md={3} key={`disp-${kpi.moneda}`}>
+                        <KPICard
+                            title={`Valor Disponible (${kpi.moneda})`}
+                            value={formatCurrency(kpi.valor_total, kpi.moneda)}
+                            icon={<AttachMoneyIcon />}
+                            color="#4caf50"
+                        />
+                    </Grid>
+                ))}
+
+                 {/* KPIs de Valor Apartado (iterando) */}
+                 {(kpis.valores_apartados || []).map(kpi => (
+                    <Grid item xs={6} sm={4} md={3} key={`apar-${kpi.moneda}`}>
+                        <KPICard
+                            title={`Valor Apartado (${kpi.moneda})`}
+                            value={formatCurrency(kpi.valor_total, kpi.moneda)}
+                            icon={<AssignmentTurnedInIcon />}
+                            color="#ff9800"
+                        />
+                    </Grid>
+                ))}
             </Grid>
 
             {/* Filtros */}
@@ -79,7 +119,7 @@ export default function InventarioForm() {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {loading ? (
+                            {loading && inventario.length === 0 ? ( // Muestra carga solo si la lista está vacía
                                 <TableRow>
                                     <TableCell colSpan={5} align="center"><CircularProgress /></TableCell>
                                 </TableRow>
@@ -90,7 +130,7 @@ export default function InventarioForm() {
                             ) : (
                                 inventario.map((item) => (
                                     <InventarioItemRow
-                                        key={item.material_id + '-' + item.ubicacion_id} // Clave única si agrupamos mal
+                                        key={item.material_id} // Clave única por material_id
                                         item={item}
                                         onOpenModal={handleOpenModal}
                                     />
@@ -107,7 +147,7 @@ export default function InventarioForm() {
                     open={true}
                     onClose={handleCloseModal}
                     material={modalState.data.material}
-                    asignaciones={modalState.data.asignaciones}
+                    asignaciones={modalState.data.asignaciones} // Pasa null si está cargando, o el array
                 />
              )}
             {modalState.type === 'apartar' && modalState.data && (
@@ -115,7 +155,7 @@ export default function InventarioForm() {
                     open={true}
                     onClose={handleCloseModal}
                     material={modalState.data.material}
-                    filterOptions={filterOptions} // Pasa sitios y proyectos para seleccionar destino
+                    filterOptions={filterOptions}
                     onSubmit={handleApartar}
                     isSubmitting={isSubmittingAction}
                  />
@@ -125,14 +165,13 @@ export default function InventarioForm() {
                     open={true}
                     onClose={handleCloseModal}
                     material={modalState.data.material}
-                    filterOptions={filterOptions} // Pasa sitios y proyectos
-                    // Necesitamos cargar las asignaciones actuales para este modal
+                    filterOptions={filterOptions}
                     getDetalleAsignaciones={getDetalleAsignaciones}
+                    asignaciones={modalState.data.asignaciones} // Pasa las asignaciones cargadas
                     onSubmit={handleMover}
                     isSubmitting={isSubmittingAction}
                  />
             )}
-
         </Box>
     );
 }

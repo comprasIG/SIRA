@@ -1,14 +1,36 @@
 // backend/controllers/inventario.controller.js
 const pool = require('../db/pool');
 
-
 /**
- * GET /api/inventario/datos-filtros
- * Obtiene datos para los selectores de filtros de la página de inventario.
+ * GET /api/inventario/datos-iniciales
+ * Fetches data for KPIs (grouped by currency) and Filter options.
  */
-const getDatosFiltrosInventario = async (_req, res) => {
+const getDatosIniciales = async (req, res) => {
     try {
-        // Sitios y Proyectos relevantes (que tengan inventario actual o asignado)
+        // --- KPI Queries ---
+        const kpiSkuQuery = `
+            SELECT COUNT(DISTINCT material_id) AS kpi_skus
+            FROM inventario_actual
+            WHERE existencia_total > 0;
+        `;
+        const valorDisponibleQuery = `
+            SELECT
+                moneda,
+                COALESCE(SUM(stock_actual * ultimo_precio_entrada), 0) AS valor_total
+            FROM inventario_actual
+            WHERE stock_actual > 0 AND ultimo_precio_entrada > 0 AND moneda IS NOT NULL
+            GROUP BY moneda;
+        `;
+        const valorApartadoQuery = `
+            SELECT
+                moneda,
+                COALESCE(SUM(cantidad * valor_unitario), 0) AS valor_total
+            FROM inventario_asignado
+            WHERE cantidad > 0 AND valor_unitario > 0 AND moneda IS NOT NULL
+            GROUP BY moneda;
+        `;
+
+        // --- Filter Option Queries ---
         const sitiosQuery = `
             SELECT DISTINCT s.id, s.nombre FROM sitios s
             JOIN inventario_actual ia ON s.id = ia.ubicacion_id
@@ -25,22 +47,53 @@ const getDatosFiltrosInventario = async (_req, res) => {
             WHERE ias.cantidad > 0
             ORDER BY nombre ASC;
         `;
+        const todosProyectosQuery = `SELECT id, nombre, sitio_id FROM proyectos ORDER BY nombre ASC`;
+        const todosSitiosQuery = `SELECT id, nombre FROM sitios ORDER BY nombre ASC`;
 
-        const [sitiosRes, proyectosRes] = await Promise.all([
-            pool.query(sitiosQuery),
-            pool.query(proyectosQuery),
+        // --- CORRECCIÓN AQUÍ ---
+        // Se corrigió pool.query(sitiosRes.rows) a pool.query(sitiosQuery)
+        // y pool.query(proyectosRes.rows) a pool.query(proyectosQuery)
+        const [
+            kpiSkuRes,
+            valorDisponibleRes,
+            valorApartadoRes,
+            sitiosRes,
+            proyectosRes,
+            todosProyectosRes,
+            todosSitiosRes
+        ] = await Promise.all([
+            pool.query(kpiSkuQuery),
+            pool.query(valorDisponibleQuery),
+            pool.query(valorApartadoQuery),
+            pool.query(sitiosQuery),       // <-- CORREGIDO
+            pool.query(proyectosQuery),      // <-- CORREGIDO
+            pool.query(todosProyectosQuery),
+            pool.query(todosSitiosQuery)
         ]);
 
+        // Combinar resultados de KPIs
+        const kpisResult = {
+            kpi_skus: parseInt(kpiSkuRes.rows[0]?.kpi_skus || 0, 10),
+            valores_disponibles: valorDisponibleRes.rows.map(r => ({ ...r, valor_total: parseFloat(r.valor_total).toFixed(2) })),
+            valores_apartados: valorApartadoRes.rows.map(r => ({ ...r, valor_total: parseFloat(r.valor_total).toFixed(2) }))
+        };
+
         res.json({
-            sitios: sitiosRes.rows,
-            proyectos: proyectosRes.rows,
-            // Podríamos añadir más si fueran necesarios (ej. categorías de material)
+            kpis: kpisResult,
+            filterOptions: {
+                sitios: sitiosRes.rows,
+                proyectos: proyectosRes.rows,
+                todosSitios: todosSitiosRes.rows,
+                todosProyectos: todosProyectosRes.rows
+            }
         });
+
     } catch (error) {
-        console.error('Error fetching filter data for /INV:', error);
+        console.error('Error fetching initial data for /INV:', error);
         res.status(500).json({ error: 'Internal Server Error.' });
     }
 };
+
 
 /**
  * GET /api/inventario
@@ -49,97 +102,76 @@ const getDatosFiltrosInventario = async (_req, res) => {
 const getInventarioActual = async (req, res) => {
     const { estado, sitioId, proyectoId, search } = req.query;
 
-    let query = `
+    let params = [];
+    let paramIndex = 1;
+    // Agrupamos por material_id para tener una fila por material
+    let queryBase = `
         SELECT
             ia.material_id,
             m.sku,
             m.nombre AS material_nombre,
             u.simbolo AS unidad_simbolo,
-            ia.ubicacion_id, -- Para referencia interna, aunque agrupemos
             SUM(ia.stock_actual) AS total_stock,
             SUM(ia.asignado) AS total_asignado,
-            SUM(ia.existencia_total) AS total_existencia -- Suma total física
-            -- , MAX(ia.ultimo_precio_entrada) AS ultimo_costo -- Podríamos añadirlo si es útil en la tabla principal
-            -- , MAX(ia.moneda) AS moneda_costo
+            SUM(ia.existencia_total) AS total_existencia
         FROM inventario_actual ia
         JOIN catalogo_materiales m ON ia.material_id = m.id
         JOIN catalogo_unidades u ON m.unidad_de_compra = u.id
-        WHERE ia.existencia_total >= 0 -- Incluye 0, excluye nulls si los hubiera
     `;
-    const params = [];
-    let paramIndex = 1;
+    let whereClauses = ["ia.existencia_total >= 0"];
+    let havingClauses = [];
 
-    // Filtro de Estado
-    if (estado === 'DISPONIBLE') {
-        // Agrupa por material y solo incluye si la suma de stock es > 0
-        // Necesitamos subconsulta o HAVING clause
-    } else if (estado === 'APARTADO') {
-        // Agrupa por material y solo incluye si la suma de asignado es > 0
-        // O podríamos filtrar por existencia en inventario_asignado
-    }
-
-     // Filtro de Búsqueda (simple por ahora)
+    // --- Filtro de Búsqueda ---
     if (search) {
-        // Split search term into words and unaccent them
         const searchWords = search.split(' ').filter(word => word.length > 0);
         searchWords.forEach(word => {
-            query += ` AND unaccent(m.nombre) ILIKE unaccent($${paramIndex++})`;
+            whereClauses.push(`unaccent(m.nombre) ILIKE unaccent($${paramIndex++})`);
             params.push(`%${word}%`);
         });
-        // Podríamos añadir búsqueda en SKU aquí también
     }
 
+    // --- Filtros de Sitio/Proyecto (afectan con JOIN) ---
+    // Se aplican solo si el estado es 'TODOS' o 'APARTADO'
+    if ((estado === 'TODOS' || estado === 'APARTADO') && (sitioId || proyectoId)) {
+        // Usamos un Sub-SELECT en WHERE para filtrar los material_id
+        // que pertenecen a asignaciones con ese sitio/proyecto
+        whereClauses.push(`
+            ia.material_id IN (
+                SELECT DISTINCT ia_inner.material_id
+                FROM inventario_asignado ias
+                JOIN inventario_actual ia_inner ON ias.inventario_id = ia_inner.id
+                WHERE ias.cantidad > 0
+                ${sitioId ? ` AND ias.sitio_id = $${paramIndex++}` : ''}
+                ${proyectoId ? ` AND ias.proyecto_id = $${paramIndex++}` : ''}
+            )
+        `);
+        if (sitioId) params.push(sitioId);
+        if (proyectoId) params.push(proyectoId);
+    }
 
+    // --- Construir Query Final ---
+    if (whereClauses.length > 0) {
+        queryBase += ` WHERE ${whereClauses.join(' AND ')}`;
+    }
+    
     // Agrupación principal por material
-    query += `
-        GROUP BY ia.material_id, m.sku, m.nombre, u.simbolo, ia.ubicacion_id
-    `;
+    queryBase += ` GROUP BY ia.material_id, m.sku, m.nombre, u.simbolo`;
 
-    // Filtro HAVING para estado (más eficiente después de agrupar)
+    // --- Filtro de Estado (afecta HAVING) ---
     if (estado === 'DISPONIBLE') {
-        query += ` HAVING SUM(ia.stock_actual) > 0`;
+        havingClauses.push(`SUM(ia.stock_actual) > 0`);
     } else if (estado === 'APARTADO') {
-        // Filtrar por asignado > 0 o por existencia en tabla asignado
-        // Si filtramos por existencia en tabla asignado (más preciso):
-         query = `
-            SELECT
-                ia.material_id, m.sku, m.nombre AS material_nombre, u.simbolo AS unidad_simbolo,
-                ia.ubicacion_id, SUM(ia.stock_actual) AS total_stock, SUM(ia.asignado) AS total_asignado,
-                SUM(ia.existencia_total) AS total_existencia
-            FROM inventario_actual ia
-            JOIN catalogo_materiales m ON ia.material_id = m.id
-            JOIN catalogo_unidades u ON m.unidad_de_compra = u.id
-            WHERE ia.existencia_total >= 0
-              AND ia.material_id IN (SELECT DISTINCT inv.material_id FROM inventario_asignado ias JOIN inventario_actual inv ON ias.inventario_id = inv.id WHERE ias.cantidad > 0)
-              ${search ? searchWords.map((_, i) => ` AND unaccent(m.nombre) ILIKE unaccent($${i + 1})`).join('') : ''}
-            GROUP BY ia.material_id, m.sku, m.nombre, u.simbolo, ia.ubicacion_id
-            HAVING SUM(ia.asignado) > 0
-            ORDER BY m.nombre ASC;
-         `;
-         params.length = 0; // Reset params as query changed
-         if(search) { searchWords.forEach(word => params.push(`%${word}%`)); }
-
-    } else { // TODOS (o estado inválido)
-         // Filtro Sitio/Proyecto para TODOS o APARTADO
-        if (sitioId || proyectoId) {
-             query += ` AND ia.material_id IN (
-                            SELECT DISTINCT inv.material_id FROM inventario_asignado ias
-                            JOIN inventario_actual inv ON ias.inventario_id = inv.id
-                            WHERE ias.cantidad > 0
-                            ${sitioId ? ` AND ias.sitio_id = $${paramIndex++}` : ''}
-                            ${proyectoId ? ` AND ias.proyecto_id = $${paramIndex++}` : ''}
-                        )`;
-             if (sitioId) params.push(sitioId);
-             if (proyectoId) params.push(proyectoId);
-        }
-
-        query += ` ORDER BY m.nombre ASC`; // Orden final
+        havingClauses.push(`SUM(ia.asignado) > 0`);
     }
-
+    
+    if (havingClauses.length > 0) {
+        queryBase += ` HAVING ${havingClauses.join(' AND ')}`;
+    }
+    
+    queryBase += ` ORDER BY m.nombre ASC`;
 
     try {
-        const { rows } = await pool.query(query, params);
-        // Podríamos necesitar procesar las filas para sumarizar si la agrupación no fue suficiente
+        const { rows } = await pool.query(queryBase, params);
         res.json(rows);
     } catch (error) {
         console.error('Error fetching inventory list:', error);
@@ -194,40 +226,38 @@ const apartarStock = async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        // 1. Encontrar ubicación(es) con stock suficiente
         const ubicacionesStock = await client.query(
             `SELECT id, ubicacion_id, stock_actual, ultimo_precio_entrada, moneda
              FROM inventario_actual
              WHERE material_id = $1 AND stock_actual > 0
-             ORDER BY stock_actual DESC FOR UPDATE`, // Bloquea filas
+             ORDER BY stock_actual DESC FOR UPDATE`,
             [material_id]
         );
 
-        if (ubicacionesStock.rows.length === 0 || ubicacionesStock.rows.reduce((sum, u) => sum + parseFloat(u.stock_actual), 0) < cantidadNum) {
-            throw new Error(`Stock insuficiente para el material ID ${material_id}.`);
+        const stockTotalDisponible = ubicacionesStock.rows.reduce((sum, u) => sum + parseFloat(u.stock_actual), 0);
+        if (ubicacionesStock.rows.length === 0 || stockTotalDisponible < cantidadNum) {
+            throw new Error(`Stock insuficiente para el material ID ${material_id}. Solicitado: ${cantidadNum}, Disponible: ${stockTotalDisponible}`);
         }
 
         let cantidadRestante = cantidadNum;
-        const movimientos = []; // Para log
+        const movimientos = [];
 
         for (const ubi of ubicacionesStock.rows) {
              const stockEnUbicacion = parseFloat(ubi.stock_actual);
              const cantidadARestar = Math.min(cantidadRestante, stockEnUbicacion);
              const valorUnitario = parseFloat(ubi.ultimo_precio_entrada) || 0;
-             const moneda = ubi.moneda; // Moneda de la última entrada
+             const moneda = ubi.moneda;
+             const inventarioId = ubi.id;
 
-             // 2. Reducir stock_actual y Aumentar asignado en inventario_actual
-             const updateInvActual = await client.query(
+             await client.query(
                 `UPDATE inventario_actual
                  SET stock_actual = stock_actual - $1,
                      asignado = asignado + $1,
                      actualizado_en = NOW()
-                 WHERE id = $2 RETURNING id`, // Usamos el ID de la fila
-                 [cantidadARestar, ubi.id]
+                 WHERE id = $2`,
+                 [cantidadARestar, inventarioId]
              );
-             const inventarioId = updateInvActual.rows[0].id; // ID de la fila en inventario_actual
 
-            // 3. Insertar en inventario_asignado
             await client.query(
                 `INSERT INTO inventario_asignado
                     (inventario_id, requisicion_id, proyecto_id, sitio_id, cantidad, valor_unitario, moneda, asignado_en)
@@ -235,15 +265,12 @@ const apartarStock = async (req, res) => {
                  [inventarioId, proyecto_id, sitio_id, cantidadARestar, valorUnitario, moneda]
             );
 
-            // 4. Registrar movimientos (ajustes)
-            // Ajuste Negativo para Stock
             await client.query(
                 `INSERT INTO movimientos_inventario
                     (material_id, tipo_movimiento, cantidad, usuario_id, ubicacion_id, proyecto_destino_id, valor_unitario, moneda, observaciones)
                  VALUES ($1, 'AJUSTE_NEGATIVO', $2, $3, $4, $5, $6, $7, $8)`,
                 [material_id, cantidadARestar, usuarioId, ubi.ubicacion_id, proyecto_id, valorUnitario, moneda, 'Apartado de stock']
             );
-             // Ajuste Positivo para Asignado (mismo material, misma ubicación física)
             await client.query(
                 `INSERT INTO movimientos_inventario
                     (material_id, tipo_movimiento, cantidad, usuario_id, ubicacion_id, proyecto_destino_id, valor_unitario, moneda, observaciones)
@@ -284,7 +311,6 @@ const moverAsignacion = async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        // 1. Obtener datos de la asignación original (FOR UPDATE)
         const asignacionOriginal = await client.query(
             `SELECT ia.*, inv.material_id, inv.ubicacion_id
              FROM inventario_asignado ia
@@ -297,7 +323,6 @@ const moverAsignacion = async (req, res) => {
         }
         const { proyecto_id: origen_proyecto_id, sitio_id: origen_sitio_id, cantidad, valor_unitario, moneda, material_id, ubicacion_id } = asignacionOriginal.rows[0];
 
-        // 2. Actualizar la asignación
         await client.query(
             `UPDATE inventario_asignado
              SET sitio_id = $1, proyecto_id = $2
@@ -305,13 +330,12 @@ const moverAsignacion = async (req, res) => {
             [nuevo_sitio_id, nuevo_proyecto_id, asignacion_id]
         );
 
-        // 3. Registrar movimiento de TRASPASO (lógico)
         await client.query(
             `INSERT INTO movimientos_inventario
                 (material_id, tipo_movimiento, cantidad, usuario_id, ubicacion_id,
                  proyecto_origen_id, proyecto_destino_id, valor_unitario, moneda, observaciones)
              VALUES ($1, 'TRASPASO', $2, $3, $4, $5, $6, $7, $8, $9)`,
-            [material_id, cantidad, usuarioId, ubicacion_id, // Ubicación física no cambia
+            [material_id, cantidad, usuarioId, ubicacion_id,
              origen_proyecto_id, nuevo_proyecto_id, valor_unitario, moneda,
              `Movimiento de asignación (AsigID: ${asignacion_id})`]
         );
@@ -328,11 +352,11 @@ const moverAsignacion = async (req, res) => {
     }
 };
 
-
 module.exports = {
-    getDatosFiltrosInventario,
+    // getDatosFiltrosInventario, // <--- Eliminado, reemplazado por getDatosIniciales
     getInventarioActual,
     getDetalleAsignacionesMaterial,
     apartarStock,
     moverAsignacion,
+    getDatosIniciales, // <<< Ruta principal de datos
 };

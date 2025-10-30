@@ -5,30 +5,46 @@ import { toast } from 'react-toastify';
 import debounce from 'lodash.debounce';
 
 const initialFilters = {
-    estado: 'TODOS', // TODOS, DISPONIBLE, APARTADO
+    estado: 'TODOS',
     sitioId: '',
     proyectoId: '',
     search: '',
 };
 
+// --- ESTADO INICIAL DE KPIs ACTUALIZADO ---
+const initialKpis = {
+    kpi_skus: 0,
+    valores_disponibles: [], // Ahora es un array
+    valores_apartados: [],   // Ahora es un array
+};
+
 export const useInventario = () => {
     const [inventario, setInventario] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [kpis, setKpis] = useState({ disponible: 0, apartado: 0, skus: 0 }); // Placeholder
+    const [kpis, setKpis] = useState(initialKpis); // Usa el estado inicial
     const [filters, setFilters] = useState(initialFilters);
-    const [filterOptions, setFilterOptions] = useState({ sitios: [], proyectos: [] });
-    const [isSubmittingAction, setIsSubmittingAction] = useState(false); // Para modales de acción
+    const [filterOptions, setFilterOptions] = useState({
+        sitios: [],
+        proyectos: [],
+        todosSitios: [],
+        todosProyectos: [],
+    });
+    const [isSubmittingAction, setIsSubmittingAction] = useState(false);
 
-    // Carga inicial (filtros) y recarga de KPIs (estimados por ahora)
+    // Carga inicial (filtros) y recarga de KPIs
     const fetchInitialData = useCallback(async () => {
         setLoading(true);
         try {
-            const [filterData, /* kpiData */] = await Promise.all([
-                api.get('/api/inventario/datos-filtros'),
-                // Podríamos tener un endpoint /api/inventario/kpis si el cálculo es pesado
-                // Por ahora, los KPIs se derivarán de la lista principal
-            ]);
-            setFilterOptions(filterData || { sitios: [], proyectos: [] });
+            // Llama al nuevo endpoint que agrupa KPIs y filtros
+            const data = await api.get('/api/inventario/datos-iniciales');
+            setFilterOptions({
+                sitios: data.filterOptions?.sitios || [],
+                proyectos: data.filterOptions?.proyectos || [],
+                todosSitios: data.filterOptions?.todosSitios || [],
+                todosProyectos: data.filterOptions?.todosProyectos || [],
+            });
+            setKpis(data.kpis || initialKpis); // Guarda la nueva estructura de KPIs
+            
             // Carga inicial de la lista
             await fetchInventario(initialFilters);
         } catch (error) {
@@ -36,11 +52,10 @@ export const useInventario = () => {
             setLoading(false);
         }
         // setLoading(false) se maneja en fetchInventario
-    }, []); // Sin dependencias para que se ejecute solo al montar
+    }, []); // No necesita dependencias, solo se llama al montar
 
     // Función para buscar la lista de inventario
     const fetchInventario = useCallback(async (currentFilters) => {
-        // setLoading(true); // Se maneja fuera o con debounce
         try {
             const cleanFilters = Object.fromEntries(
                 Object.entries(currentFilters).filter(([, v]) => v != null && v !== '')
@@ -48,9 +63,6 @@ export const useInventario = () => {
             const queryParams = new URLSearchParams(cleanFilters).toString();
             const data = await api.get(`/api/inventario?${queryParams}`);
             setInventario(data || []);
-            // Calcular KPIs básicos desde la data (simplificado)
-            const skus = new Set(data.map(item => item.material_id)).size;
-            setKpis(prev => ({ ...prev, skus })); // Actualiza solo SKUs por ahora
         } catch (error) {
             toast.error('Error al cargar la lista de inventario.');
             setInventario([]);
@@ -72,20 +84,16 @@ export const useInventario = () => {
 
     // Efecto para reaccionar a cambios en filtros
     useEffect(() => {
-        // Evita llamar en la carga inicial si fetchInitialData ya lo hizo
         const isInitial = JSON.stringify(filters) === JSON.stringify(initialFilters);
-         if (!isInitial && !loading) { // No buscar si ya está cargando
+         if (!isInitial && !loading) {
             debouncedFetch(filters);
          }
         return () => debouncedFetch.cancel();
-    }, [filters, debouncedFetch, loading]); // Añadido loading a dependencias
+    }, [filters, debouncedFetch, loading]);
 
     const resetFilters = () => {
         setFilters(initialFilters);
-        // fetchInventario(initialFilters); // El useEffect se encargará
     };
-
-    // --- Funciones para Acciones ---
 
     const getDetalleAsignaciones = async (materialId) => {
         try {
@@ -97,12 +105,27 @@ export const useInventario = () => {
         }
     };
 
+    // Lógica para recargar KPIs y filtros después de una acción
+    const refreshData = async () => {
+         setLoading(true);
+         try {
+            // Recarga solo KPIs y filtros, luego la lista de inventario
+            const data = await api.get('/api/inventario/datos-iniciales');
+            setFilterOptions(data.filterOptions || { sitios: [], proyectos: [], todosSitios: [], todosProyectos: [] });
+            setKpis(data.kpis || initialKpis);
+            await fetchInventario(filters); // Vuelve a cargar la lista con los filtros actuales
+         } catch (error) {
+             toast.error('Error al refrescar los datos.');
+             setLoading(false);
+         }
+    };
+
     const apartarStock = async (payload) => {
         setIsSubmittingAction(true);
         try {
             const response = await api.post('/api/inventario/apartar', payload);
             toast.success(response.mensaje || 'Material apartado con éxito.');
-            fetchInitialData(); // Recarga todo para reflejar cambios
+            await refreshData(); // Recarga todo para reflejar cambios
             return true;
         } catch (error) {
             toast.error(error?.error || 'Error al apartar material.');
@@ -117,7 +140,7 @@ export const useInventario = () => {
         try {
             const response = await api.post('/api/inventario/mover-asignacion', payload);
             toast.success(response.mensaje || 'Asignación movida con éxito.');
-            fetchInitialData(); // Recarga todo
+            await refreshData(); // Recarga todo
             return true;
         } catch (error) {
             toast.error(error?.error || 'Error al mover asignación.');

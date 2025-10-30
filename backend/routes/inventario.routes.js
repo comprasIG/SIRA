@@ -8,8 +8,11 @@ const loadSiraUser = require('../middleware/loadSiraUser');
 // Autenticación para todas las rutas
 router.use(verifyFirebaseToken, loadSiraUser);
 
-// GET datos para los filtros de la página principal
-router.get('/datos-filtros', inventarioController.getDatosFiltrosInventario);
+
+
+// --- ¡NUEVA RUTA PRINCIPAL DE DATOS! ---
+// GET datos para KPIs (con valor) y Opciones de Filtros
+router.get('/datos-iniciales', inventarioController.getDatosIniciales);
 
 // GET lista principal de inventario (con filtros como query params)
 router.get('/', inventarioController.getInventarioActual);
