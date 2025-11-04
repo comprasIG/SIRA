@@ -1,13 +1,17 @@
 // C:\SIRA\sira-front\src\components\rfq\ResumenCompra.jsx
 /**
  * =================================================================================================
- * COMPONENTE: ResumenCompra (v2.2 - Corrección Typo)
+ * COMPONENTE: ResumenCompra
+ * VERSIÓN REESCRITA: 3.1 (Corrección de 'defaultConfig' y Lógica de Bloqueo)
  * =================================================================================================
  * @file ResumenCompra.jsx
- * @description Muestra el resumen de compra agrupado por proveedor y por estado (bloqueado/libre).
+ * @description Muestra el resumen de compra agrupado por proveedor.
+ * - Separa visualmente los resúmenes en "Pendientes de OC" y "Bloqueados (OC ya generada)".
  * - Maneja estados separados para archivos nuevos (subidos) y existentes (desde BD).
+ * - Permite la configuración de cálculo (IVA, ISR, Moneda) por proveedor.
  */
 
+// --- SECCIÓN 1: IMPORTACIONES ---
 import React, { useMemo, useState } from 'react';
 import {
   Box, Paper, Typography, IconButton, Tooltip, List, ListItem, ListItemText,
@@ -18,33 +22,74 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import ConfigPopover from './ConfigPopover';
 import { toast } from 'react-toastify';
 
-// Lógica de cálculo (sin cambios)
+// =================================================================
+// --- ¡CORRECCIÓN DEL BUG 'ReferenceError'! ---
+// Se define 'defaultConfig' aquí, en el ámbito superior del módulo,
+// para que sea accesible por todas las funciones que lo necesitan.
+// =================================================================
+const defaultConfig = {
+  moneda: 'MXN',
+  ivaRate: '0.16',
+  isIvaActive: true,
+  isrRate: '0.0125',
+  isIsrActive: false,
+  forcedTotal: '0',
+  isForcedTotalActive: false
+};
+// =================================================================
+
+// =================================================================================================
+// --- SECCIÓN 2: LÓGICA DE CÁLCULO (HELPER) ---
+// =================================================================================================
+
+/**
+ * @function calcularBloquesResumenes
+ * Agrupa opciones por proveedor Y por estado (bloqueado/libre).
+ * Si un proveedor tiene opciones bloqueadas y otras libres, salen como bloques distintos.
+ * @param {array} materiales - array de materiales (cada uno con opciones)
+ * @param {object} providerConfigs - configuración por proveedor
+ * @param {array} opcionesBloqueadas - ids de opciones bloqueadas (por OC generada)
+ * @returns {array} bloques de resumen agrupados por proveedor y estado
+ */
 function calcularBloquesResumenes(materiales, providerConfigs = {}, opcionesBloqueadas = []) {
   if (!materiales || materiales.length === 0) return [];
   const bloques = [];
 
   materiales.forEach(material => {
     material.opciones?.forEach(opcion => {
-      // Usar id_bd para bloquear, pero id (de RHF) para la opción
-      const opcionId = opcion.id_bd || opcion.id;
+      // Solo agrega si está seleccionada y tiene proveedor y cantidad
       if (!opcion || !opcion.proveedor?.id || Number(opcion.cantidad_cotizada) <= 0 || !opcion.seleccionado) return;
 
-      // Bloquear si el ID de la BD está en la lista de bloqueadas
+      // =================================================================
+      // --- ¡CORRECCIÓN DEL BUG DE BLOQUEO! ---
+      // Comparamos usando 'opcion.id_bd' (el ID de la Base de Datos)
+      // en lugar de 'opcion.id' (el ID de React Hook Form).
+      // =================================================================
       const isBlocked = (opcionesBloqueadas || []).map(Number).includes(Number(opcion.id_bd));
+      // =================================================================
+
       const proveedorId = opcion.proveedor.id;
 
-      let bloque = bloques.find(b => b.proveedorId === proveedorId && b.isBlocked === isBlocked);
+      // El bloque es único por proveedor + estado (bloqueado/libre)
+      let bloque = bloques.find(b =>
+        b.proveedorId === proveedorId &&
+        b.isBlocked === isBlocked
+      );
+
+      // Si no existe un bloque para este (Proveedor + Estado), lo creamos
       if (!bloque) {
         bloque = {
           proveedorId,
           proveedorNombre: opcion.proveedor.razon_social || opcion.proveedor.nombre,
           proveedorMarca: opcion.proveedor.nombre || '',
-          isBlocked,
+          isBlocked, // <-- El estado de bloqueo se asigna al bloque
           items: [],
-          opcionesIds: [], // Rastreador de IDs de opciones de BD
+          opcionesIds: [],
         };
         bloques.push(bloque);
       }
+
+      // Añadimos el item al bloque
       bloque.items.push({
         material: material.material,
         unidad: material.unidad,
@@ -54,15 +99,20 @@ function calcularBloquesResumenes(materiales, providerConfigs = {}, opcionesBloq
         esImportacionItem: opcion.es_importacion,
         proveedorMarca: opcion.proveedor.nombre || '',
       });
-      // Solo guardar el ID de BD si existe
+      
+      // =================================================================
+      // --- ¡CORRECCIÓN DEL BUG DE BLOQUEO! ---
+      // También usamos 'opcion.id_bd' aquí.
+      // =================================================================
       if (opcion.id_bd) {
         bloque.opcionesIds.push(opcion.id_bd);
       }
     });
   });
 
+  // Calcula los totales financieros para cada bloque
   return bloques.map(bloque => {
-    const defaultConfig = { moneda: 'MXN', ivaRate: '0.16', isIvaActive: true, isrRate: '0.0125', isIsrActive: false, forcedTotal: '0', isForcedTotalActive: false };
+    // Ahora 'defaultConfig' es la constante global del módulo
     const config = providerConfigs[bloque.proveedorId] || defaultConfig;
     const ivaRateNum = parseFloat(config.ivaRate) || 0;
     const isrRateNum = parseFloat(config.isrRate) || 0;
@@ -79,15 +129,17 @@ function calcularBloquesResumenes(materiales, providerConfigs = {}, opcionesBloq
       subTotal += itemSubtotal;
       return { ...item, itemSubtotal };
     });
+
     const iva = (esCompraImportacion || !config.isIvaActive) ? 0 : subTotal * ivaRateNum;
     const retIsr = (esCompraImportacion || !config.isIsrActive) ? 0 : subTotal * isrRateNum;
     let total = config.isForcedTotalActive ? forcedTotalNum : subTotal + iva - retIsr;
+    
     return { ...bloque, subTotal, iva, retIsr, total, esCompraImportacion, config, items: itemsConSubtotal };
   });
 }
 
 // =================================================================================================
-// COMPONENTE PRINCIPAL
+// --- SECCIÓN 3: COMPONENTE PRINCIPAL ---
 // =================================================================================================
 export default function ResumenCompra({
   materiales,
@@ -101,55 +153,67 @@ export default function ResumenCompra({
   onRemoveExistingFile,
   opcionesBloqueadas = [],
 }) {
-  // Estado del popup de configuración
+
+  // --- SECCIÓN 3.1: ESTADO Y HOOKS ---
   const [anchorEl, setAnchorEl] = useState(null);
   const [currentProviderId, setCurrentProviderId] = useState(null);
 
-  // --- POPUP DE CONFIGURACIÓN ---
+  /**
+   * @memo {bloquesResumenes}
+   * Calcula los bloques de resumen y se actualiza solo si los datos cambian.
+   * [JSON.stringify] es una dependencia clave para forzar el recálculo
+   * cuando los valores *dentro* del array de materiales cambian.
+   */
+  const bloquesResumenes = useMemo(
+    () => calcularBloquesResumenes(materiales, providerConfigs, opcionesBloqueadas),
+    [JSON.stringify(materiales), providerConfigs, opcionesBloqueadas]
+  );
+
+  // --- SECCIÓN 3.2: MANEJADORES DE EVENTOS (POPOVER) ---
+
   const handleConfigClick = (event, providerId) => {
     setCurrentProviderId(providerId);
     setAnchorEl(event.currentTarget);
   };
+
   const handleConfigClose = () => {
     setAnchorEl(null);
     setCurrentProviderId(null);
   };
 
-  // --- CONFIGURACIÓN POR PROVEEDOR ---
-  const defaultConfig = { moneda: 'MXN', ivaRate: '0.16', isIvaActive: true, isrRate: '0.0125', isIsrActive: false, forcedTotal: '0', isForcedTotalActive: false };
+  /**
+   * @handler
+   * Actualiza el estado de la configuración para un proveedor específico.
+   */
   const setConfigForProvider = (valueOrFunction) => {
     if (!currentProviderId) return;
     setProviderConfigs(prevConfigs => {
+      // Ahora 'defaultConfig' es la constante global del módulo
       const prevConfigForProvider = prevConfigs[currentProviderId] || defaultConfig;
       const newConfig = typeof valueOrFunction === 'function' ? valueOrFunction(prevConfigForProvider) : valueOrFunction;
       return { ...prevConfigs, [currentProviderId]: newConfig };
     });
   };
 
-  // --- AGRUPADO DE BLOQUES (proveedor/estado) ---
-  const bloquesResumenes = useMemo(
-    () => calcularBloquesResumenes(materiales, providerConfigs, opcionesBloqueadas),
-    [JSON.stringify(materiales), providerConfigs, opcionesBloqueadas] // Corregido en v1.3
-  );
-
   // =============================================================================================
-  // RENDER UI
+  // --- SECCIÓN 3.3: RENDERIZADO DEL COMPONENTE ---
   // =============================================================================================
   return (
     <Box className="space-y-4">
-      {/* Lugar de entrega */}
       <Typography variant="caption" display="block" sx={{ mb: 1 }}>
         <strong>Se entrega en:</strong> {lugar_entrega}
       </Typography>
 
-      {/* Si no hay líneas */}
+      {/* --- A: Estado Vacío --- */}
       {bloquesResumenes.length === 0 ? (
         <Typography variant="body2" color="text.secondary">
           Selecciona un proveedor y marca "Elegir" para ver el resumen.
         </Typography>
       ) : (
+        
+        // --- B: Iteración de Bloques de Resumen ---
         bloquesResumenes.map((bloque, idx) => {
-          const isLocked = bloque.isBlocked;
+          const isLocked = bloque.isBlocked; // <-- La lógica de bloqueo viene de la función helper
           const archivosNuevos = archivosNuevosPorProveedor[bloque.proveedorId] || [];
           const archivosExistentes = archivosExistentesPorProveedor[bloque.proveedorId] || [];
           const totalArchivos = archivosNuevos.length + archivosExistentes.length;
@@ -160,20 +224,21 @@ export default function ResumenCompra({
               variant="outlined"
               sx={{
                 p: 2,
-                opacity: isLocked ? 0.7 : 1,
-                background: isLocked ? 'rgba(210,210,210,0.13)' : '#fff',
+                opacity: isLocked ? 0.7 : 1, // <-- Se atenúa si está bloqueado
+                background: isLocked ? 'rgba(210,210,210,0.13)' : '#fff', // <-- Fondo gris si está bloqueado
                 border: isLocked ? '2px solid #90a4ae' : '1px solid #e0e0e0',
                 mb: 2,
                 position: 'relative'
               }}
             >
+              {/* --- B.1: Alerta de Bloqueo (Solo si 'isLocked' es true) --- */}
               {isLocked && (
                 <Alert severity="info" sx={{ mb: 1 }}>
                   Esta OC ya fue generada y no puede ser modificada.
                 </Alert>
               )}
 
-              {/* Header: Proveedor y marca (sin cambios) */}
+              {/* --- B.2: Encabezado del Bloque (Proveedor y Config) --- */}
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                 <Tooltip
                   title={bloque.proveedorMarca ? (<span><strong>Marca:</strong> {bloque.proveedorMarca}</span>) : ""}
@@ -191,7 +256,7 @@ export default function ResumenCompra({
                     <IconButton
                       onClick={e => handleConfigClick(e, bloque.proveedorId)}
                       size="small"
-                      disabled={isLocked}
+                      disabled={isLocked} // <-- Botón deshabilitado si está bloqueado
                     >
                       <SettingsIcon fontSize="inherit" />
                     </IconButton>
@@ -199,7 +264,7 @@ export default function ResumenCompra({
                 </Tooltip>
               </Box>
 
-              {/* Lista de materiales y totales (sin cambios) */}
+              {/* --- B.3: Lista de Items y Totales (Finanzas) --- */}
               <List dense sx={{ p: 0 }}>
                 {bloque.items.map((item, idx) => (
                   <ListItem key={idx} disableGutters sx={{ p: 0 }}>
@@ -212,13 +277,12 @@ export default function ResumenCompra({
                 ))}
               </List>
               <Divider sx={{ my: 1 }} />
+              
               {bloque.esCompraImportacion && <Alert severity="info" sx={{ mb: 1 }}>Compra de Importación.</Alert>}
+              
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Typography variant="body2">Sub Total:</Typography>
-                {/* ================================================================== */}
-                {/* --- CORRECCIÓN DE TYPO --- */}
                 <Typography variant="body2">${bloque.subTotal.toFixed(2)}</Typography>
-                {/* ================================================================== */}
               </Box>
               {bloque.iva > 0 && (
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -237,10 +301,13 @@ export default function ResumenCompra({
                 <Typography variant="body1" sx={{ fontWeight: 'bold' }}>Total ({bloque.config.moneda}):</Typography>
                 <Typography variant="body1" sx={{ fontWeight: 'bold' }}>${bloque.total.toFixed(2)}</Typography>
               </Box>
+              
               {bloque.config.isForcedTotalActive && <Alert severity="warning" sx={{ mt: 1 }}>¡Total Forzado!</Alert>}
+              
               <Divider sx={{ my: 2 }} />
 
-              {/* Lógica de adjuntar archivos (sin cambios) */}
+              {/* --- B.4: Sección de Archivos Adjuntos --- */}
+              {/* Esta sección se oculta si el bloque está bloqueado */}
               {!isLocked && (
                 <Box>
                   <Button
@@ -260,7 +327,7 @@ export default function ResumenCompra({
 
                   {totalArchivos > 0 && (
                     <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {/* 1. Renderizar archivos EXISTENTES */}
+                      {/* 1. Renderizar archivos EXISTENTES (links) */}
                       {archivosExistentes.map((file) => (
                         <Chip
                           key={file.id}
@@ -275,7 +342,7 @@ export default function ResumenCompra({
                           onDelete={() => onRemoveExistingFile(bloque.proveedorId, file.id)}
                         />
                       ))}
-                      {/* 2. Renderizar archivos NUEVOS */}
+                      {/* 2. Renderizar archivos NUEVOS (solo nombre) */}
                       {archivosNuevos.map((file, index) => (
                         <Chip
                           key={index}
@@ -294,11 +361,12 @@ export default function ResumenCompra({
         })
       )}
 
-      {/* Configuración de cálculo por proveedor */}
+      {/* --- C: Popover de Configuración (fuera del map) --- */}
       <ConfigPopover
         open={Boolean(anchorEl)}
         anchorEl={anchorEl}
         onClose={handleConfigClose}
+        // Ahora 'defaultConfig' es la constante global del módulo y es accesible aquí
         config={providerConfigs[currentProviderId] || defaultConfig}
         setConfig={setConfigForProvider}
       />

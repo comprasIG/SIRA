@@ -1,4 +1,13 @@
 // C:\SIRA\backend\services\googleDrive.js
+/**
+ * =================================================================================================
+ * SERVICIO: Google Drive (Versión 4.0 - Refactorizada con Carpetas Anidadas)
+ * =================================================================================================
+ * @file googleDrive.js
+ * @description Maneja toda la interacción con Google Drive, respetando la estructura
+ * de carpetas (AMBIENTE)/REQUISICIONES/<DEPTO>/<REQ_NUM>/[OC | COTIZACIONES]
+ */
+
 const { google } = require('googleapis');
 const stream = require('stream');
 
@@ -6,7 +15,7 @@ const stream = require('stream');
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
-const SUPER_ROOT_FOLDER_ID = process.env.DRIVE_FOLDER_ID; // Carpeta raíz (1y5-iy84...)
+const SUPER_ROOT_FOLDER_ID = process.env.DRIVE_FOLDER_ID;
 const REDIRECT_URI = 'https://developers.google.com/oauthplayground';
 
 const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
@@ -15,25 +24,21 @@ oauth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
 const drive = () => google.drive({ version: 'v3', auth: oauth2Client });
 
 // ============================================================
-// ¡NUEVO! Helper para obtener la raíz del ambiente (LOCAL, STG, PROD)
+// --- SECCIÓN 1: HELPERS DE CARPETAS ---
 // ============================================================
 
-// Cacheamos el ID de la carpeta de ambiente para no buscarlo en cada subida
 let environmentRootFolderId = null;
 
 /**
  * Encuentra o crea la carpeta de ambiente (LOCAL, STG, PROD)
- * basándose en la variable process.env.NODE_ENV que ya usa tu app.
+ * basándose en la variable process.env.NODE_ENV.
  */
 const getEnvironmentRootFolderId = async (driveService) => {
   if (environmentRootFolderId) {
     return environmentRootFolderId;
   }
-
-  // Leer la variable de entorno existente
   const env = process.env.NODE_ENV;
   let envFolderName;
-
   if (env === 'production') {
     envFolderName = 'PROD';
   } else if (env === 'staging') {
@@ -41,23 +46,20 @@ const getEnvironmentRootFolderId = async (driveService) => {
   } else {
     envFolderName = 'LOCAL';
   }
-
   try {
     console.log(`Buscando carpeta raíz de ambiente en Drive: "${envFolderName}"`);
-    // Buscar o crear esta carpeta DENTRO del super-root
     environmentRootFolderId = await findOrCreateFolder(driveService, SUPER_ROOT_FOLDER_ID, envFolderName);
     console.log(`Carpeta raíz de ambiente establecida en: ${environmentRootFolderId} (${envFolderName})`);
     return environmentRootFolderId;
   } catch (err) {
     console.error(`Error CRÍTICO al asegurar la carpeta raíz de ambiente "${envFolderName}":`, err);
-    return SUPER_ROOT_FOLDER_ID; // Fallback a la raíz principal
+    return SUPER_ROOT_FOLDER_ID;
   }
 };
 
-
-// ============================================================
-// Helpers internos (Sin cambios)
-// ============================================================
+/**
+ * Helper genérico para encontrar o crear una carpeta.
+ */
 const findOrCreateFolder = async (driveService, parentFolderId, folderName) => {
   const escaped = folderName.replace(/'/g, "\\'");
   const q = `name='${escaped}' and mimeType='application/vnd.google-apps.folder' and '${parentFolderId}' in parents and trashed=false`;
@@ -73,22 +75,30 @@ const findOrCreateFolder = async (driveService, parentFolderId, folderName) => {
   return created.data.id;
 };
 
+/**
+ * ¡NUEVO! Navega la ruta (Ambiente)/REQUISICIONES/<DEPTO>/<REQ_NUM>
+ * y devuelve el ID de la carpeta de la requisición.
+ */
+const getRequisitionFolderId = async (driveService, depto, reqNum) => {
+  const envRootId = await getEnvironmentRootFolderId(driveService);
+  const requisicionesFolderId = await findOrCreateFolder(driveService, envRootId, 'REQUISICIONES');
+  const departmentFolderId = await findOrCreateFolder(driveService, requisicionesFolderId, depto);
+  const targetFolderId = await findOrCreateFolder(driveService, departmentFolderId, reqNum);
+  return targetFolderId;
+};
+
 // ============================================================
-// FUNCIONES EN USO (MODIFICADAS PARA USAR RAÍZ DE AMBIENTE)
+// --- SECCIÓN 2: FUNCIONES DE ACCIÓN (EXPORTADAS) ---
 // ============================================================
 
 /**
- * Sube los adjuntos de una requisición (G-REQ)
+ * Sube los adjuntos iniciales de una requisición (G-REQ)
  * Ruta: (Ambiente)/REQUISICIONES/<DEPTO>/<NUM_REQ>
  */
 const uploadRequisitionFiles = async (files, departmentAbbreviation, requisitionNumber) => {
   try {
     const d = drive();
-    // CAMBIO: Usar la raíz del ambiente
-    const envRootId = await getEnvironmentRootFolderId(d);
-    const requisicionesFolderId = await findOrCreateFolder(d, envRootId, 'REQUISICIONES');
-    const departmentFolderId = await findOrCreateFolder(d, requisicionesFolderId, departmentAbbreviation);
-    const targetFolderId = await findOrCreateFolder(d, departmentFolderId, requisitionNumber);
+    const targetFolderId = await getRequisitionFolderId(d, departmentAbbreviation, requisitionNumber);
     
     const uploadPromises = files.map(fileObject => {
       const bufferStream = new stream.PassThrough();
@@ -114,11 +124,7 @@ const uploadRequisitionFiles = async (files, departmentAbbreviation, requisition
 const uploadRequisitionPdf = async (pdfBuffer, fileName, departmentAbbreviation, requisitionNumber) => {
   try {
     const d = drive();
-    // CAMBIO: Usar la raíz del ambiente
-    const envRootId = await getEnvironmentRootFolderId(d);
-    const requisicionesFolderId = await findOrCreateFolder(d, envRootId, 'REQUISICIONES');
-    const departmentFolderId = await findOrCreateFolder(d, requisicionesFolderId, departmentAbbreviation);
-    const targetFolderId = await findOrCreateFolder(d, departmentFolderId, requisitionNumber);
+    const targetFolderId = await getRequisitionFolderId(d, departmentAbbreviation, requisitionNumber);
 
     const bufferStream = new stream.PassThrough();
     bufferStream.end(pdfBuffer);
@@ -135,17 +141,48 @@ const uploadRequisitionPdf = async (pdfBuffer, fileName, departmentAbbreviation,
 };
 
 /**
- * Sube un adjunto de cotización de proveedor (G-RFQ)
- * Ruta: (Ambiente)/COTIZACIONES/<RFQ_CODE>/<PROVIDER_NAME>
+ * ¡NUEVA FUNCIÓN!
+ * Sube un PDF de OC a la carpeta anidada de la REQ
+ * Ruta: (Ambiente)/REQUISICIONES/<DEPTO>/<REQ_NUM>/OC/
  */
-const uploadQuoteFile = async (fileObject, rfqCode, providerName) => {
+const uploadOcToReqFolder = async (pdfBuffer, fileName, depto, reqNum) => {
   try {
     const d = drive();
-    // CAMBIO: Usar la raíz del ambiente
-    const envRootId = await getEnvironmentRootFolderId(d);
-    const quotesFolderId = await findOrCreateFolder(d, envRootId, 'COTIZACIONES');
-    const rfqFolderId = await findOrCreateFolder(d, quotesFolderId, rfqCode);
-    const providerFolderId = await findOrCreateFolder(d, rfqFolderId, providerName.replace(/\s+/g, '_'));
+    const reqFolderId = await getRequisitionFolderId(d, depto, reqNum);
+    const ocFolderId = await findOrCreateFolder(d, reqFolderId, 'OC'); // Subcarpeta 'OC'
+
+    const bufferStream = new stream.PassThrough();
+    bufferStream.end(pdfBuffer);
+    const result = await d.files.create({
+      media: { mimeType: 'application/pdf', body: bufferStream },
+      requestBody: { name: fileName, parents: [ocFolderId] },
+      fields: 'id, name, webViewLink',
+    });
+    
+    // Obtener el link de la carpeta 'OC'
+    const folder = await d.files.get({ fileId: ocFolderId, fields: 'webViewLink' });
+    
+    return {
+      fileLink: result.data.webViewLink,
+      folderLink: folder.data.webViewLink
+    };
+  } catch (error) {
+    console.error(`Error CRÍTICO al subir PDF de OC a Drive (${fileName}):`, error);
+    return null;
+  }
+};
+
+/**
+ * ¡NUEVA FUNCIÓN!
+ * Sube un adjunto de cotización a la carpeta anidada de la REQ
+ * Ruta: (Ambiente)/REQUISICIONES/<DEPTO>/<REQ_NUM>/COTIZACIONES/<PROVIDER_NAME>
+ */
+const uploadQuoteToReqFolder = async (fileObject, depto, reqNum, providerName) => {
+  try {
+    const d = drive();
+    const reqFolderId = await getRequisitionFolderId(d, depto, reqNum);
+    const quotesFolderId = await findOrCreateFolder(d, reqFolderId, 'COTIZACIONES');
+    const providerFolderId = await findOrCreateFolder(d, quotesFolderId, providerName.replace(/\s+/g, '_'));
     
     const bufferStream = new stream.PassThrough();
     bufferStream.end(fileObject.buffer);
@@ -156,39 +193,13 @@ const uploadQuoteFile = async (fileObject, rfqCode, providerName) => {
     });
     return result.data;
   } catch (error) {
-    console.error(`Error durante la subida de archivo de cotización para ${rfqCode}:`, error);
+    console.error(`Error durante la subida de archivo de cotización para ${reqNum}:`, error);
     throw error;
   }
 };
 
 /**
- * Sube un PDF genérico (Usado por G-RFQ Visto Bueno para la OC)
- * Ruta: (Ambiente)/<rootFolderName>/<subFolderName>
- */
-const uploadPdfBuffer = async (pdfBuffer, fileName, rootFolderName, subFolderName) => {
-  try {
-    const d = drive();
-    // CAMBIO: Usar la raíz del ambiente
-    const envRootId = await getEnvironmentRootFolderId(d);
-    const rootFolderId = await findOrCreateFolder(d, envRootId, rootFolderName);
-    const targetFolderId = await findOrCreateFolder(d, rootFolderId, subFolderName);
-    
-    const bufferStream = new stream.PassThrough();
-    bufferStream.end(pdfBuffer);
-    const result = await d.files.create({
-      media: { mimeType: 'application/pdf', body: bufferStream },
-      requestBody: { name: fileName, parents: [targetFolderId] },
-      fields: 'id, name, webViewLink',
-    });
-    return result.data;
-  } catch (error) {
-    console.error(`Error CRÍTICO al subir PDF a Drive (${fileName}):`, error);
-    return null;
-  }
-};
-
-/**
- * Descarga un archivo de Drive (Usado por G-RFQ Visto Bueno)
+ * Descarga un archivo (Usado por G-RFQ Visto Bueno)
  */
 const downloadFileBuffer = async (fileId) => {
   try {
@@ -200,11 +211,34 @@ const downloadFileBuffer = async (fileId) => {
   }
 };
 
+/**
+ * ¡NUEVA FUNCIÓN!
+ * Borra un archivo de Drive (Usado por G-RFQ al guardar)
+ */
+const deleteFile = async (fileId) => {
+  try {
+    await drive().files.delete({ fileId });
+    return true;
+  } catch (error)
+   {
+    if (error.code === 404) {
+      console.warn(`[Drive] Intento de borrar archivo no encontrado (ID: ${fileId}).`);
+      return true; // Si ya no existe, se considera "borrado"
+    }
+    console.error(`[Drive] Error al borrar archivo (ID: ${fileId}):`, error.message);
+    throw error;
+  }
+};
+
+
 module.exports = {
-  // Funciones en uso
+  // Funciones para G-REQ
   uploadRequisitionFiles,
   uploadRequisitionPdf,
-  uploadQuoteFile,
-  uploadPdfBuffer,
+  
+  // Funciones para G-RFQ y VB-RFQ
+  uploadOcToReqFolder,     // <- NUEVA (reemplaza uploadPdfToOcFolder)
+  uploadQuoteToReqFolder,  // <- NUEVA (reemplaza uploadQuoteFile)
   downloadFileBuffer,
+  deleteFile,              // <- NUEVA
 };

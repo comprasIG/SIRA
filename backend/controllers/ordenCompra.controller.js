@@ -1,18 +1,17 @@
 //C:\SIRA\backend\controllers\ordenCompra.controller.js
 /**
  * =================================================================================================
- * CONTROLADOR: Órdenes de Compra (Acciones Específicas)
+ * CONTROLADOR: Órdenes de Compra (Versión 2.0 - Centralizada)
  * =================================================================================================
  * @file ordenCompra.controller.js
- * @description Maneja las peticiones HTTP para acciones específicas sobre Órdenes de Compra,
- * como la generación, autorización y descarga de PDFs.
+ * @description Maneja las peticiones HTTP para OCs.
+ * ¡CAMBIO! Ahora utiliza el servicio central 'ocAuthorizationService'.
  */
 
 // --- Importaciones de Módulos y Servicios ---
 const pool = require('../db/pool');
-const ocCreationService = require('../services/ocCreationService');
-const ocAuthorizationService = require('../services/ocAuthorizationService');
-// ¡NUEVO! Se importa el servicio de generación de PDFs
+// --- ¡CAMBIO! Se elimina 'ocCreationService' y se usa el orquestador ---
+const { createAndAuthorizeOC, authorizeAndDistributeOC } = require('../services/ocAuthorizationService');
 const { generatePurchaseOrderPdf } = require('../services/purchaseOrderPdfService');
 
 
@@ -22,24 +21,38 @@ const { generatePurchaseOrderPdf } = require('../services/purchaseOrderPdfServic
 
 /**
  * @route   POST /api/ocs/rfq/:rfqId/generar-oc
- * @desc    Crea el registro de una nueva OC en la base de datos.
+ * @desc    Crea, autoriza y distribuye una nueva OC desde un RFQ.
  * @access  Privado
  */
 const generarOrdenDeCompra = async (req, res) => {
   try {
     const { rfqId } = req.params;
-    const { opcionIds, proveedor_id } = req.body;
+    const { opcionIds } = req.body;
     const { id: usuarioId } = req.usuarioSira;
 
     if (!opcionIds || !Array.isArray(opcionIds) || opcionIds.length === 0) {
       return res.status(400).json({ error: "Se requiere un arreglo con los IDs de las opciones seleccionadas." });
     }
-
-    const nuevaOc = await ocCreationService.crearOrdenDeCompraDesdeRfq({
+    
+    // --- ¡CAMBIO! ---
+    // 1. Obtener los datos de ruta de la RFQ (necesarios para Drive)
+    const rfqQuery = await pool.query(
+        `SELECT r.numero_requisicion, r.rfq_code, r.lugar_entrega, r.sitio_id, r.proyecto_id,
+                d.codigo as depto_codigo 
+         FROM requisiciones r 
+         JOIN departamentos d ON r.departamento_id = d.id 
+         WHERE r.id = $1`, [rfqId]
+    );
+    if (rfqQuery.rowCount === 0) throw new Error('El RFQ base no existe.');
+    
+    // 2. Llamar al NUEVO servicio orquestador
+    const nuevaOc = await createAndAuthorizeOC({
       rfqId,
       usuarioId,
-      opcionIds
+      opcionIds,
+      rfqData: rfqQuery.rows[0] // Pasar los datos de ruta
     });
+    // --- FIN CAMBIO ---
 
     res.status(201).json({
       mensaje: `Orden de Compra ${nuevaOc.numero_oc} generada exitosamente.`,
@@ -64,8 +77,9 @@ const autorizarOrdenDeCompra = async (req, res) => {
     if (!ocId) {
       return res.status(400).json({ error: 'Se requiere el ID de la Orden de Compra.' });
     }
-
-    const resultado = await ocAuthorizationService.authorizeAndDistributeOC(ocId, usuarioSira);
+    
+    // (Esta función no cambia, ya llamaba al servicio correcto)
+    const resultado = await authorizeAndDistributeOC(ocId, usuarioSira);
     res.status(200).json(resultado);
 
   } catch (error) {
@@ -75,50 +89,31 @@ const autorizarOrdenDeCompra = async (req, res) => {
 };
 
 /**
- * ===============================================================================================
- * --- ¡NUEVA FUNCIÓN PARA DESCARGA! ---
- * ===============================================================================================
  * @route   GET /api/ocs/:id/pdf
- * @desc    Genera y devuelve el PDF de una OC específica para su descarga directa.
+ * @desc    Genera y devuelve el PDF de una OC específica.
  * @access  Privado
  */
 const descargarOcPdf = async (req, res) => {
     const { id: ocId } = req.params;
     try {
-        // --- ¡LA CORRECCIÓN ESTÁ AQUÍ! ---
-        // 1. Obtenemos los datos completos de la cabecera de la OC, igual que en el otro controlador.
-        const ocDataQuery = await pool.query(`
-            SELECT oc.*, p.razon_social AS proveedor_razon_social, p.marca AS proveedor_marca, p.rfc AS proveedor_rfc,
-                   proy.nombre AS proyecto_nombre, s.nombre AS sitio_nombre, u.nombre as usuario_nombre,
-                   (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) as moneda,
-                   NOW() as fecha_aprobacion
-            FROM ordenes_compra oc
-            JOIN proveedores p ON oc.proveedor_id = p.id
-            JOIN proyectos proy ON oc.proyecto_id = proy.id
-            JOIN sitios s ON oc.sitio_id = s.id
-            JOIN usuarios u ON oc.usuario_id = u.id
-            WHERE oc.id = $1;
-        `, [ocId]);
-
+        // --- ¡CAMBIO! ---
+        // Se llama al servicio refactorizado que hace la consulta interna.
+        // Ya no necesitamos consultar la BD aquí.
+        const pdfBuffer = await generatePurchaseOrderPdf(ocId);
+        
+        // (El nombre del archivo se deduce en el servicio, pero
+        // para la descarga necesitamos consultarlo aquí de nuevo)
+        const ocDataQuery = await pool.query(
+            `SELECT oc.numero_oc, p.marca AS proveedor_marca
+             FROM ordenes_compra oc
+             JOIN proveedores p ON oc.proveedor_id = p.id
+             WHERE oc.id = $1;`, [ocId]);
+        
         if (ocDataQuery.rows.length === 0) {
             return res.status(404).send('Orden de Compra no encontrada.');
         }
         const ocData = ocDataQuery.rows[0];
-
-        // 2. Obtenemos los materiales (items) de esa OC.
-        const itemsDataQuery = await pool.query(`
-            SELECT ocd.*, cm.nombre AS material_nombre, cu.simbolo AS unidad_simbolo
-            FROM ordenes_compra_detalle ocd
-            JOIN catalogo_materiales cm ON ocd.material_id = cm.id
-            JOIN catalogo_unidades cu ON cm.unidad_de_compra = cu.id
-            WHERE ocd.orden_compra_id = $1;
-        `, [ocId]);
-        const itemsData = itemsDataQuery.rows;
-
-        const fileName = `OC-${ocData.numero_oc}_${ocData.proveedor_marca.replace(/\s/g, '_')}.pdf`;
-
-        // 3. Llamamos al servicio de PDF pasándole AMBOS datos.
-        const pdfBuffer = await generatePurchaseOrderPdf(ocData, itemsData);
+        const fileName = `OC-${ocData.numero_oc}_${(ocData.proveedor_marca || 'PROV').replace(/\s/g, '_')}.pdf`;
 
         // 4. Enviamos el archivo al cliente.
         res.writeHead(200, {
@@ -132,9 +127,10 @@ const descargarOcPdf = async (req, res) => {
         res.status(500).send('Error al generar el PDF.');
     }
 };
+
 // --- Exportaciones del Módulo ---
 module.exports = {
   generarOrdenDeCompra,
   autorizarOrdenDeCompra,
-  descargarOcPdf, // <-- Se exporta la nueva función
+  descargarOcPdf,
 };
