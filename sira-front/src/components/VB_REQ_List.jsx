@@ -127,43 +127,58 @@ export default function VB_REQ_List({ onEdit }) {
     }, [fetchRequisiciones]);
 
     // --- Action Handlers ---
+    // --- Action Handlers ---
     const handleApprove = async (id) => {
-        if (!window.confirm(`¿Estás seguro de APROBAR esta requisición? El PDF se descargará y se enviará una notificación.`)) return;
+        // =================================================================
+        // --- ¡CORRECCIÓN! ---
+        // 1. Encontrar el 'numero_requisicion' ANTES de hacer la llamada
+        const req = requisiciones.find(r => r.id === id);
+        if (!req) {
+            toast.error("No se encontró la requisición para aprobar.");
+            return;
+        }
+        // =================================================================
+
+        if (!window.confirm(`¿Estás seguro de APROBAR la requisición ${req.numero_requisicion}? El PDF se descargará y se enviará una notificación.`)) return;
         if (!usuario) return toast.error("No se pudo identificar al usuario. Por favor, recarga la página.");
         
-        setProcessingId(id); // Set the ID to disable buttons for this row
+        setProcessingId(id); 
         try {
             toast.info('Procesando aprobación, por favor espera...');
             const response = await api.post(
                 `/api/requisiciones/${id}/aprobar-y-notificar`,
                 { approverName: usuario.nombre || 'Aprobador del Sistema' },
-                { responseType: 'blob' }
+                { responseType: 'blob' } // Pedimos la respuesta como un 'blob'
             );
 
-            const url = window.URL.createObjectURL(new Blob([response.data]));
+            // El backend ya nos confirmó que el PDF se generó
+            // Ahora creamos el link de descarga en el frontend
+            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
             const link = document.createElement('a');
             link.href = url;
-            const contentDisposition = response.headers['content-disposition'];
-            let fileName = `Requisicion_${id}.pdf`;
-            if (contentDisposition) {
-                const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
-                if (fileNameMatch && fileNameMatch.length === 2) fileName = fileNameMatch[1];
-            }
+            
+            // =================================================================
+            // --- ¡CORRECCIÓN DEL BUG! ---
+            // 2. Usar el 'numero_requisicion' que ya tenemos para el nombre del archivo.
+            // Esto ignora los 'headers' y usa el nombre correcto (ej: "SSD_0110.pdf")
+            // =================================================================
+            const fileName = `${req.numero_requisicion}.pdf`;
             link.setAttribute('download', fileName);
+            // =================================================================
+
             document.body.appendChild(link);
             link.click();
             link.remove();
             window.URL.revokeObjectURL(url);
 
             toast.success('Requisición aprobada y notificada con éxito.');
-            fetchRequisiciones();
-      } catch (err) {
-            // --- ¡LA CORRECCIÓN ESTÁ AQUÍ! ---
-            // Manejo de errores robusto cuando se espera un blob pero se recibe un JSON.
+            fetchRequisiciones(); // Recargar la lista
+
+        } catch (err) {
+            // Manejo de errores robusto
             console.error("Error en el proceso de aprobación:", err);
 
             if (err.response && err.response.data && err.response.data.toString() === "[object Blob]") {
-                // Si el error es un blob, intentamos leerlo como texto/JSON.
                 const errorData = await err.response.data.text();
                 try {
                     const errorJson = JSON.parse(errorData);
@@ -172,29 +187,37 @@ export default function VB_REQ_List({ onEdit }) {
                     toast.error('Ocurrió un error inesperado al procesar la aprobación.');
                 }
             } else if (err.error) {
-                // Si el error ya viene parseado en nuestro wrapper de api.js
                 toast.error(err.error);
             } else {
                 toast.error('Ocurrió un error inesperado en la red.');
             }
         } finally {
-            // Este bloque ahora SÍ se ejecutará siempre, desbloqueando la UI.
             setProcessingId(null);
         }
     };
 
     const handleReject = async (id) => {
-        if (!window.confirm("¿Estás seguro de RECHAZAR esta requisición?")) return;
+        // =================================================================
+        // --- ¡CORRECCIÓN BUG MENOR! ---
+        // 3. Encontrar la req para mostrar el número en la confirmación
+        // =================================================================
+        const req = requisiciones.find(r => r.id === id);
+        const numeroReq = req ? req.numero_requisicion : `(ID: ${id})`;
+
+        if (!window.confirm(`¿Estás seguro de RECHAZAR esta requisición (${numeroReq})?`)) return;
         
-        setProcessingId(id); // Set the ID to disable buttons
+        setProcessingId(id);
         try {
+            // CAMBIO: La ruta correcta para rechazar es 'CANCELADA'
+            // (Tu controlador de backend no tiene una ruta 'rechazar' que devuelva a 'ABIERTA',
+            // solo una que la pasa a 'CANCELADA')
             await api.post(`/api/requisiciones/${id}/rechazar`);
-            toast.warn("Requisición rechazada.");
-            fetchRequisiciones();
+            toast.warn(`Requisición ${numeroReq} ha sido rechazada (Cancelada).`);
+            fetchRequisiciones(); // Recargar la lista
         } catch (err) {
             toast.error(err.error || "Error al rechazar la requisición.");
         } finally {
-            setProcessingId(null); // Clear the ID to re-enable buttons
+            setProcessingId(null); 
         }
     };
     
