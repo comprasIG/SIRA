@@ -1,16 +1,19 @@
 //C:\SIRA\backend\controllers\requisiciones\vistoBueno.controller.js
 /**
  * =================================================================================================
- * CONTROLADOR: Visto Bueno de Requisiciones (Versión Corregida)
+ * CONTROLADOR: Visto Bueno de Requisiciones (Versión Corregida v3)
  * =================================================================================================
+ * @description Corregido el nombre del archivo para la descarga del navegador.
  */
 const pool = require('../../db/pool');
-const { uploadPdfBuffer } = require('../../services/googleDrive');
+// Usamos la función específica para el PDF de requisición
+const { uploadRequisitionPdf } = require('../../services/googleDrive');
 const { sendRequisitionEmail } = require('../../services/emailService');
 const { generateRequisitionPdf } = require('../../services/requisitionPdfService');
 const { _getRequisicionCompleta } = require('./helper');
 
 const _getRecipientEmailsByGroup = async (codigoGrupo, client) => {
+    // ... (función sin cambios)
     const query = `
         SELECT u.correo FROM usuarios u
         JOIN notificacion_grupo_usuarios ngu ON u.id = ngu.usuario_id
@@ -22,6 +25,7 @@ const _getRecipientEmailsByGroup = async (codigoGrupo, client) => {
 };
 
 const getRequisicionesPorAprobar = async (req, res) => {
+    // ... (función sin cambios)
     const departamentoId = req.usuarioSira?.departamento_id;
     if (!departamentoId) {
         return res.status(403).json({ error: "No se pudo determinar el departamento del usuario." });
@@ -37,6 +41,7 @@ const getRequisicionesPorAprobar = async (req, res) => {
 };
 
 const rechazarRequisicion = async (req, res) => {
+    // ... (función sin cambios)
     const { id } = req.params;
     try {
         const result = await pool.query(`UPDATE requisiciones SET status = 'CANCELADA' WHERE id = $1 AND status = 'ABIERTA' RETURNING id`, [id]);
@@ -55,14 +60,18 @@ const aprobarYNotificar = async (req, res) => {
     const { id } = req.params;
     const { approverName } = req.body;
     const client = await pool.connect();
+    
+    let fileName = `Requisicion_${id}.pdf`; // Fallback
 
     try {
         await client.query('BEGIN');
         
         const reqDataQuery = await client.query(`SELECT r.numero_requisicion, d.codigo as depto_codigo FROM requisiciones r JOIN departamentos d ON r.departamento_id = d.id WHERE r.id = $1 AND r.status = 'ABIERTA' FOR UPDATE`, [id]);
         if (reqDataQuery.rows.length === 0) throw new Error('La requisición no existe o ya no está en estado ABIERTA.');
-        const { numero_requisicion, depto_codigo } = reqDataQuery.rows[0];
         
+        const { numero_requisicion, depto_codigo } = reqDataQuery.rows[0];
+        fileName = `${numero_requisicion}.pdf`;
+
         const consecutivoResult = await client.query("SELECT nextval('rfq_consecutivo_seq') as consecutivo");
         const consecutivo = String(consecutivoResult.rows[0].consecutivo).padStart(4, '0');
         const numReq = numero_requisicion.split('_')[1] || '';
@@ -71,10 +80,14 @@ const aprobarYNotificar = async (req, res) => {
 
         const data = await _getRequisicionCompleta(id, client);
         const pdfBuffer = await generateRequisitionPdf(data, approverName);
-        const fileName = `Requisicion_${data.numero_requisicion}.pdf`;
 
-        // --- ¡CORRECCIÓN! Se pasan los argumentos correctos ---
-        const driveFile = await uploadPdfBuffer(pdfBuffer, fileName, 'REQUISICIONES', data.numero_requisicion);
+        // 1. Guardar en Drive
+        const driveFile = await uploadRequisitionPdf(
+            pdfBuffer, 
+            fileName, 
+            data.departamento_codigo, 
+            data.numero_requisicion
+        );
 
         const recipients = await _getRecipientEmailsByGroup('REQ_APROBADA_NOTIFICAR_COMPRAS', client);
         if (data.usuario_creador_correo && !recipients.includes(data.usuario_creador_correo)) {
@@ -82,11 +95,11 @@ const aprobarYNotificar = async (req, res) => {
         }
         
         if (recipients.length > 0) {
-            // --- ¡CORRECCIÓN! Se definen las variables 'subject' y 'body' ---
             const subject = `Requisición Aprobada: ${data.numero_requisicion}`;
             const driveLinkHtml = driveFile ? `<p>El PDF puede ser consultado en: <a href="${driveFile.webViewLink}">Ver en Google Drive</a>.</p>` : '';
             const body = `<p>La requisición <strong>${data.numero_requisicion}</strong> ha sido aprobada por <strong>${approverName}</strong> y se adjunta en este correo.</p><ul><li>Solicitante: ${data.usuario_creador}</li><li>Destino: ${data.sitio} - ${data.proyecto}</li></ul>${driveLinkHtml}`;
             
+            // 2. Enviar por Email
             await sendRequisitionEmail(recipients, subject, body, pdfBuffer, fileName);
         } else {
             console.warn(`No se encontraron destinatarios en el grupo para la Req ${id}.`);
@@ -94,9 +107,20 @@ const aprobarYNotificar = async (req, res) => {
         
         await client.query('COMMIT');
         
+        // (Línea de debug que puedes borrar si quieres)
+        console.log('--- DEBUG: NOMBRE DE ARCHIVO ENVIADO AL NAVEGADOR:', fileName);
+
+        // =================================================================
+        // --- ¡CORRECCIÓN ANTI-CACHÉ! ---
+        // 3. Enviar a Frontend (Descarga)
+        // Se añaden encabezados para forzar al navegador a no usar la caché.
+        // =================================================================
         res.writeHead(200, {
             'Content-Type': 'application/pdf',
             'Content-Disposition': `attachment; filename="${fileName}"`,
+            'Cache-Control': 'no-cache, no-store, must-revalidate', // HTTP 1.1.
+            'Pragma': 'no-cache', // HTTP 1.0.
+            'Expires': '0' // Proxies.
         });
         res.end(pdfBuffer);
 

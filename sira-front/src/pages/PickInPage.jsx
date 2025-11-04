@@ -1,12 +1,15 @@
-// src/pages/PickInPage.jsx
+//C:\SIRA\sira-front\src\pages\PickInPage.jsx
 import React from 'react';
-import PickIn from '../components/almacen/PickIn';
+import PICK_INForm from '../components/PICK_IN/PICK_INForm';
+import { Typography, Box } from '@mui/material';
 
-export default function PickInPage() {
+export default function PICK_IN() {
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">Módulo: Pick In</h1>
-      <PickIn />
-    </div>
+    <Box>
+      <Typography variant="h4" sx={{ p: 3, fontWeight: 'bold' }}>
+        Retiro de Material de Almacén
+      </Typography>
+      <PICK_INForm />
+    </Box>
   );
 }

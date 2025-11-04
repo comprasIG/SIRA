@@ -26,6 +26,7 @@ const getOcInfoForIngreso = async (client, ocId) => {
  * Fetches OCs with status 'EN_PROCESO' and related info for display.
  */
 const getOcsEnProceso = async (req, res) => {
+    // ... (Esta función se mantiene sin cambios)
     const { departamentoId, sitioId, proyectoId, proveedorId, search } = req.query;
     let query = `
         SELECT
@@ -66,6 +67,7 @@ const getOcsEnProceso = async (req, res) => {
  * Fetches data for KPIs and Filter options relevant to OCs 'EN_PROCESO'.
  */
 const getDatosIniciales = async (req, res) => {
+    // ... (Esta función se mantiene sin cambios, ya la corregimos en la respuesta anterior)
     try {
         const kpiQuery = `
             SELECT
@@ -83,11 +85,13 @@ const getDatosIniciales = async (req, res) => {
         const departamentosQuery = `SELECT DISTINCT d.id, d.nombre FROM departamentos d JOIN requisiciones r ON d.id = r.departamento_id JOIN ordenes_compra oc ON r.id = oc.rfq_id WHERE oc.status = 'EN_PROCESO' ORDER BY d.nombre ASC`;
         const ubicacionesQuery = `SELECT id, codigo, nombre FROM ubicaciones_almacen ORDER BY nombre ASC`;
         const incidenciasQuery = `SELECT id, codigo, descripcion, activo FROM catalogo_incidencias_recepcion ORDER BY descripcion ASC`;
+        
         const [kpiRes, proveedoresRes, sitiosRes, proyectosRes, departamentosRes, ubicacionesRes, incidenciasRes] = await Promise.all([
             pool.query(kpiQuery), pool.query(proveedoresQuery), pool.query(sitiosQuery),
             pool.query(proyectosQuery), pool.query(departamentosQuery), pool.query(ubicacionesQuery),
             pool.query(incidenciasQuery),
         ]);
+        
         res.json({
             kpis: kpiRes.rows[0] || {},
             filterOptions: {
@@ -107,11 +111,15 @@ const getDatosIniciales = async (req, res) => {
  * Fetches the line items for a specific OC for the income modal.
  */
 const getOcDetalleParaIngreso = async (req, res) => {
+    // ... (Esta función se mantiene sin cambios)
     const { id: ordenCompraId } = req.params;
     try {
         const query = `
-            SELECT ocd.id AS detalle_id, ocd.material_id, cm.nombre AS material_nombre,
-                   cu.simbolo AS unidad_simbolo, ocd.cantidad AS cantidad_pedida, ocd.cantidad_recibida
+            SELECT 
+                ocd.id AS detalle_id, ocd.material_id, cm.nombre AS material_nombre,
+                cu.simbolo AS unidad_simbolo, ocd.cantidad AS cantidad_pedida, 
+                ocd.cantidad_recibida,
+                ocd.precio_unitario, ocd.moneda -- <<< AÑADIDO: Pasar precio y moneda al modal
             FROM ordenes_compra_detalle ocd
             JOIN catalogo_materiales cm ON ocd.material_id = cm.id
             JOIN catalogo_unidades cu ON cm.unidad_de_compra = cu.id
@@ -133,8 +141,11 @@ const getOcDetalleParaIngreso = async (req, res) => {
  * Registers the income of items (full or partial), handles incidents, and updates inventory.
  */
 const registrarIngreso = async (req, res) => {
-    const { orden_compra_id, items, ubicacion_id } = req.body;
+    // --- SECCIÓN MODIFICADA ---
+    // Añadimos 'moneda' al payload que esperamos del item
+    const { orden_compra_id, items, ubicacion_id } = req.body; // items = [{ detalle_id, material_id, cantidad_ingresada_ahora, precio_unitario, moneda, incidencia: { ... } }]
     const { id: usuarioId } = req.usuarioSira;
+    // --- FIN SECCIÓN MODIFICADA ---
 
     if (!orden_compra_id || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ error: 'Datos de ingreso inválidos.' });
@@ -151,12 +162,16 @@ const registrarIngreso = async (req, res) => {
         }
 
         let hasAnyIncident = false;
-        let hasAnyPartial = false; // Flag to check if *any* item is left partial *after* this income registration
+        let hasAnyPartial = false;
         const ingresoDetalles = [];
 
         for (const item of items) {
-            const { detalle_id, material_id, cantidad_ingresada_ahora, incidencia } = item;
+            // --- SECCIÓN MODIFICADA ---
+            // Obtenemos precio_unitario y moneda del item
+            const { detalle_id, material_id, cantidad_ingresada_ahora, precio_unitario, moneda, incidencia } = item;
             const cantidadNum = parseFloat(cantidad_ingresada_ahora) || 0;
+            const precioUnitarioNum = parseFloat(precio_unitario) || 0; // Costo de este ingreso
+            // --- FIN SECCIÓN MODIFICADA ---
 
             if (cantidadNum < 0) continue;
 
@@ -165,19 +180,19 @@ const registrarIngreso = async (req, res) => {
                  const updateDetailQuery = `
                     UPDATE ordenes_compra_detalle SET cantidad_recibida = cantidad_recibida + $1
                     WHERE id = $2 AND orden_compra_id = $3
-                    RETURNING id, cantidad, cantidad_recibida, requisicion_detalle_id, precio_unitario;
+                    RETURNING id, cantidad, cantidad_recibida, requisicion_detalle_id, precio_unitario, moneda; -- <<< AÑADIDO: Devolver moneda
                  `;
                  const detailRes = await client.query(updateDetailQuery, [cantidadNum, detalle_id, orden_compra_id]);
                  if(detailRes.rowCount === 0) throw new Error(`Detalle ID ${detalle_id} no encontrado o no pertenece a OC ${orden_compra_id}.`);
                  updatedDetail = detailRes.rows[0];
 
-                 // Check if this specific item remains partial AFTER this update
                  if(updatedDetail.cantidad_recibida < updatedDetail.cantidad) {
-                    hasAnyPartial = true; // Mark that at least one item is still partial
+                    hasAnyPartial = true;
                  }
             }
 
             if (incidencia && incidencia.tipo_id && incidencia.descripcion) {
+                // ... (Esta sección se mantiene sin cambios) ...
                 hasAnyIncident = true;
                 const incidentQuery = `
                     INSERT INTO incidencias_recepcion_oc (orden_compra_id, incidencia_id, cantidad_afectada, descripcion_problema, usuario_id, material_id)
@@ -193,13 +208,23 @@ const registrarIngreso = async (req, res) => {
             if (cantidadNum > 0 && !(incidencia && incidencia.tipo_id)) {
                 let targetUbicacionId;
                 if (isStockProject) {
+                    // --- SECCIÓN MODIFICADA (STOCK) ---
                     targetUbicacionId = ubicacion_id;
                     const stockUpdateQuery = `
-                        INSERT INTO inventario_actual (material_id, ubicacion_id, stock_actual) VALUES ($1, $2, $3)
-                        ON CONFLICT (material_id, ubicacion_id) DO UPDATE SET stock_actual = inventario_actual.stock_actual + $3, actualizado_en = NOW();
+                        INSERT INTO inventario_actual (material_id, ubicacion_id, stock_actual, ultimo_precio_entrada, moneda)
+                        VALUES ($1, $2, $3, $4, $5)
+                        ON CONFLICT (material_id, ubicacion_id) DO UPDATE
+                        SET stock_actual = inventario_actual.stock_actual + $3,
+                            ultimo_precio_entrada = $4, -- Actualizar último precio
+                            moneda = $5,                -- Actualizar moneda
+                            actualizado_en = NOW();
                     `;
-                    await client.query(stockUpdateQuery, [material_id, targetUbicacionId, cantidadNum]);
+                    // Usamos los valores del item (que vienen del detalle de la OC)
+                    await client.query(stockUpdateQuery, [material_id, targetUbicacionId, cantidadNum, precioUnitarioNum, moneda]);
+                    // --- FIN SECCIÓN MODIFICADA (STOCK) ---
+
                 } else {
+                    // --- SECCIÓN MODIFICADA (ASIGNADO) ---
                     targetUbicacionId = ocSitioId;
                     const assignedUpdateQuery = `
                         INSERT INTO inventario_actual (material_id, ubicacion_id, asignado) VALUES ($1, $2, $3)
@@ -209,54 +234,48 @@ const registrarIngreso = async (req, res) => {
                     const invActualRes = await client.query(assignedUpdateQuery, [material_id, targetUbicacionId, cantidadNum]);
                     const inventarioId = invActualRes.rows[0].id;
 
-                    // --- INICIO CORRECCIÓN FOREIGN KEY ---
                     const requisicionPrincipalQuery = `
                         SELECT r.id AS requisicion_principal_id
                         FROM requisiciones_detalle rd
                         JOIN requisiciones r ON rd.requisicion_id = r.id
                         WHERE rd.id = $1;
                     `;
-                    // Use updatedDetail which already contains requisicion_detalle_id from RETURNING
                     const reqPrincipalRes = await client.query(requisicionPrincipalQuery, [updatedDetail.requisicion_detalle_id]);
                     if (reqPrincipalRes.rowCount === 0) {
                         throw new Error(`No se pudo encontrar la requisición principal para el detalle de OC ID ${detalle_id} (ReqDetID: ${updatedDetail.requisicion_detalle_id})`);
                     }
                     const { requisicion_principal_id } = reqPrincipalRes.rows[0];
-                    const { precio_unitario } = updatedDetail; // Use precio_unitario from updatedDetail
-                    // --- FIN CORRECCIÓN FOREIGN KEY ---
+                    // Usamos los valores del updatedDetail (que vienen del detalle de la OC)
+                    const { precio_unitario, moneda: monedaDetalle } = updatedDetail;
 
                     const assignedInsertQuery = `
-                        INSERT INTO inventario_asignado (inventario_id, requisicion_id, proyecto_id, sitio_id, cantidad, valor_unitario, asignado_en)
-                        VALUES ($1, $2, $3, $4, $5, $6, NOW());
+                        INSERT INTO inventario_asignado
+                            (inventario_id, requisicion_id, proyecto_id, sitio_id, cantidad, valor_unitario, moneda, asignado_en)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()); -- <<< AÑADIDO: moneda
                     `;
-                    // Use the correct requisicion_principal_id
-                    await client.query(assignedInsertQuery, [inventarioId, requisicion_principal_id, ocInfo.proyecto_id, ocSitioId, cantidadNum, precio_unitario]);
+                    await client.query(assignedInsertQuery, [inventarioId, requisicion_principal_id, ocInfo.proyecto_id, ocSitioId, cantidadNum, precio_unitario, monedaDetalle]);
+                    // --- FIN SECCIÓN MODIFICADA (ASIGNADO) ---
                 }
                  ingresoDetalles.push({ detalle_id, material_id, cantidad: cantidadNum, isStock: isStockProject, ubicacion: targetUbicacionId });
             }
         } // End item loop
 
-        // 4. Update OC Flags (Incident / Partial) - Based on the overall state after processing all items
-        // Check if ANY incident exists for this OC *after* this insertion
+        // ... (El resto de la función: Update OC Flags, Add History Log, COMMIT, etc. se mantiene igual) ...
         const checkIncidentQuery = `SELECT EXISTS (SELECT 1 FROM incidencias_recepcion_oc WHERE orden_compra_id = $1) AS has_incident`;
         const incidentCheckRes = await client.query(checkIncidentQuery, [orden_compra_id]);
         const finalIncidentFlag = incidentCheckRes.rows[0].has_incident;
 
-        // The 'hasAnyPartial' flag calculated in the loop indicates if any item *remains* partial after this income.
         const finalPartialFlag = hasAnyPartial;
 
         const updateFlagsQuery = `
             UPDATE ordenes_compra
             SET con_incidencia = $1,
-                entrega_parcial = $2, -- Set based on whether items *remain* partial
+                entrega_parcial = $2,
                 actualizado_en = NOW()
             WHERE id = $3;
          `;
         await client.query(updateFlagsQuery, [finalIncidentFlag, finalPartialFlag, orden_compra_id]);
 
-
-        // 5. Add History Log
-        // The trigger f_verificar_cierre_oc_completa will handle the final status change to ENTREGADA if applicable
         await client.query(
             `INSERT INTO ordenes_compra_historial (orden_compra_id, usuario_id, accion_realizada, detalles)
              VALUES ($1, $2, 'REGISTRO_INGRESO', $3)`,

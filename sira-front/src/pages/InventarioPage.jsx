@@ -1,12 +1,16 @@
-// src/pages/InventarioPage.jsx
+// sira-front/src/pages/InventarioPage.jsx
 import React from 'react';
-import Inventario from '../components/-almacén/Inventario';
+import InventarioForm from '../components/almacen/InventarioForm'; // Apunta a la nueva ubicación
+import { Typography, Box } from '@mui/material';
 
 export default function InventarioPage() {
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">Módulo: Inventario</h1>
-      <Inventario />
-    </div>
+    <Box>
+      <Typography variant="h4" sx={{ p: 3, fontWeight: 'bold' }}>
+        Consulta de Inventario
+      </Typography>
+      {/* Renderiza el componente principal del inventario */}
+      <InventarioForm />
+    </Box>
   );
 }
