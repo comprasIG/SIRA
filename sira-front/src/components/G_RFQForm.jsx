@@ -1,11 +1,12 @@
 // C:\SIRA\sira-front\src\components\G_RFQForm.jsx
 /**
  * =================================================================================================
- * COMPONENTE: G_RFQForm (v2.4 - Corrección Filtro NOT NULL y Toast)
+ * COMPONENTE: G_RFQForm (v3.1 - Corrección Typo "isIvaActive")
  * =================================================================================================
  * @file G_RFQForm.jsx
- * @description Componente principal para la pantalla de cotización (RFQ). Orquesta la carga
- * de datos, la gestión del formulario y el envío de cotizaciones.
+ * @description Componente principal para la pantalla de cotización (RFQ).
+ * - Implementa lógica de carga "Híbrida".
+ * - Usa el hook 'useAutoSaveRFQ' para guardar snapshots en cada cambio.
  */
 
 // --- Importaciones de Librerías y Componentes ---
@@ -18,8 +19,9 @@ import MaterialCotizacionRow from './rfq/MaterialCotizacionRow';
 import RFQFormHeader from "./rfq/RFQFormHeader";
 import ResumenCompra from "./rfq/ResumenCompra";
 import RFQFormActions from "./rfq/RFQFormActions";
+import { useAutoSaveRFQ } from "./rfq/useAutoSaveRFQ";
 
-// Lógica de Cálculo (sin cambios)
+// Lógica de Cálculo (Helper Function)
 const calcularResumenes = (materiales, providerConfigs) => {
   if (!materiales || materiales.length === 0) return [];
   const agrupado = {};
@@ -44,7 +46,10 @@ const calcularResumenes = (materiales, providerConfigs) => {
     });
   });
   return Object.values(agrupado).map(grupo => {
-    const defaultConfig = { moneda: 'MXN', ivaRate: '0.16', isIvaActive: true, isrRate: '0.0125', isIvaActive: false, forcedTotal: '0', isForcedTotalActive: false };
+    // =================================================================
+    // --- CORRECCIÓN 1: Typo en defaultConfig ---
+    const defaultConfig = { moneda: 'MXN', ivaRate: '0.16', isIvaActive: true, isrRate: '0.0125', isIsrActive: false, forcedTotal: '0', isForcedTotalActive: false };
+    // =================================================================
     const config = providerConfigs[grupo.proveedorId] || defaultConfig;
     const ivaRateNum = parseFloat(config.ivaRate) || 0;
     const isrRateNum = parseFloat(config.isrRate) || 0;
@@ -94,7 +99,16 @@ export default function G_RFQForm({ requisicionId, onBack }) {
     control,
     name: "materiales"
   });
-  const formValues = watch();
+  const formValues = watch(); 
+
+  // --- Hook de Autoguardado ---
+  useAutoSaveRFQ({
+    requisicionId,
+    watch,
+    getValues,
+    providerConfigs,
+    enabled: isDataReady, 
+  });
 
   // --- Carga de Datos Inicial (Efecto) ---
   useEffect(() => {
@@ -103,23 +117,15 @@ export default function G_RFQForm({ requisicionId, onBack }) {
       setIsDataReady(false);
       setLoading(true);
       try {
-        const data = await api.get(`/api/rfq/${requisicionId}`);
-        setRequisicion(data);
+        // 1. Cargar datos de "Producción" (el último guardado oficial)
+        const dataProd = await api.get(`/api/rfq/${requisicionId}`);
+        setRequisicion(dataProd); 
 
-        const initialConfigs = {};
-        data.materiales.forEach(m => m.opciones.forEach(op => {
-          if (op.seleccionado && op.config_calculo && op.proveedor_id) {
-            initialConfigs[op.proveedor_id] = op.config_calculo;
-          }
-        }));
-        setProviderConfigs(initialConfigs);
-
-        if (data.adjuntos_cotizacion && data.adjuntos_cotizacion.length > 0) {
-          const archivosAgrupados = data.adjuntos_cotizacion.reduce((acc, adjunto) => {
+        // 2. Cargar adjuntos de "Producción"
+        if (dataProd.adjuntos_cotizacion && dataProd.adjuntos_cotizacion.length > 0) {
+          const archivosAgrupados = dataProd.adjuntos_cotizacion.reduce((acc, adjunto) => {
             const provId = adjunto.proveedor_id;
-            if (!acc[provId]) {
-              acc[provId] = [];
-            }
+            if (!acc[provId]) acc[provId] = [];
             acc[provId].push({
               id: adjunto.id,
               name: adjunto.nombre_archivo,
@@ -130,43 +136,59 @@ export default function G_RFQForm({ requisicionId, onBack }) {
           setArchivosExistentesPorProveedor(archivosAgrupados);
         }
 
-        const mappedMateriales = data.materiales.map(m => ({
-          ...m, // Importante: m.id (de req_detalle) se mantiene
-          opciones: m.opciones.length > 0
-            ? m.opciones.map(op => ({
-                id_bd: op.id, // ID REAL de la base de datos
-                ...op,
-                precio_unitario: Number(op.precio_unitario) || '',
-                cantidad_cotizada: Number(op.cantidad_cotizada) || 0,
-                proveedor: {
-                  id: op.proveedor_id,
-                  nombre: op.proveedor_nombre,
-                  razon_social: op.proveedor_razon_social
-                }
-              }))
-            : [{
-                id_bd: null,
-                proveedor: null,
-                proveedor_id: null,
-                precio_unitario: '',
-                cantidad_cotizada: m.cantidad,
-                seleccionado: false,
-                es_entrega_inmediata: true,
-                es_precio_neto: false,
-                es_importacion: false
-              }]
-        }));
+        // 3. Intentar cargar el "Snapshot" (borrador) del usuario
+        let borrador = null;
+        try {
+          borrador = await api.get(`/api/rfq/${requisicionId}/borrador`);
+        } catch (e) {
+          // No hay borrador, es normal.
+        }
 
-        replaceMaterialFields(mappedMateriales);
-        setIsDataReady(true);
+        if (borrador && borrador.data) {
+          // 4A. SI HAY BORRADOR: Usarlo como fuente de verdad
+          toast.info("Se cargó la última instantánea de autoguardado.");
+          const { materiales, providerConfigs } = borrador.data;
+          replaceMaterialFields(materiales || []);
+          setProviderConfigs(providerConfigs || {});
+        
+        } else {
+          // 4B. NO HAY BORRADOR: Usar los datos de "Producción" (dataProd)
+          const initialConfigs = {};
+          dataProd.materiales.forEach(m => m.opciones.forEach(op => {
+            if (op.seleccionado && op.config_calculo && op.proveedor_id) {
+              initialConfigs[op.proveedor_id] = op.config_calculo;
+            }
+          }));
+          setProviderConfigs(initialConfigs);
+
+          const mappedMateriales = dataProd.materiales.map(m => ({
+            ...m,
+            opciones: m.opciones.length > 0
+              ? m.opciones.map(op => ({
+                  id_bd: op.id,
+                  ...op,
+                  precio_unitario: Number(op.precio_unitario) || '',
+                  cantidad_cotizada: Number(op.cantidad_cotizada) || 0,
+                  proveedor: {
+                    id: op.proveedor_id,
+                    nombre: op.proveedor_nombre,
+                    razon_social: op.proveedor_razon_social
+                  }
+                }))
+              : [{ id_bd: null, proveedor: null, proveedor_id: null, precio_unitario: '', cantidad_cotizada: m.cantidad, seleccionado: false, es_entrega_inmediata: true, es_precio_neto: false, es_importacion: false }]
+          }));
+          replaceMaterialFields(mappedMateriales);
+        }
+
       } catch (err) {
         toast.error("Error al cargar los detalles de la requisición.");
       } finally {
         setLoading(false);
+        setIsDataReady(true); // Activar autoguardado
       }
     };
     fetchData();
-  }, [requisicionId, replaceMaterialFields]); // Añadir replaceMaterialFields
+  }, [requisicionId, replaceMaterialFields]); 
 
   // --- Handlers de Archivos (sin cambios) ---
   const handleFileChange = (e, proveedorId) => {
@@ -205,12 +227,17 @@ export default function G_RFQForm({ requisicionId, onBack }) {
   };
   // ---
 
+  // --- onSaveSubmit (Guardado en "Producción") ---
   const onSaveSubmit = async (data) => {
     setIsSaving(true);
     const formData = new FormData();
 
-    const defaultConfig = { moneda: 'MXN', ivaRate: '0.16', isIvaActive: true, isrRate: '0.0125', isIvaActive: false, forcedTotal: '0', isForcedTotalActive: false };
-    const safeProviderConfigs = { ...providerConfigs };
+    // =================================================================
+    // --- CORRECCIÓN 2: Typo en defaultConfig ---
+    const defaultConfig = { moneda: 'MXN', ivaRate: '0.16', isIvaActive: true, isrRate: '0.0125', isIsrActive: false, forcedTotal: '0', isForcedTotalActive: false };
+    // =================================================================
+    const safeProviderConfigs = { ...providerConfigs }; 
+    
     const selectedProviderIds = new Set(
       data.materiales.flatMap(m => m.opciones)
         .filter(o => o.seleccionado && o.proveedor?.id)
@@ -221,28 +248,22 @@ export default function G_RFQForm({ requisicionId, onBack }) {
       else if (!safeProviderConfigs[id].moneda) safeProviderConfigs[id].moneda = 'MXN';
     });
     
-    // ==================================================================
-    // --- CORRECCIÓN BUG GUARDADO: Restaurar filtro .filter(...) ---
-    // La BD no permite `proveedor_id` nulo, por lo que DEBEMOS filtrar
-    // las opciones que no tengan un proveedor.
-    // ==================================================================
+    // Filtro restaurado (v2.4)
     const opcionesPayload = data.materiales.flatMap(m =>
       m.opciones
-        .filter(o => o.proveedor && o.proveedor.id) // <-- FILTRO RESTAURADO
+        .filter(o => o.proveedor && o.proveedor.id) // Filtro es necesario
         .map(o => {
           const moneda = (o.proveedor?.id && safeProviderConfigs[o.proveedor.id]?.moneda) || 'MXN';
-          // m.id es el requisicion_detalle_id
           return { ...o, id: o.id_bd, proveedor_id: o.proveedor?.id, requisicion_id: requisicionId, requisicion_detalle_id: m.id, moneda };
         })
     );
     formData.append('opciones', JSON.stringify(opcionesPayload));
     
-    // Resúmenes (sin cambios)
     const resumenesPayload = calcularResumenes(data.materiales, safeProviderConfigs);
     formData.append('resumenes', JSON.stringify(resumenesPayload));
     formData.append('rfq_code', requisicion.rfq_code);
 
-    // Envío de archivos (sin cambios)
+    // Enviar archivos nuevos y existentes (sin cambios)
     for (const proveedorId in archivosNuevosPorProveedor) {
       const archivos = archivosNuevosPorProveedor[proveedorId];
       if (archivos && archivos.length > 0) {
@@ -254,8 +275,6 @@ export default function G_RFQForm({ requisicionId, onBack }) {
     formData.append('archivos_existentes_por_proveedor', JSON.stringify(archivosExistentesPorProveedor));
 
     try {
-      // NOTA: El toast de éxito se mueve a 'handleSaveAndExit'
-      // para que solo se muestre en esa acción.
       await api.post(`/api/rfq/${requisicionId}/opciones`, formData);
       
       // Sincronizar estado tras guardado (sin cambios)
@@ -290,7 +309,6 @@ export default function G_RFQForm({ requisicionId, onBack }) {
       replaceMaterialFields(mappedMateriales);
 
     } catch (err) {
-      // El toast de error ya se maneja en el .catch() de los handlers
       toast.error(err.error || "Error al guardar la comparativa.");
       throw err; 
     } finally {
@@ -298,23 +316,19 @@ export default function G_RFQForm({ requisicionId, onBack }) {
     }
   };
 
-  // --- Handlers de Acciones ---
-
+  // --- Handlers de Acciones (Con Toasts) ---
   const handleEnviarAprobacion = async () => {
     try {
-      // 1. Guardar
       await handleSubmit(onSaveSubmit)();
     } catch (saveError) {
-      // 2. Si guardar falla, no continuar
       console.error("Falló el guardado, no se enviará a aprobación.", saveError);
       return;
     }
 
-    // 3. Confirmar y Enviar
     if (!window.confirm("¿Estás seguro de enviar esta cotización a aprobación?")) return;
     try {
       await api.post(`/api/rfq/${requisicionId}/enviar-a-aprobacion`);
-      toast.info("RFQ enviada a aprobación."); // Notificación específica
+      toast.info("RFQ enviada a aprobación.");
       onBack();
     } catch (err) {
       toast.error(err.error || "Error al enviar a aprobación.");
@@ -323,20 +337,10 @@ export default function G_RFQForm({ requisicionId, onBack }) {
 
   const handleSaveAndExit = async () => {
     try {
-      // 1. Guardar
       await handleSubmit(onSaveSubmit)();
-      
-      // ==================================================================
-      // --- CAMBIO: Añadir Toast de Éxito ---
-      // ==================================================================
-      toast.success("¡Guardado con éxito!");
-      
-      // 2. Salir (solo si el guardado fue exitoso)
+      toast.success("¡Guardado en Producción con éxito!"); 
       onBack();
-
     } catch (error) {
-      // 3. Si el guardado falla, onSaveSubmit ya mostró un toast de error
-      // y nosotros simplemente no salimos de la página.
       console.error("El guardado falló, el usuario permanecerá en la página.");
     }
   };
@@ -352,12 +356,11 @@ export default function G_RFQForm({ requisicionId, onBack }) {
       <form>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          {/* CORRECCIÓN BUG VISUAL: (lg:col-span-2) */}
           <div className="lg:col-span-2 space-y-4">
             <fieldset disabled={loading || isSaving}>
               {materialFields.map((item, index) => (
                 <MaterialCotizacionRow
-                  key={item.id}
+                  key={item.id} 
                   control={control}
                   materialIndex={index}
                   setValue={setValue}
