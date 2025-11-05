@@ -1,17 +1,16 @@
 //C:\SIRA\backend\controllers\ordenCompra.controller.js
 /**
  * =================================================================================================
- * CONTROLADOR: Órdenes de Compra (Versión 2.0 - Centralizada)
+ * CONTROLADOR: Órdenes de Compra (Versión 2.1 - Corrección Nombres)
  * =================================================================================================
  * @file ordenCompra.controller.js
- * @description Maneja las peticiones HTTP para OCs.
- * ¡CAMBIO! Ahora utiliza el servicio central 'ocAuthorizationService'.
+ * @description Corregido el bug del nombre de descarga 'OC-OC-'.
  */
 
 // --- Importaciones de Módulos y Servicios ---
 const pool = require('../db/pool');
-// --- ¡CAMBIO! Se elimina 'ocCreationService' y se usa el orquestador ---
-const { createAndAuthorizeOC, authorizeAndDistributeOC } = require('../services/ocAuthorizationService');
+const ocCreationService = require('../services/ocCreationService');
+const ocAuthorizationService = require('../services/ocAuthorizationService');
 const { generatePurchaseOrderPdf } = require('../services/purchaseOrderPdfService');
 
 
@@ -21,42 +20,32 @@ const { generatePurchaseOrderPdf } = require('../services/purchaseOrderPdfServic
 
 /**
  * @route   POST /api/ocs/rfq/:rfqId/generar-oc
- * @desc    Crea, autoriza y distribuye una nueva OC desde un RFQ.
+ * @desc    Crea el registro de una nueva OC en la base de datos.
  * @access  Privado
  */
 const generarOrdenDeCompra = async (req, res) => {
   try {
     const { rfqId } = req.params;
-    const { opcionIds } = req.body;
+    const { opcionIds, proveedor_id } = req.body;
     const { id: usuarioId } = req.usuarioSira;
 
     if (!opcionIds || !Array.isArray(opcionIds) || opcionIds.length === 0) {
       return res.status(400).json({ error: "Se requiere un arreglo con los IDs de las opciones seleccionadas." });
     }
-    
-    // --- ¡CAMBIO! ---
-    // 1. Obtener los datos de ruta de la RFQ (necesarios para Drive)
-    const rfqQuery = await pool.query(
-        `SELECT r.numero_requisicion, r.rfq_code, r.lugar_entrega, r.sitio_id, r.proyecto_id,
-                d.codigo as depto_codigo 
-         FROM requisiciones r 
-         JOIN departamentos d ON r.departamento_id = d.id 
-         WHERE r.id = $1`, [rfqId]
-    );
-    if (rfqQuery.rowCount === 0) throw new Error('El RFQ base no existe.');
-    
-    // 2. Llamar al NUEVO servicio orquestador
-    const nuevaOc = await createAndAuthorizeOC({
+
+    const nuevaOc = await ocCreationService.crearOrdenDeCompraDesdeRfq({
       rfqId,
       usuarioId,
-      opcionIds,
-      rfqData: rfqQuery.rows[0] // Pasar los datos de ruta
+      opcionIds
     });
-    // --- FIN CAMBIO ---
 
+    // =================================================================
+    // --- ¡CORRECCIÓN BUG "OC-OC-" (Paso 3)! ---
+    // Se añade el prefijo 'OC-' al número que viene de la BD (ej: 254)
+    // =================================================================
     res.status(201).json({
-      mensaje: `Orden de Compra ${nuevaOc.numero_oc} generada exitosamente.`,
-      ordenDeCompra: nuevaOc,
+      mensaje: `Orden de Compra OC-${nuevaOc.numero_oc} generada exitosamente.`, // Añadimos prefijo
+      ordenDeCompra: { ...nuevaOc, numero_oc: `OC-${nuevaOc.numero_oc}` }, // Añadimos prefijo
     });
   } catch (error) {
     console.error("Error en el controlador al generar la Orden de Compra:", error);
@@ -77,9 +66,8 @@ const autorizarOrdenDeCompra = async (req, res) => {
     if (!ocId) {
       return res.status(400).json({ error: 'Se requiere el ID de la Orden de Compra.' });
     }
-    
-    // (Esta función no cambia, ya llamaba al servicio correcto)
-    const resultado = await authorizeAndDistributeOC(ocId, usuarioSira);
+
+    const resultado = await ocAuthorizationService.authorizeAndDistributeOC(ocId, usuarioSira);
     res.status(200).json(resultado);
 
   } catch (error) {
@@ -90,19 +78,16 @@ const autorizarOrdenDeCompra = async (req, res) => {
 
 /**
  * @route   GET /api/ocs/:id/pdf
- * @desc    Genera y devuelve el PDF de una OC específica.
+ * @desc    Genera y devuelve el PDF de una OC específica para su descarga directa.
  * @access  Privado
  */
 const descargarOcPdf = async (req, res) => {
     const { id: ocId } = req.params;
     try {
-        // --- ¡CAMBIO! ---
-        // Se llama al servicio refactorizado que hace la consulta interna.
-        // Ya no necesitamos consultar la BD aquí.
-        const pdfBuffer = await generatePurchaseOrderPdf(ocId);
-        
-        // (El nombre del archivo se deduce en el servicio, pero
-        // para la descarga necesitamos consultarlo aquí de nuevo)
+        // 1. Llamamos al servicio de PDF
+        const pdfBuffer = await generatePurchaseOrderPdf(ocId); // No necesita 'client' aquí
+
+        // 2. Obtenemos los datos para el nombre del archivo
         const ocDataQuery = await pool.query(
             `SELECT oc.numero_oc, p.marca AS proveedor_marca
              FROM ordenes_compra oc
@@ -113,9 +98,16 @@ const descargarOcPdf = async (req, res) => {
             return res.status(404).send('Orden de Compra no encontrada.');
         }
         const ocData = ocDataQuery.rows[0];
-        const fileName = `OC-${ocData.numero_oc}_${(ocData.proveedor_marca || 'PROV').replace(/\s/g, '_')}.pdf`;
+        
+        // =================================================================
+        // --- ¡CORRECCIÓN BUG "OC-OC-" (Paso 3)! ---
+        // 'ocData.numero_oc' ahora es solo el NÚMERO (ej: 253),
+        // por lo que AÑADIMOS el prefijo 'OC-' aquí.
+        // =================================================================
+        const pdfNameSafeMarca = (ocData.proveedor_marca || 'PROV').replace(/\s/g, '_');
+        const fileName = `OC-${ocData.numero_oc}_${pdfNameSafeMarca}.pdf`; // Resultado: OC-253_SERROT.pdf
 
-        // 4. Enviamos el archivo al cliente.
+        // 3. Enviamos el archivo al cliente.
         res.writeHead(200, {
             'Content-Type': 'application/pdf',
             'Content-Disposition': `attachment; filename="${fileName}"`,
