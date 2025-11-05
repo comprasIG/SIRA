@@ -2,28 +2,40 @@
 /**
  * =================================================================================================
  * COMPONENTE: OpcionProveedorForm
- * VERSIÓN: 3.2 (Corrección Bug 1 + Ajuste de ID)
+ * VERSIÓN REESCRITA: 4.0 (Lógica de bloqueo confirmada y documentación mejorada)
  * =================================================================================================
  * @file OpcionProveedorForm.jsx
- * @description Renderiza el formulario para una única opción de cotización.
+ * @description Renderiza el formulario para una única opción de cotización de un material.
+ * Gestiona la selección de proveedor, precios, cantidades y opciones (ej. importación).
+ * Incluye la lógica visual para "bloquear" la fila si ya se ha generado una OC.
+ *
  * @props
- * - {string|number|null} fieldId: El ID único (de la base de datos) de esta opción.
- * Puede ser `null` si la opción es nueva.
- * ... (resto de props)
+ * - {object} control: Objeto 'control' de react-hook-form.
+ * - {number} materialIndex: El índice del material padre (ej. 0 para el primer material).
+ * - {number} opcionIndex: El índice de esta opción (ej. 0 para la primera opción de ese material).
+ * - {function} setValue: Función de react-hook-form para setear valores.
+ * - {function} removeOpcion: Función de useFieldArray para eliminar esta opción.
+ * - {number} totalOpciones: El número total de opciones para este material.
+ * - {function} onProviderSelect: Callback para notificar al padre del último proveedor usado.
+ * - {object} lastUsedProvider: Objeto del último proveedor usado (para autocompletar).
+ * - {string|number|null} fieldId: El ID de la base de datos (de 'requisiciones_opciones.id').
+ * Es 'null' si es una opción nueva.
+ * - {array<number>} opcionesBloqueadas: Array de IDs de opciones que ya tienen una OC generada.
  */
 
-// --- IMPORTACIONES (sin cambios) ---
+// --- SECCIÓN 1: IMPORTACIONES ---
 import React, { useState, useEffect, useMemo } from 'react';
 import { Controller, useWatch } from 'react-hook-form';
-import { Autocomplete, TextField, Checkbox, FormControlLabel, Select, MenuItem, InputAdornment, IconButton, Tooltip, Paper, Alert, Box, Typography } from '@mui/material';
+import {
+  Autocomplete, TextField, Checkbox, FormControlLabel, Select, MenuItem,
+  InputAdornment, IconButton, Tooltip, Paper, Alert, Box, Typography
+} from '@mui/material';
 import api from '../../api/api';
-import useDebounce from './useDebounce'; 
-
-// --- Iconos (sin cambios) ---
+import useDebounce from './useDebounce';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LockIcon from '@mui/icons-material/Lock';
 
-
+// --- SECCIÓN 2: COMPONENTE PRINCIPAL ---
 export default function OpcionProveedorForm({
   materialIndex,
   opcionIndex,
@@ -33,34 +45,42 @@ export default function OpcionProveedorForm({
   totalOpciones,
   onProviderSelect,
   lastUsedProvider,
-  fieldId, // <-- Este ID es el ID de la BD (ej: 123) o null
+  fieldId, // <-- Este es el ID de la BD (ej: 456) o null
   opcionesBloqueadas = []
 }) {
 
-  // --- ESTADO (sin cambios) ---
+  // --- SECCIÓN 2.1: ESTADO INTERNO DEL COMPONENTE ---
   const [proveedorOptions, setProveedorOptions] = useState([]);
   const [loadingProveedores, setLoadingProveedores] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-  // --- HOOKS RHF (sin cambios) ---
+  // --- SECCIÓN 2.2: HOOKS DE REACT-HOOK-FORM (Observadores) ---
+  // Observamos campos específicos para reaccionar a sus cambios.
   const formState = useWatch({ control });
   const esEntregaInmediata = useWatch({ control, name: `materiales.${materialIndex}.opciones.${opcionIndex}.es_entrega_inmediata` });
   const allOpciones = useWatch({ control, name: `materiales.${materialIndex}.opciones` });
   const currentPrecio = useWatch({ control, name: `materiales.${materialIndex}.opciones.${opcionIndex}.precio_unitario` });
 
-  // --- LÓGICA DE NEGOCIO Y CÁLCULOS ---
-  
-  // ==================================================================
-  // --- CAMBIO: Lógica de bloqueo simplificada ---
-  // `fieldId` es el ID de la BD (o null). Si no es null, lo chequeamos.
+  // --- SECCIÓN 2.3: LÓGICA DE NEGOCIO Y MEMOS ---
+
+  /**
+   * @logic {isLocked}
+   * Determina si esta fila debe estar bloqueada.
+   * Compara el 'fieldId' (que es el id_bd de esta opción) con la lista
+   * 'opcionesBloqueadas' recibida del backend.
+   */
+  // (Esta lógica ya estaba correcta en el archivo que subiste)
   const isLocked = useMemo(() => {
-    if (!fieldId) return false; // Si no tiene ID de BD, no puede estar bloqueada
+    if (!fieldId) return false; // Una opción nueva (fieldId es null) no puede estar bloqueada.
     return (opcionesBloqueadas || []).map(Number).includes(Number(fieldId));
   }, [fieldId, opcionesBloqueadas]);
-  // ==================================================================
 
-  // Lógica de precio más bajo (sin cambios)
+  /**
+   * @logic {esPrecioMasBajo}
+   * Determina si esta opción tiene el precio más bajo entre todas
+   * las opciones de este material para resaltarla en verde.
+   */
   const esPrecioMasBajo = useMemo(() => {
     if (!currentPrecio) return false;
     const preciosValidos = allOpciones
@@ -70,8 +90,13 @@ export default function OpcionProveedorForm({
     return parseFloat(currentPrecio) === Math.min(...preciosValidos);
   }, [allOpciones, currentPrecio]);
 
+  // --- SECCIÓN 2.4: EFECTOS (API CALLS) ---
 
-  // --- EFECTOS (sin cambios) ---
+  /**
+   * @effect
+   * Busca proveedores de forma asíncrona cuando el término de búsqueda
+   * (con debounce) cambia.
+   */
   useEffect(() => {
     const buscarProveedores = async () => {
       if (debouncedSearchTerm.length < 3) {
@@ -91,13 +116,13 @@ export default function OpcionProveedorForm({
     buscarProveedores();
   }, [debouncedSearchTerm]);
 
+  // --- SECCIÓN 2.5: MANEJADORES DE EVENTOS ---
 
-  // --- MANEJADORES DE EVENTOS (sin cambios) ---
-  const handleImportacionChange = (event) => {
-    const isChecked = event.target.checked;
-    setValue(`materiales.${materialIndex}.opciones.${opcionIndex}.es_importacion`, isChecked);
-  };
-
+  /**
+   * @handler
+   * Autocompleta el proveedor si se marca "Elegir" y no hay uno
+   * seleccionado, usando el último proveedor utilizado.
+   */
   const handleSeleccionadoChange = (onChange) => (event) => {
     const isChecked = event.target.checked;
     const currentOption = formState.materiales[materialIndex].opciones[opcionIndex];
@@ -109,11 +134,10 @@ export default function OpcionProveedorForm({
         onProviderSelect(lastUsedProvider);
       }
     }
-    onChange(isChecked);
+    onChange(isChecked); // Propaga el cambio a react-hook-form
   };
 
-
-  // --- RENDERIZADO (Bug 1 ya corregido, sin más cambios) ---
+  // --- SECCIÓN 2.6: RENDERIZADO DEL COMPONENTE ---
   return (
     <Paper
       elevation={0}
@@ -121,13 +145,17 @@ export default function OpcionProveedorForm({
       className="p-4 rounded-md transition-all"
       sx={{ ...(esPrecioMasBajo && !isLocked && { backgroundColor: '#f0fdf4', borderColor: '#4ade80' }) }}
     >
+      {/* --- A: Alerta de Bloqueo (Solo si 'isLocked' es true) --- */}
       {isLocked && (
         <Alert severity="info" sx={{ mb: 2 }}>
           Esta opción ya generó una Orden de Compra y no puede ser editada.
         </Alert>
       )}
 
+      {/* Contenedor relativo para el overlay de bloqueo */}
       <Box sx={{ position: 'relative', borderRadius: 2, overflow: 'visible' }}>
+
+        {/* --- B: Overlay de Bloqueo (Solo si 'isLocked' es true) --- */}
         {isLocked && (
           <Box
             sx={{
@@ -152,12 +180,14 @@ export default function OpcionProveedorForm({
           </Box>
         )}
 
+        {/* --- C: Formulario (Fieldset) --- */}
+        {/* El fieldset se deshabilita completo si 'isLocked' es true */}
         <fieldset
           disabled={isLocked}
           className="grid grid-cols-12 gap-x-4 gap-y-2"
           style={{ transition: 'opacity 0.3s', opacity: isLocked ? 0.5 : 1 }}
         >
-          {/* SECCIÓN 1: CAMPOS PRINCIPALES DE ENTRADA */}
+          {/* C.1: Campos Principales (Proveedor, Cantidad, Precio) */}
           <div className="col-span-12 md:col-span-6">
             <Controller
               name={`materiales.${materialIndex}.opciones.${opcionIndex}.proveedor`}
@@ -237,11 +267,11 @@ export default function OpcionProveedorForm({
             />
           </div>
 
-          {/* SECCIÓN 2: OPCIONES Y ACCIONES */}
+          {/* C.2: Opciones Secundarias (Checkboxes y Acciones) */}
           <div className="col-span-12 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               
-              {/* ENTREGA INMEDIATA */}
+              {/* Entrega Inmediata */}
               <Controller
                 name={`materiales.${materialIndex}.opciones.${opcionIndex}.es_entrega_inmediata`}
                 control={control}
@@ -259,7 +289,7 @@ export default function OpcionProveedorForm({
                 )}
               />
 
-              {/* TIEMPO DE ENTREGA (Bug 1 ya corregido) */}
+              {/* Tiempo de Entrega (Condicional) */}
               {!esEntregaInmediata && (
                 <div className="flex items-center gap-2">
                   <Controller
@@ -288,7 +318,7 @@ export default function OpcionProveedorForm({
                 </div>
               )}
 
-              {/* PRECIO NETO */}
+              {/* Precio Neto */}
               <Controller
                 name={`materiales.${materialIndex}.opciones.${opcionIndex}.es_precio_neto`}
                 control={control}
@@ -306,7 +336,7 @@ export default function OpcionProveedorForm({
                 )}
               />
 
-              {/* IMPORTACIÓN */}
+              {/* Importación */}
               <Controller
                 name={`materiales.${materialIndex}.opciones.${opcionIndex}.es_importacion`}
                 control={control}
@@ -325,8 +355,8 @@ export default function OpcionProveedorForm({
               />
             </div>
 
+            {/* C.3: Acciones de Fila (Elegir, Borrar) */}
             <div className="flex items-center">
-              {/* SELECCIONAR COMO GANADORA */}
               <Controller
                 name={`materiales.${materialIndex}.opciones.${opcionIndex}.seleccionado`}
                 control={control}
@@ -345,7 +375,6 @@ export default function OpcionProveedorForm({
                   </Tooltip>
                 )}
               />
-              {/* ELIMINAR OPCIÓN */}
               <Tooltip title="Eliminar esta opción">
                 <span>
                   <IconButton onClick={() => removeOpcion(opcionIndex)} size="small" color="error" disabled={totalOpciones <= 1}>
