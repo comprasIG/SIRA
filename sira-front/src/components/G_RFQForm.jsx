@@ -73,7 +73,7 @@ const calcularResumenes = (materiales, providerConfigs) => {
 // ===============================================================================================
 // --- Componente Principal: G_RFQForm ---
 // ===============================================================================================
-export default function G_RFQForm({ requisicionId, onBack }) {
+export default function G_RFQForm({ requisicionId, onBack, mode = 'G' }) {
 
   // --- Estados del Componente ---
   const [requisicion, setRequisicion] = useState(null);
@@ -338,7 +338,7 @@ export default function G_RFQForm({ requisicionId, onBack }) {
   const handleSaveAndExit = async () => {
     try {
       await handleSubmit(onSaveSubmit)();
-      toast.success("¡Guardado en Producción con éxito!"); 
+      toast.success(mode === 'VB' ? "Actualizado con éxito." : "¡Guardado en Producción con éxito!"); 
       onBack();
     } catch (error) {
       console.error("El guardado falló, el usuario permanecerá en la página.");
@@ -394,6 +394,7 @@ export default function G_RFQForm({ requisicionId, onBack }) {
           isLoading={loading}
           onSaveAndExit={handleSaveAndExit}
           onSendToApproval={handleEnviarAprobacion}
+          mode={mode}
         />
       </form>
     </Paper>
