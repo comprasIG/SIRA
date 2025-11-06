@@ -1,128 +1,64 @@
-//C:\SIRA\backend\controllers\ordenCompra.controller.js
+// C:\SIRA\backend\controllers\ordenCompra.controller.js
 /**
  * =================================================================================================
- * CONTROLADOR: Órdenes de Compra (Versión 2.1 - Corrección Nombres)
+ * CONTROLADOR: Órdenes de Compra (Descarga de PDF)
+ * Opción A — Limpieza total: sin flujo legacy de creación/autorizar (ocCreationService eliminado)
  * =================================================================================================
- * @file ordenCompra.controller.js
- * @description Corregido el bug del nombre de descarga 'OC-OC-'.
+ * Endpoints expuestos:
+ * - GET /api/ocs/:id/pdf   -> Descargar PDF de la OC
+ *
+ * Notas:
+ * - La creación/autorización de OCs ocurre vía vistoBueno.controller -> ocAuthorizationService
+ * - Aquí solo servimos el PDF on-demand con un nombre consistente "OC-<numero>_<marca>.pdf"
  */
 
-// --- Importaciones de Módulos y Servicios ---
 const pool = require('../db/pool');
-const ocCreationService = require('../services/ocCreationService');
-const ocAuthorizationService = require('../services/ocAuthorizationService');
 const { generatePurchaseOrderPdf } = require('../services/purchaseOrderPdfService');
 
-
-// ===============================================================================================
-// --- Funciones del Controlador ---
-// ===============================================================================================
-
 /**
- * @route   POST /api/ocs/rfq/:rfqId/generar-oc
- * @desc    Crea el registro de una nueva OC en la base de datos.
- * @access  Privado
- */
-const generarOrdenDeCompra = async (req, res) => {
-  try {
-    const { rfqId } = req.params;
-    const { opcionIds, proveedor_id } = req.body;
-    const { id: usuarioId } = req.usuarioSira;
-
-    if (!opcionIds || !Array.isArray(opcionIds) || opcionIds.length === 0) {
-      return res.status(400).json({ error: "Se requiere un arreglo con los IDs de las opciones seleccionadas." });
-    }
-
-    const nuevaOc = await ocCreationService.crearOrdenDeCompraDesdeRfq({
-      rfqId,
-      usuarioId,
-      opcionIds
-    });
-
-    // =================================================================
-    // --- ¡CORRECCIÓN BUG "OC-OC-" (Paso 3)! ---
-    // Se añade el prefijo 'OC-' al número que viene de la BD (ej: 254)
-    // =================================================================
-    res.status(201).json({
-      mensaje: `Orden de Compra OC-${nuevaOc.numero_oc} generada exitosamente.`, // Añadimos prefijo
-      ordenDeCompra: { ...nuevaOc, numero_oc: `OC-${nuevaOc.numero_oc}` }, // Añadimos prefijo
-    });
-  } catch (error) {
-    console.error("Error en el controlador al generar la Orden de Compra:", error);
-    res.status(500).json({ error: error.message || 'Error interno del servidor al generar la OC.' });
-  }
-};
-
-/**
- * @route   POST /api/ocs/:id/autorizar
- * @desc    Ejecuta el proceso completo de autorización (PDF, Drive, Email).
- * @access  Privado
- */
-const autorizarOrdenDeCompra = async (req, res) => {
-  try {
-    const { id: ocId } = req.params;
-    const usuarioSira = req.usuarioSira;
-
-    if (!ocId) {
-      return res.status(400).json({ error: 'Se requiere el ID de la Orden de Compra.' });
-    }
-
-    const resultado = await ocAuthorizationService.authorizeAndDistributeOC(ocId, usuarioSira);
-    res.status(200).json(resultado);
-
-  } catch (error) {
-    console.error(`Controlador: Error al autorizar la OC ID ${req.params.id}:`, error);
-    res.status(500).json({ error: error.message || 'Error interno del servidor al autorizar la OC.' });
-  }
-};
-
-/**
- * @route   GET /api/ocs/:id/pdf
- * @desc    Genera y devuelve el PDF de una OC específica para su descarga directa.
- * @access  Privado
+ * GET /api/ocs/:id/pdf
+ * Genera y devuelve el PDF de una OC específica para su descarga directa.
  */
 const descargarOcPdf = async (req, res) => {
-    const { id: ocId } = req.params;
-    try {
-        // 1. Llamamos al servicio de PDF
-        const pdfBuffer = await generatePurchaseOrderPdf(ocId); // No necesita 'client' aquí
+  const { id: ocId } = req.params;
 
-        // 2. Obtenemos los datos para el nombre del archivo
-        const ocDataQuery = await pool.query(
-            `SELECT oc.numero_oc, p.marca AS proveedor_marca
-             FROM ordenes_compra oc
-             JOIN proveedores p ON oc.proveedor_id = p.id
-             WHERE oc.id = $1;`, [ocId]);
-        
-        if (ocDataQuery.rows.length === 0) {
-            return res.status(404).send('Orden de Compra no encontrada.');
-        }
-        const ocData = ocDataQuery.rows[0];
-        
-        // =================================================================
-        // --- ¡CORRECCIÓN BUG "OC-OC-" (Paso 3)! ---
-        // 'ocData.numero_oc' ahora es solo el NÚMERO (ej: 253),
-        // por lo que AÑADIMOS el prefijo 'OC-' aquí.
-        // =================================================================
-        const pdfNameSafeMarca = (ocData.proveedor_marca || 'PROV').replace(/\s/g, '_');
-        const fileName = `OC-${ocData.numero_oc}_${pdfNameSafeMarca}.pdf`; // Resultado: OC-253_SERROT.pdf
+  const idNum = Number(ocId);
+  if (!idNum || Number.isNaN(idNum)) {
+    return res.status(400).json({ error: 'Parámetro ocId inválido.' });
+  }
 
-        // 3. Enviamos el archivo al cliente.
-        res.writeHead(200, {
-            'Content-Type': 'application/pdf',
-            'Content-Disposition': `attachment; filename="${fileName}"`,
-        });
-        res.end(pdfBuffer);
-
-    } catch (error) {
-        console.error(`Error al generar el PDF para la OC ${ocId}:`, error);
-        res.status(500).send('Error al generar el PDF.');
+  try {
+    // 1) Obtenemos datos para nombrar el archivo
+    const metaQ = await pool.query(
+      `SELECT oc.numero_oc, COALESCE(p.marca, 'PROV') AS proveedor_marca
+         FROM ordenes_compra oc
+         JOIN proveedores p ON p.id = oc.proveedor_id
+        WHERE oc.id = $1`,
+      [idNum]
+    );
+    if (metaQ.rowCount === 0) {
+      return res.status(404).json({ error: `OC ${idNum} no encontrada.` });
     }
+    const { numero_oc, proveedor_marca } = metaQ.rows[0];
+    const safeMarca = String(proveedor_marca || 'PROV').replace(/\s+/g, '_');
+    const fileName = `OC-${numero_oc}_${safeMarca}.pdf`; // numero_oc es solo el número
+
+    // 2) Generar PDF
+    const pdfBuffer = await generatePurchaseOrderPdf(idNum);
+
+    // 3) Enviar archivo
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${fileName}"`,
+      'Cache-Control': 'no-store',
+    });
+    return res.status(200).send(pdfBuffer);
+  } catch (error) {
+    console.error('[ordenCompra.controller] Error al generar/servir PDF:', error);
+    return res.status(500).json({ error: 'No se pudo generar el PDF de la OC.' });
+  }
 };
 
-// --- Exportaciones del Módulo ---
 module.exports = {
-  generarOrdenDeCompra,
-  autorizarOrdenDeCompra,
   descargarOcPdf,
 };
