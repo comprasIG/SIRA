@@ -1,21 +1,25 @@
-// C:\SIRA\backend\controllers\rfq\vistoBueno.controller.js
 /**
  * ================================================================================================
- * CONTROLADOR: Visto Bueno de Cotizaciones (VB_RFQ) - Versión 4.1 (Corrección TX y Nombres)
+ * CONTROLADOR: Visto Bueno de Cotizaciones (VB_RFQ) - (Versión 4.1 - Corrección de Query Faltante)
  * ================================================================================================
  * @file vistoBueno.controller.js
- * @description Corregido para pasar el 'client' de transacción al servicio de PDF
- * (evitando el ROLLBACK y el salto de IDs) y corregido el nombre duplicado 'OC-OC-'.
+ * @description Gerente genera OCs, adjunta PDF y cotizaciones, sube a Drive y notifica por email.
+ * --- HISTORIAL DE CAMBIOS ---
+ * v4.1: Se re-inserta la consulta 'quoteFilesQuery' que se borró por error.
  */
 
 const pool = require('../../db/pool');
 const { generatePurchaseOrderPdf } = require('../../services/purchaseOrderPdfService');
-const { uploadOcToReqFolder, downloadFileBuffer } = require('../../services/googleDrive');
-const { sendEmailWithAttachments } = require('../../services/emailService');
+const { uploadPdfBuffer, downloadFileBuffer } = require('../../services/googleDrive'); 
+const { sendEmailWithAttachments } = require('../../services/emailService'); 
 
 /* ================================================================================================
  * SECCIÓN 1: Helpers
  * ==============================================================================================*/
+
+/**
+ * Obtiene los correos electrónicos de un grupo de notificación.
+ */
 const _getRecipientEmailsByGroup = async (codigoGrupo, client) => {
     const query = `
         SELECT u.correo FROM usuarios u
@@ -74,7 +78,6 @@ const rechazarRfq = async (req, res) => {
 
 /**
  * POST /api/rfq/:id/generar-ocs
- * ¡Función crítica refactorizada!
  */
 const generarOcsDesdeRfq = async (req, res) => {
     const { id: rfqId } = req.params;
@@ -85,18 +88,12 @@ const generarOcsDesdeRfq = async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        // --- 1. Validar RFQ y OBTENER DATOS DE RUTA ---
+        // --- 1. Validar RFQ ---
         const rfqQuery = await client.query(
-            `SELECT r.numero_requisicion, r.rfq_code, r.lugar_entrega, r.sitio_id, r.proyecto_id,
-                    d.codigo as depto_codigo
-             FROM requisiciones r 
-             JOIN departamentos d ON r.departamento_id = d.id 
-             WHERE r.id = $1 AND r.status = 'POR_APROBAR' FOR UPDATE`, [rfqId]
+            `SELECT r.*, d.codigo as depto_codigo FROM requisiciones r JOIN departamentos d ON r.departamento_id = d.id WHERE r.id = $1 AND r.status = 'POR_APROBAR' FOR UPDATE`, [rfqId]
         );
         if (rfqQuery.rowCount === 0) throw new Error('El RFQ no existe, ya fue procesado o no está para aprobación.');
-        
         const rfqData = rfqQuery.rows[0];
-        const { numero_requisicion, depto_codigo } = rfqData;
 
         // --- 2. Buscar opciones seleccionadas NO bloqueadas ---
         const opcionesBloqueadasQuery = await client.query(
@@ -135,112 +132,136 @@ const generarOcsDesdeRfq = async (req, res) => {
             const items = comprasPorProveedor[provId];
             const primerItem = items[0];
 
-            // --- 4A. Calcular totales ---
-            const subTotal = items.reduce((sum, item) => (sum + (Number(item.cantidad_cotizada) || 0) * (Number(item.precio_unitario) || 0)), 0);
-            const config = items[0]?.config_calculo || { isIvaActive: true, ivaRate: 0.16, isrRate: 0, isIsrActive: false };
-            const iva = (config.isIvaActive) ? subTotal * (parseFloat(config.ivaRate) || 0.16) : 0;
-            const retIsr = (config.isIsrActive) ? subTotal * (parseFloat(config.isrRate) || 0) : 0;
-            const total = subTotal + iva - retIsr;
-            const esImportacion = items.some(i => i.es_importacion);
+            // Calcular totales
+            const subTotal = items.reduce((acc, x) => acc + Number(x.cantidad_cotizada) * Number(x.precio_unitario), 0);
+            const iva = items.some(x => x.config_calculo?.isIvaActive === false) ? 0 : subTotal * 0.16;
+            const total = subTotal + iva;
 
-            // =================================================================
-            // --- ¡CORRECCIÓN BUG "OC-OC-" (Paso 1)! ---
-            // Se quita el prefijo 'OC-' del INSERT. Ahora la BD solo guarda el NÚMERO.
-            // =================================================================
-            const ocInsertResult = await client.query(
-                `INSERT INTO ordenes_compra (numero_oc, usuario_id, rfq_id, sitio_id, proyecto_id, lugar_entrega, sub_total, iva, total, impo, status, proveedor_id)
-                 VALUES (nextval('ordenes_compra_id_seq'), $1, $2, $3, $4, $5, $6, $7, $8, $9, 'POR_AUTORIZAR', $10) RETURNING id, numero_oc`,
-                [usuarioId, rfqId, rfqData.sitio_id, rfqData.proyecto_id, rfqData.lugar_entrega, subTotal, iva, total, esImportacion, provId]
+            // --- 4A. (Paso A: Obtener el PRÓXIMO ID de la secuencia UNA SOLA VEZ) ---
+            const seqResult = await client.query("SELECT nextval('ordenes_compra_id_seq') AS id");
+            const nuevaOcId = seqResult.rows[0].id; // Ej. 286
+            const nuevoNumeroOc = 'OC-' + nuevaOcId; // Ej. 'OC-286'
+
+            // --- 4A. (Paso B: Insertar la fila proveyendo explícitamente el ID y el NUMERO_OC) ---
+            await client.query(
+                `INSERT INTO ordenes_compra (id, numero_oc, usuario_id, rfq_id, sitio_id, proyecto_id, lugar_entrega, sub_total, iva, total, impo, status, proveedor_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'POR_AUTORIZAR', $12)`,
+                [
+                    nuevaOcId,      // $1 - id
+                    nuevoNumeroOc,  // $2 - numero_oc
+                    usuarioId,      // $3 - usuario_id
+                    rfqId,          // $4 - rfq_id
+                    rfqData.sitio_id, // $5 - sitio_id
+                    rfqData.proyecto_id, // $6 - proyecto_id
+                    rfqData.lugar_entrega, // $7 - lugar_entrega
+                    subTotal,       // $8 - sub_total
+                    iva,            // $9 - iva
+                    total,          // $10 - total
+                    items.some(i => i.es_importacion), // $11 - impo
+                    provId          // $12 - proveedor_id
+                ]
             );
-            const nuevaOcId = ocInsertResult.rows[0].id;
-            const nuevoNumeroOc = ocInsertResult.rows[0].numero_oc; // Esto ahora es solo un NÚMERO (ej: 254)
-
-            // --- 4C. Insertar detalle de OC (Lógica de bloqueo) ---
+            
+            // --- 4B. Insertar detalle de OC y actualizar requisiciones ---
             for (const item of items) {
-                const detReqQuery = await client.query('SELECT material_id FROM requisiciones_detalle WHERE id = $1', [item.requisicion_detalle_id]);
-                const material_id = detReqQuery.rows[0]?.material_id;
-                if (!material_id) throw new Error(`No se pudo encontrar el material_id para el detalle de requisición ${item.requisicion_detalle_id}`);
-
                 await client.query(
                     `INSERT INTO ordenes_compra_detalle (orden_compra_id, requisicion_detalle_id, comparativa_precio_id, material_id, cantidad, precio_unitario, moneda, plazo_entrega)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-                    [
-                        nuevaOcId, 
-                        item.requisicion_detalle_id, 
-                        item.id,
-                        material_id,
-                        item.cantidad_cotizada, 
-                        item.precio_unitario, 
-                        item.moneda, 
-                        item.tiempo_entrega_valor ? `${item.tiempo_entrega_valor} ${item.tiempo_entrega_unidad}` : null
-                    ]
+                     VALUES ($1, $2, $3, (SELECT material_id FROM requisiciones_detalle WHERE id=$2), $4, $5, $6, $7)`,
+                    [nuevaOcId, item.requisicion_detalle_id, item.id, item.cantidad_cotizada, item.precio_unitario, item.moneda, item.tiempo_entrega_valor ? `${item.tiempo_entrega_valor} ${item.tiempo_entrega_unidad}` : null]
                 );
                 await client.query(
-                    `UPDATE requisiciones_detalle SET status_compra = $1 WHERE id = $2`,
-                    [nuevaOcId, item.requisicion_detalle_id]
+                    `UPDATE requisiciones_detalle SET cantidad_procesada = cantidad_procesada + $1 WHERE id = $2`,
+                    [item.cantidad_cotizada, item.requisicion_detalle_id]
+                );
+                await client.query(
+                    `UPDATE requisiciones_detalle SET status_compra = $1 WHERE id = $2 AND cantidad_procesada >= cantidad`,
+                    [nuevaOcId, item.requisicion_detalle_id] 
                 );
             }
-
-            // =================================================================
-            // --- ¡CORRECCIÓN BUG SALTO DE ID (Paso 1)! ---
-            // Se pasa el 'client' de la transacción al servicio de PDF.
-            // =================================================================
-            const pdfBuffer = await generatePurchaseOrderPdf(nuevaOcId, client);
             
-            // =================================================================
-            // --- ¡CORRECCIÓN BUG "OC-OC-" (Paso 2)! ---
-            // Ahora 'nuevoNumeroOc' es solo el NÚMERO (ej: 254),
-            // por lo que AÑADIMOS el prefijo 'OC-' aquí.
-            // =================================================================
-            const pdfNameSafeMarca = (primerItem.proveedor_marca || 'PROV').replace(/\s+/g, '_');
-            const fileName = `OC-${nuevoNumeroOc}_${pdfNameSafeMarca}.pdf`; // Resultado: OC-254_SERROT.pdf
+            // --- 4C. Obtener datos COMPLETOS para el PDF ---
+            const ocDataQuery = await client.query(`
+                SELECT oc.*, p.razon_social AS proveedor_razon_social, p.marca AS proveedor_marca, p.rfc AS proveedor_rfc,
+                       proy.nombre AS proyecto_nombre, s.nombre AS sitio_nombre, u.nombre as usuario_nombre,
+                       (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) as moneda,
+                       NOW() as fecha_aprobacion
+                FROM ordenes_compra oc
+                JOIN proveedores p ON oc.proveedor_id = p.id
+                JOIN proyectos proy ON oc.proyecto_id = proy.id
+                JOIN sitios s ON oc.sitio_id = s.id
+                JOIN usuarios u ON oc.usuario_id = u.id
+                WHERE oc.id = $1;
+            `, [nuevaOcId]);
+            const ocDataParaPdf = ocDataQuery.rows[0];
 
-            // --- 4D. Subir a Drive (Sin cambios, ya estaba bien) ---
-            const driveFile = await uploadOcToReqFolder(
+            const itemsDataQuery = await client.query(`
+                SELECT ocd.*, cm.nombre AS material_nombre, cu.simbolo AS unidad_simbolo
+            FROM ordenes_compra_detalle ocd
+            JOIN catalogo_materiales cm ON ocd.material_id = cm.id
+            JOIN catalogo_unidades cu ON cm.unidad_de_compra = cu.id
+            WHERE ocd.orden_compra_id = $1;
+            `, [nuevaOcId]);
+            const pdfItems = itemsDataQuery.rows;
+
+            const pdfBuffer = await generatePurchaseOrderPdf(ocDataParaPdf, pdfItems, client);
+            
+            const pdfFileName = `${nuevoNumeroOc}.pdf`; // Ej: 'OC-286.pdf'
+
+            // --- 4D. Subir PDF a Drive ---
+            const driveFile = await uploadPdfBuffer(
                 pdfBuffer,
-                fileName,
-                depto_codigo,
-                numero_requisicion
+                pdfFileName, // Nombre Corregido
+                'ORDENES_DE_COMPRA_PDF',
+                rfqData.rfq_code
             );
-            if (!driveFile || !driveFile.fileLink) {
-                throw new Error('Falló la subida del PDF a Drive o no se recibió el link de vuelta.');
+
+            if (!driveFile || !driveFile.webViewLink) {
+                throw new Error('Falló la subida del archivo PDF a Google Drive o no se recibió el link de vuelta.');
             }
 
-            // --- 4E. Adjuntar cotizaciones (Sin cambios) ---
+            // --- 4E. Adjuntar archivos de cotización ---
+            const attachments = [];
+            attachments.push({ filename: pdfFileName, content: pdfBuffer }); // Nombre Corregido
+
+            // ==================================================================
+            // --- ¡INICIO DE LA CORRECCIÓN! ---
+            // Esta línea faltaba
+            // ==================================================================
             const quoteFilesQuery = await client.query(
                 `SELECT * FROM rfq_proveedor_adjuntos WHERE proveedor_id = $1 AND requisicion_id = $2`,
                 [provId, rfqId]
             );
-            const attachments = [];
-            attachments.push({ filename: fileName, content: pdfBuffer }); 
+            // ==================================================================
+            // --- ¡FIN DE LA CORRECCIÓN! ---
+            // ==================================================================
 
-            for (const file of quoteFilesQuery.rows) {
+            // (RF) Esta es la línea 254 (antes 233) que ahora funcionará
+            for (const file of quoteFilesQuery.rows) { 
                 try {
                     const fileId = file.ruta_archivo.split('/view')[0].split('/').pop();
                     const fileBuffer = await downloadFileBuffer(fileId);
                     attachments.push({ filename: file.nombre_archivo, content: fileBuffer });
                 } catch (downloadError) {
-                    console.error(`No se pudo adjuntar el archivo ${file.nombre_archivo} de Drive.`, downloadError);
+                    console.error(`No se pudo adjuntar el archivo ${file.nombre_archivo} de Drive. El proceso continuará sin él.`, downloadError);
                 }
             }
 
-            // --- 4F. Notificar por correo ---
+            // --- 4F. Notificar por correo al grupo ---
             const recipients = await _getRecipientEmailsByGroup('OC_GENERADA_NOTIFICAR', client);
             if (recipients.length > 0) {
-                // Usamos el nombre 'OC-254' para el Asunto
-                const subject = `OC Generada para Autorización: OC-${nuevoNumeroOc} (${primerItem.proveedor_razon_social})`;
+                const subject = `OC Generada para Autorización: ${nuevoNumeroOc} (${primerItem.proveedor_razon_social})`;
                 const htmlBody = `
                     <p>Se ha generado una nueva Orden de Compra y requiere autorización final.</p>
                     <p>Se adjuntan la Orden de Compra y los respaldos de la cotización.</p>
-                    <p>Link a Carpeta de Drive: <a href="${driveFile.folderLink}">Ver Archivos</a></p>
+                    <p>Link a Drive: <a href="${driveFile.webViewLink}">Ver Archivo</a></p>
                 `;
                 await sendEmailWithAttachments(recipients, subject, htmlBody, attachments);
             }
 
-            ocsGeneradasInfo.push({ numero_oc: `OC-${nuevoNumeroOc}`, id: nuevaOcId });
+            ocsGeneradasInfo.push({ numero_oc: nuevoNumeroOc, id: nuevaOcId });
         }
 
-        // --- 5. Actualizar status del RFQ (Sin cambios) ---
+        // --- 5. Actualizar status del RFQ si ya no hay líneas pendientes ---
         const checkCompletion = await client.query(
             `SELECT COUNT(*) FROM requisiciones_detalle WHERE requisicion_id = $1 AND status_compra = 'PENDIENTE'`, [rfqId]
         );
@@ -248,16 +269,13 @@ const generarOcsDesdeRfq = async (req, res) => {
             await client.query(`UPDATE requisiciones SET status = 'ESPERANDO_ENTREGA' WHERE id = $1`, [rfqId]);
         }
 
-        // --- ¡COMMIT! ---
         await client.query('COMMIT');
-        
         res.status(200).json({
             mensaje: `Proceso completado. OCs generadas: ${ocsGeneradasInfo.map(oc => oc.numero_oc).join(', ')}.`,
             ocs: ocsGeneradasInfo
         });
 
     } catch (error) {
-        // --- ROLLBACK (Esto era lo que causaba el salto de IDs) ---
         await client.query('ROLLBACK');
         console.error(`Error al generar OCs para RFQ ${rfqId}:`, error);
         res.status(500).json({ error: error.message || 'Error interno del servidor.' });

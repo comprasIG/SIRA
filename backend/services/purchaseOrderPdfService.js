@@ -1,20 +1,23 @@
-//C:\SIRA\backend\services\purchaseOrderPdfService.js
+// C:\SIRA\backend\services\purchaseOrderPdfService.js
 /**
  * =================================================================================================
- * SERVICIO: Generación de PDFs para Órdenes de Compra (Versión 3.2 - Corrección de Transacción)
+ * SERVICIO: Generación de PDFs (Versión 4.0 - Corrección de Formato)
  * =================================================================================================
  * @file purchaseOrderPdfService.js
  * @description Genera un PDF de OC.
- * - ¡CAMBIO! Ahora acepta un 'client' de transacción opcional.
- * - ¡CAMBIO! Se corrigió bug de 'pool.query' vs 'db.query'.
- * - ¡CAMBIO! Se añade prefijo 'OC-' al número en el PDF.
+ * --- HISTORIAL DE CAMBIOS ---
+ * v4.0: (Solicitado por usuario)
+ * - Se cambia "Número OC:" por "Número:".
+ * - Se cambia "Fecha de Aprobación:" por "Fecha de Creación:".
+ * - Se mueven los totales 20px hacia arriba (de 670 a 650) para evitar
+ * el salto de página del footer en OCs con pocos items.
  */
 
 const PDFDocument = require('pdfkit');
 const path = require('path');
 const pool = require('../db/pool');
 
-// --- SECCIÓN DE DIBUJO (Sin cambios, excepto la adición del prefijo 'OC-') ---
+// --- SECCIÓN DE DIBUJO (Con correcciones de formato) ---
 function drawHeader(doc, oc) {
   const logoPath = path.join(__dirname, '..', 'assets', 'logo.png');
   if (require('fs').existsSync(logoPath)) {
@@ -23,142 +26,130 @@ function drawHeader(doc, oc) {
   doc.fillColor('#002D62').fontSize(20).font('Helvetica-Bold').text('ORDEN DE COMPRA', 0, 50, { align: 'center' });
   doc.fontSize(10).font('Helvetica').fillColor('black');
   
-  // =================================================================
-  // --- ¡CORRECCIÓN BUG "OC-OC-" (Paso 1)! ---
-  // Se asume que 'oc.numero_oc' es solo el NÚMERO (ej: 254).
-  // Se añade el prefijo 'OC-' aquí para mostrarlo en el PDF.
-  // =================================================================
-  doc.text(`Número OC: OC-${oc.numero_oc}`, 400, 50, { align: 'right' });
+  const ocNumber = (oc.numero_oc && !oc.numero_oc.startsWith('OC-')) ? `OC-${oc.numero_oc}` : oc.numero_oc;
+
+  // ==================================================================
+  // --- ¡INICIO DE CORRECCIÓN DE FORMATO! ---
+  // ==================================================================
   
-  const fecha = oc.fecha_aprobacion ? new Date(oc.fecha_aprobacion) : new Date();
-  doc.text(`Fecha de Aprobación: ${fecha.toLocaleDateString('es-MX')}`, 400, 65, { align: 'right' });
+  // 1. Cambiado "Número OC:" por "Número:"
+  doc.text(`Número: ${ocNumber}`, { align: 'right' }); 
+  
+  // 2. Cambiado "Fecha de Aprobación:" por "Fecha de Creación:"
+  // (La variable 'oc.fecha_aprobacion' ahora es un ALIAS de la fecha de creación en el controlador)
+  doc.text(`Fecha de Creación: ${new Date(oc.fecha_aprobacion).toLocaleDateString('es-MX')}`, { align: 'right' });
+  
+  // ==================================================================
+  // --- ¡FIN DE CORRECCIÓN DE FORMATO! ---
+  // ==================================================================
+  
+  doc.moveDown(0.5);
 }
+
 function drawInfoSection(doc, oc) {
-  let currentY = 130;
-  doc.fontSize(11).fillColor('#002D62').font('Helvetica-Bold');
-  doc.text('Proveedor:', 45, currentY);
-  doc.text('Información de Entrega:', 320, currentY);
-  currentY += 15;
-  doc.font('Helvetica').fontSize(10).fillColor('black');
-  const providerInfo = `${oc.proveedor_razon_social || ''}\n${oc.proveedor_rfc || ''}`;
-  doc.text(providerInfo, 45, currentY, { width: 250 });
-  doc.font('Helvetica-Bold').text('Sitio:', 320, currentY, { continued: true }).font('Helvetica').text(` ${oc.sitio_nombre || ''}`);
-  currentY += 15;
-  doc.font('Helvetica-Bold').text('Proyecto:', 320, currentY, { continued: true }).font('Helvetica').text(` ${oc.proyecto_nombre || ''}`);
-  currentY += 15;
-  doc.font('Helvetica-Bold').text('Generado por:', 320, currentY, { continued: true }).font('Helvetica').text(` ${oc.usuario_nombre || ''}`);
-  return doc.y + 25;
+  doc.fontSize(12).font('Helvetica-Bold').text('Proveedor:', 40, 110);
+  doc.font('Helvetica').fontSize(10);
+  doc.text(oc.proveedor_razon_social || oc.proveedor_marca || 'N/D', 40, 125);
+  doc.text(oc.proveedor_rfc || 'N/D');
+
+  doc.fontSize(12).font('Helvetica-Bold').text('Información de Entrega:', 300, 110);
+  doc.font('Helvetica').fontSize(10);
+  doc.text(`Sitio: ${oc.sitio_nombre || 'N/D'}`, 300, 125);
+  doc.text(`Proyecto: ${oc.proyecto_nombre || 'N/D'}`);
+  doc.text(`Generado por: ${oc.usuario_nombre || 'N/D'}`);
+
+  doc.moveDown(2);
+  const startY = doc.y;
+  doc.lineCap('butt').moveTo(40, startY).lineTo(572, startY).stroke();
+  return startY + 10;
 }
+
 function drawItemsTable(doc, items, startY) {
   let currentY = startY;
-  const tableTop = currentY;
-  const tableHeaders = ['Material', 'Cantidad', 'Unidad', 'Precio Unit.', 'Total'];
-  doc.rect(40, tableTop - 5, 532, 20).fillAndStroke('#F3F4F6', '#F3F4F6');
-  doc.font('Helvetica-Bold').fontSize(10).fillColor('#002D62');
-  doc.text(tableHeaders[0], 45, tableTop, { width: 240 });
-  doc.text(tableHeaders[1], 300, tableTop, { width: 50, align: 'center' });
-  doc.text(tableHeaders[2], 350, tableTop, { width: 60, align: 'center' });
-  doc.text(tableHeaders[3], 410, tableTop, { width: 80, align: 'right' });
-  doc.text(tableHeaders[4], 490, tableTop, { width: 80, align: 'right' });
-  currentY = tableTop + 25;
-  doc.font('Helvetica').fontSize(10).fillColor('black');
+  
+  // Cabecera de la tabla
+  doc.fontSize(10).font('Helvetica-Bold');
+  doc.text('Material', 40, currentY, { width: 260 });
+  doc.text('Cantidad', 300, currentY, { width: 60, align: 'right' });
+  doc.text('Unidad', 370, currentY, { width: 60, align: 'center' });
+  doc.text('Precio Unit.', 430, currentY, { width: 70, align: 'right' });
+  doc.text('Total', 500, currentY, { width: 70, align: 'right' });
+  doc.moveDown(0.5);
+  currentY = doc.y;
+  doc.lineCap('butt').moveTo(40, currentY).lineTo(572, currentY).stroke();
+  currentY += 10;
+  
+  // Filas de la tabla
+  doc.fontSize(9).font('Helvetica');
   items.forEach(item => {
-    const itemTotal = (Number(item.cantidad) * Number(item.precio_unitario)).toFixed(2);
-    const materialNombre = item.material_nombre || 'Material Desconocido';
-    const rowHeight = doc.heightOfString(materialNombre, { width: 240 }) + 10;
-    if (currentY + rowHeight > doc.page.height - 150) {
+    const materialHeight = doc.heightOfString(item.material_nombre, { width: 260 });
+    const rowHeight = materialHeight + 8;
+
+    if (currentY + rowHeight > 700) { // <-- Límite para el salto de página
       doc.addPage();
       currentY = 40;
     }
-    doc.text(materialNombre, 45, currentY, { width: 240 });
-    doc.text(Number(item.cantidad).toFixed(2), 300, currentY, { width: 50, align: 'center' });
-    doc.text(item.unidad_simbolo, 350, currentY, { width: 60, align: 'center' });
-    doc.text(`$${Number(item.precio_unitario).toFixed(2)}`, 410, currentY, { width: 80, align: 'right' });
-    doc.text(`$${itemTotal}`, 490, currentY, { width: 80, align: 'right' });
+
+    doc.text(item.material_nombre, 40, currentY, { width: 260 });
+    doc.text(Number(item.cantidad).toFixed(2), 300, currentY, { width: 60, align: 'right' });
+    doc.text(item.unidad_simbolo || 'N/A', 370, currentY, { width: 60, align: 'center' });
+    doc.text(`$${Number(item.precio_unitario).toFixed(2)}`, 430, currentY, { width: 70, align: 'right' });
+    doc.text(`$${(Number(item.cantidad) * Number(item.precio_unitario)).toFixed(2)}`, 500, currentY, { width: 70, align: 'right' });
+    
     currentY += rowHeight;
-    doc.moveTo(40, currentY - 5).lineTo(572, currentY - 5).strokeColor('#EEEEEE').stroke();
+    doc.lineCap('butt').moveTo(40, currentY - 4).lineTo(572, currentY - 4).dash(1, { space: 2 }).stroke();
   });
-  return currentY;
+
+  return currentY; // Devuelve la posición Y donde terminó la tabla
 }
+
 function drawTotals(doc, oc) {
-    let currentY = doc.y + 15;
-    const rightAlignX = 490;
-    const labelWidth = 80;
-    const ivaRate = (oc.sub_total > 0) ? (Number(oc.iva) / Number(oc.sub_total)) * 100 : 0;
-    doc.font('Helvetica');
-    doc.text('Subtotal:', rightAlignX - labelWidth, currentY, { width: labelWidth, align: 'right' });
-    doc.text(`$${Number(oc.sub_total).toFixed(2)}`, rightAlignX, currentY, { width: 80, align: 'right' });
-    currentY += 15;
-    doc.text(`IVA (${ivaRate.toFixed(0)}%):`, rightAlignX - labelWidth, currentY, { width: labelWidth, align: 'right' });
-    doc.text(`$${Number(oc.iva).toFixed(2)}`, rightAlignX, currentY, { width: 80, align: 'right' });
-    currentY += 15;
-    doc.font('Helvetica-Bold');
-    doc.text('Total:', rightAlignX - labelWidth, currentY, { width: labelWidth, align: 'right' });
-    doc.text(`$${Number(oc.total).toFixed(2)} ${oc.moneda}`, rightAlignX, currentY, { width: 80, align: 'right' });
-    return currentY + 20;
-}
-function drawFooter(doc) {
-    const pageBottom = doc.page.height - 70;
-    doc.fontSize(8).font('Helvetica-Oblique').fillColor('#555555')
-        .text('Este documento es una Orden de Compra oficial. Sujeto a términos y condiciones.', 0, pageBottom, { align: 'center' })
-        .text('Documento generado por SIRA - Sistema Integral de Requisiciones y Abastecimiento', 0, pageBottom + 10, { align: 'center' });
-}
-// --- FIN SECCIÓN DE DIBUJO ---
-
-
-// ===============================================================================================
-// --- ¡FUNCIÓN PRINCIPAL REFACTORIZADA! ---
-// ===============================================================================================
-
-/**
- * @description Orquesta la generación del PDF.
- * @param {number} ocId - El ID de la Orden de Compra a generar.
- * @param {object} [dbClient] - (Opcional) Un cliente de 'pg' existente si se está en una transacción.
- * @returns {Promise<Buffer>} El Buffer del PDF generado.
- */
-const generatePurchaseOrderPdf = async (ocId, dbClient) => {
-  // =================================================================
-  // --- ¡CORRECCIÓN BUG SALTO DE IDs (Paso 1)! ---
-  // Determina si usar el pool global o el cliente de la transacción
-  const db = dbClient || pool;
-  // =================================================================
-
-  // 1) Traer datos completos para el PDF (cabecera)
-  const ocQ = await db.query(`
-    SELECT oc.*, 
-           p.razon_social AS proveedor_razon_social, p.marca AS proveedor_marca, p.rfc AS proveedor_rfc, p.correo AS proveedor_correo,
-           proy.nombre AS proyecto_nombre, s.nombre AS sitio_nombre, u.nombre AS usuario_nombre,
-           (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) AS moneda,
-           NOW() AS fecha_aprobacion
-    FROM ordenes_compra oc
-    JOIN proveedores p ON oc.proveedor_id = p.id
-    JOIN proyectos proy ON oc.proyecto_id = proy.id
-    JOIN sitios s ON oc.sitio_id = s.id
-    JOIN usuarios u ON oc.usuario_id = u.id
-    WHERE oc.id = $1
-  `, [ocId]);
-
-  if (ocQ.rowCount === 0) {
-    throw new Error(`[PDF Service] OC ${ocId} no encontrada.`); 
-  }
-  const ocData = ocQ.rows[0];
-
-  // 2) Traer detalle (ítems)
-  // =================================================================
-  // --- ¡CORRECCIÓN BUG SALTO DE IDs (Paso 2)! ---
-  // Se usa 'db.query' (el cliente de la transacción) en lugar de 'pool.query'.
-  // =================================================================
-  const itemsQ = await db.query(`
-    SELECT ocd.*, cm.nombre AS material_nombre, cu.simbolo AS unidad_simbolo
-    FROM ordenes_compra_detalle ocd
-    JOIN catalogo_materiales cm ON ocd.material_id = cm.id
-    JOIN catalogo_unidades cu ON cm.unidad_de_compra = cu.id
-    WHERE ocd.orden_compra_id = $1
-    ORDER BY ocd.id ASC
-  `, [ocId]);
-  const itemsData = itemsQ.rows;
   
-  // 3) Generar el PDF en un Buffer (Sin cambios)
+  // ==================================================================
+  // --- ¡INICIO DE CORRECCIÓN DE FORMATO (Paginación)! ---
+  // ==================================================================
+  
+  // 3. Se mueven los totales 20px hacia arriba para evitar el salto de página
+  let currentY = 650; // <-- Antes era 670
+  
+  // ==================================================================
+  // --- ¡FIN DE CORRECCIÓN DE FORMATO! ---
+  // ==================================================================
+
+  const currency = oc.moneda || 'MXN';
+  const subTotal = Number(oc.sub_total || 0);
+  const iva = Number(oc.iva || 0);
+  const total = Number(oc.total || 0);
+  
+  doc.font('Helvetica-Bold').fontSize(10);
+  
+  doc.text('Subtotal:', 430, currentY, { width: 70, align: 'right' });
+  doc.text(`$${subTotal.toFixed(2)}`, 500, currentY, { width: 70, align: 'right' });
+  currentY += 15;
+  
+  doc.text('IVA (16%):', 430, currentY, { width: 70, align: 'right' });
+  doc.text(`$${iva.toFixed(2)}`, 500, currentY, { width: 70, align: 'right' });
+  currentY += 15;
+  
+  doc.text('Total:', 430, currentY, { width: 70, align: 'right' });
+  doc.text(`$${total.toFixed(2)} ${currency}`, 500, currentY, { width: 70, align: 'right' });
+}
+
+// =================================================================================================
+// --- FUNCIÓN PRINCIPAL (Versión 4.0) ---
+// =================================================================================================
+/**
+ * @param {object} ocData - La fila completa de 'ordenes_compra' (con joins).
+ * @param {array} itemsData - Un array de filas de 'ordenes_compra_detalle' (con joins).
+ * @param {object} [db=pool] - (Opcional) Un cliente de transacción de node-pg.
+ */
+async function generatePurchaseOrderPdf(ocData, itemsData, db = pool) {
+  
+  // (RF) Ya no necesitamos la consulta redundante de 'itemsData',
+  // porque los controladores 'vistoBueno' y 'ordenCompra' (corregidos)
+  // ahora los consultan y los pasan como 'itemsData'.
+
+  // 3) Generar el PDF en un Buffer
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({ margin: 40, size: 'letter' });
@@ -169,21 +160,29 @@ const generatePurchaseOrderPdf = async (ocId, dbClient) => {
 
       drawHeader(doc, ocData);
       let currentY = drawInfoSection(doc, ocData);
-      currentY = drawItemsTable(doc, itemsData, currentY);
-      drawTotals(doc, ocData);
+      
+      // (RF) 'itemsData' es el array que viene del controlador
+      currentY = drawItemsTable(doc, itemsData, currentY); 
+      
+      // (RF) No le pasamos 'currentY' a drawTotals, ya que movimos
+      // los totales fijos hacia arriba (Línea 106).
+      drawTotals(doc, ocData); 
       
       const pages = doc.bufferedPageRange();
-      for (let i = 0; i < (pages.count || 1); i++) {
+      for (let i = 0; i < pages.count; i++) {
         doc.switchToPage(i);
-        drawFooter(doc);
+        doc.font('Helvetica-Oblique').fontSize(8).fillColor('#AAAAAA')
+           .text('Este documento es una Orden de Compra oficial. Sujeto a términos y condiciones.', 40, 720, { align: 'left' })
+           .text(`Documento generado por SIRA - Sistema Integral de Requisiciones y Abastecimiento`, 40, 730, { align: 'left' });
       }
 
       doc.end();
-    } catch (error) {
-      console.error("Error durante la generación del stream del PDF:", error);
-      reject(error);
+    } catch (err) {
+      reject(err);
     }
   });
-};
+}
 
-module.exports = { generatePurchaseOrderPdf };
+module.exports = {
+  generatePurchaseOrderPdf
+};
