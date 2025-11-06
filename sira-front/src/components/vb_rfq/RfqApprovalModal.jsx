@@ -1,12 +1,10 @@
-//C:\SIRA\sira-front\src\components\vb_rfq\RfqApprovalModal.jsx
 /**
  * =================================================================================================
  * COMPONENTE: RfqApprovalModal (Visualización Dual: OCs Pendientes y Generadas)
- * Versión 2.1 — Fix:
- *  - Normalización estricta de IDs (Number) para el bloqueo por opciones_bloqueadas
- *  - Refetch de detalle al (re)abrir y tras acciones; refreshList también al cerrar
- *  - Sin cambios visuales
  * =================================================================================================
+ * @file RfqApprovalModal.jsx
+ * @description Este modal muestra los bloques de compras pendientes y también los ya generados
+ * para cada proveedor, separando visualmente cada caso.
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -20,24 +18,22 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import LockIcon from '@mui/icons-material/Lock';
 import { calcularResumenParaModal } from './vbRfqUtils';
 
-// Helpers de normalización
-const toNum = (v) => {
-  const n = Number(v);
-  return Number.isNaN(n) ? undefined : n;
-};
-const toNumArray = (arr) => (Array.isArray(arr) ? arr.map((x) => toNum(x)).filter((x) => x !== undefined) : []);
-
+// ===============================================================================================
+// --- COMPONENTE PRINCIPAL ---
+// ===============================================================================================
 export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, setGlobalLoading }) {
   // --- Estado local ---
   const [details, setDetails] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // <-- Este 'loading' controla el botón
 
   // =============================================================================================
-  // --- CARGA / REFRESH DE DETALLES ---
+  // --- FUNCIONES DE CARGA Y UTILIDAD ---
   // =============================================================================================
+
+  // Cargar detalles del RFQ
   const fetchDetails = useCallback(async () => {
     if (!rfqId) return;
-    setLoading(true);
+    setLoading(true); // <-- Usamos el loading local para el spinner interno
     try {
       const data = await api.get(`/api/rfq/${rfqId}`);
       setDetails(data);
@@ -50,94 +46,76 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
 
   useEffect(() => {
     if (open) {
-      // Al abrir, siempre refetch para no usar snapshots obsoletos
       fetchDetails();
     } else {
-      setDetails(null);
+      setDetails(null); // Limpia detalles al cerrar
     }
   }, [open, fetchDetails]);
 
-  // Cierre que también refresca la lista general
-  const handleClose = () => {
-    try {
-      if (typeof refreshList === 'function') refreshList();
-    } finally {
-      if (typeof onClose === 'function') onClose();
-    }
-  };
+  // Agrupar líneas: separa líneas pendientes vs. líneas ya con OC por proveedor
+const proveedoresBloques = useMemo(() => {
+  if (!details) return { pendientes: [], bloqueadas: [] };
 
-  // =============================================================================================
-  // --- AGRUPACIÓN PENDIENTES vs BLOQUEADAS (con NORMALIZACIÓN DE IDs) ---
-  // =============================================================================================
-  const proveedoresBloques = useMemo(() => {
-    if (!details) return { pendientes: [], bloqueadas: [] };
+  const opcionesBloqueadas = details.opciones_bloqueadas || [];
 
-    // Normalizar lista de bloqueados a números
-    const opcionesBloqueadasSet = new Set(toNumArray(details.opciones_bloqueadas));
+  // Estructura: { [proveedorId]: { nombre, opciones: [], bloqueada: bool, adjuntos: [] } }
+  const agrupadosPendientes = {};
+  const agrupadosBloqueados = {};
 
-    // Estructuras intermedias
-    const agrupadosPendientes = {};
-    const agrupadosBloqueados = {};
+  details.materiales.forEach(material => {
+    // --- OPCIONES PENDIENTES (no bloqueadas) ---
+    material.opciones
+      .filter(op =>
+        op.seleccionado === true &&
+        !opcionesBloqueadas.includes(op.id)
+      )
+      .forEach(op => {
+        const provId = op.proveedor_id;
+        if (!agrupadosPendientes[provId]) {
+          agrupadosPendientes[provId] = {
+            nombre: op.proveedor_razon_social || op.proveedor_nombre,
+            opciones: [],
+            adjuntos: details.adjuntos_cotizacion?.filter(a => a.proveedor_id === provId) || [],
+            bloqueada: false
+          };
+        }
+        agrupadosPendientes[provId].opciones.push({ ...op, materialNombre: material.material });
+      });
 
-    (details.materiales || []).forEach((material) => {
-      const opciones = Array.isArray(material.opciones) ? material.opciones : [];
+    // --- OPCIONES BLOQUEADAS (YA OC) ---
+    material.opciones
+      .filter(op =>
+        op.seleccionado === true &&
+        opcionesBloqueadas.includes(op.id)
+      )
+      .forEach(op => {
+        const provId = op.proveedor_id;
+        if (!agrupadosBloqueados[provId]) {
+          agrupadosBloqueados[provId] = {
+            nombre: op.proveedor_razon_social || op.proveedor_nombre,
+            opciones: [],
+            adjuntos: details.adjuntos_cotizacion?.filter(a => a.proveedor_id === provId) || [],
+            bloqueada: true
+          };
+        }
+        agrupadosBloqueados[provId].opciones.push({ ...op, materialNombre: material.material });
+      });
+  });
 
-      // --- OPCIONES PENDIENTES ---
-      opciones
-        .filter((op) => op?.seleccionado === true && !opcionesBloqueadasSet.has(toNum(op?.id)))
-        .forEach((op) => {
-          const provIdNum = toNum(op?.proveedor_id);
-          if (!provIdNum) return;
+  // Mapea a array, solo los proveedores con líneas correspondientes
+  const pendientes = Object.values(agrupadosPendientes).map(grupo => ({
+    ...grupo,
+    resumenFinanciero: calcularResumenParaModal(grupo.opciones)
+  }));
 
-          if (!agrupadosPendientes[provIdNum]) {
-            agrupadosPendientes[provIdNum] = {
-              nombre: op.proveedor_razon_social || op.proveedor_nombre,
-              opciones: [],
-              adjuntos: (details.adjuntos_cotizacion || []).filter((a) => toNum(a.proveedor_id) === provIdNum),
-              bloqueada: false,
-            };
-          }
-          agrupadosPendientes[provIdNum].opciones.push({ ...op, materialNombre: material.material });
-        });
+  const bloqueadas = Object.values(agrupadosBloqueados).map(grupo => ({
+    ...grupo,
+    resumenFinanciero: calcularResumenParaModal(grupo.opciones)
+  }));
 
-      // --- OPCIONES BLOQUEADAS (ya OC) ---
-      opciones
-        .filter((op) => op?.seleccionado === true && opcionesBloqueadasSet.has(toNum(op?.id)))
-        .forEach((op) => {
-          const provIdNum = toNum(op?.proveedor_id);
-          if (!provIdNum) return;
+  return { pendientes, bloqueadas };
+}, [details]);
 
-          if (!agrupadosBloqueados[provIdNum]) {
-            agrupadosBloqueados[provIdNum] = {
-              nombre: op.proveedor_razon_social || op.proveedor_nombre,
-              opciones: [],
-              adjuntos: (details.adjuntos_cotizacion || []).filter((a) => toNum(a.proveedor_id) === provIdNum),
-              bloqueada: true,
-            };
-          }
-          agrupadosBloqueados[provIdNum].opciones.push({ ...op, materialNombre: material.material });
-        });
-    });
-
-    // Mapear a arrays y calcular resúmenes
-    const pendientes = Object.entries(agrupadosPendientes).map(([provIdStr, grupo]) => ({
-      ...grupo,
-      proveedorId: toNum(provIdStr),
-      resumenFinanciero: calcularResumenParaModal(grupo.opciones),
-    }));
-
-    const bloqueadas = Object.entries(agrupadosBloqueados).map(([provIdStr, grupo]) => ({
-      ...grupo,
-      proveedorId: toNum(provIdStr),
-      resumenFinanciero: calcularResumenParaModal(grupo.opciones),
-    }));
-
-    return { pendientes, bloqueadas };
-  }, [details]);
-
-  // =============================================================================================
-  // --- ACCIONES ---
-  // =============================================================================================
 
   // Descargar PDF OC generada
   const handleDownloadPdf = async (ocId) => {
@@ -148,7 +126,7 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
       const link = document.createElement('a');
       link.href = url;
       let fileName = `OC-${ocId}.pdf`;
-      const contentDisposition = response.headers?.['content-disposition'];
+      const contentDisposition = response.headers['content-disposition'];
       if (contentDisposition) {
         const match = contentDisposition.match(/filename="(.+)"/);
         if (match && match[1]) fileName = match[1];
@@ -165,40 +143,43 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
 
   // Generar OC (solo para bloque pendiente)
   const handleGenerateOC = async (proveedorId) => {
-    if (!rfqId || !proveedorId) return;
-    setGlobalLoading?.(true);
+    // ==================================================================
+    // --- INICIO DE LA CORRECCIÓN ---
+    // ==================================================================
+    setLoading(true); // <-- CORRECCIÓN 1: Deshabilita el botón local INMEDIATAMENTE
+    setGlobalLoading(true); // Muestra el spinner global
+    
     try {
       toast.info("Iniciando proceso de generación...");
       const response = await api.post(`/api/rfq/${rfqId}/generar-ocs`, { proveedorId });
-      toast.success(response.mensaje || "OC generada.");
-
-      // Si el backend regresa OCs creadas, descargamos la primera
-      if (Array.isArray(response.ocs) && response.ocs.length > 0) {
-        const first = response.ocs[0];
-        if (first?.id) await handleDownloadPdf(first.id);
+      toast.success(response.mensaje);
+      if (response.ocs && response.ocs.length > 0) {
+        await handleDownloadPdf(response.ocs[0].id);
       }
-
-      // Refrescar detalle del modal y la lista general
-      await fetchDetails();
-      await refreshList?.();
+      await fetchDetails(); // Espera a que los detalles se recarguen
+      refreshList(); // Actualiza la lista principal
     } catch (err) {
-      toast.error(err?.error || "Ocurrió un error al generar la OC.");
+      toast.error(err.error || "Ocurrió un error al generar la OC.");
     } finally {
-      setGlobalLoading?.(false);
+      setGlobalLoading(false); // Oculta el spinner global
+      setLoading(false); // <-- CORRECCIÓN 2: Rehabilita el botón local al finalizar
     }
+    // ==================================================================
+    // --- FIN DE LA CORRECCIÓN ---
+    // ==================================================================
   };
 
   // =============================================================================================
-  // --- UI ---
+  // --- UI: RENDERIZADO ---
   // =============================================================================================
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
         Generar Órdenes de Compra para: <strong>{details?.rfq_code}</strong>
       </DialogTitle>
       <DialogContent dividers>
-        {loading ? (
+        {loading && !details ? ( // Muestra spinner solo si está cargando por primera vez
           <div style={{ textAlign: 'center', padding: '20px' }}>
             <CircularProgress />
           </div>
@@ -212,15 +193,15 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
                 <Typography variant="h6" gutterBottom>
                   OCs Pendientes de Generar
                 </Typography>
-                {proveedoresBloques.pendientes.map((grupo) => {
-                  const provId = toNum(grupo.proveedorId) || toNum(grupo.opciones?.[0]?.proveedor_id);
+                {proveedoresBloques.pendientes.map((grupo, index) => {
+                  const provId = grupo.opciones[0].proveedor_id;
                   return (
                     <Paper key={`pendiente-${provId}`} variant="outlined" sx={{ p: 2, mb: 2 }}>
                       <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
                         {grupo.nombre}
                       </Typography>
                       <List dense>
-                        {grupo.opciones.map((item) => (
+                        {grupo.opciones.map(item => (
                           <ListItem key={item.id} disableGutters>
                             <ListItemText
                               primary={item.materialNombre}
@@ -234,7 +215,7 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
                           <Divider sx={{ my: 1 }} />
                           <Typography variant="caption">Archivos de Cotización:</Typography>
                           <List dense disablePadding>
-                            {grupo.adjuntos.map((file) => (
+                            {grupo.adjuntos.map(file => (
                               <ListItem key={file.id} component={Link} href={file.ruta_archivo} target="_blank" button dense>
                                 <ListItemIcon sx={{ minWidth: '32px' }}>
                                   <AttachFileIcon fontSize="small" />
@@ -263,12 +244,8 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
                         )}
                         <Divider sx={{ my: 1 }} />
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
-                          <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                            Total ({grupo.resumenFinanciero.moneda}):
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                            ${grupo.resumenFinanciero.total.toFixed(2)}
-                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 'bold' }}>Total ({grupo.resumenFinanciero.moneda}):</Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 'bold' }}>${grupo.resumenFinanciero.total.toFixed(2)}</Typography>
                         </Box>
                       </Box>
                       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
@@ -276,7 +253,7 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
                           variant="contained"
                           color="success"
                           onClick={() => handleGenerateOC(provId)}
-                          disabled={loading}
+                          disabled={loading} // <-- El botón ahora se deshabilita con el 'loading' local
                         >
                           Generar OC
                         </Button>
@@ -297,7 +274,7 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
                 </Typography>
                 {proveedoresBloques.bloqueadas.map((grupo, index) => (
                   <Paper
-                    key={`bloqueada-${grupo.proveedorId || index}`}
+                    key={`bloqueada-${grupo.opciones[0].proveedor_id}-${index}`}
                     variant="outlined"
                     sx={{
                       p: 2,
@@ -309,30 +286,20 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
                     }}
                   >
                     {/* Overlay de bloqueo */}
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        background: 'rgba(255,255,255,0.3)',
-                        zIndex: 2,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
+                    <Box sx={{
+                      position: 'absolute',
+                      top: 0, left: 0, width: '100%', height: '100%',
+                      background: 'rgba(255,255,255,0.3)',
+                      zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
+                    }}>
                       <LockIcon sx={{ fontSize: 32, mb: 1, color: '#757575' }} />
                       <Typography color="text.secondary" fontWeight={600}>OC Generada (Inhabilitado)</Typography>
                     </Box>
-
                     <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#757575' }}>
                       {grupo.nombre}
                     </Typography>
                     <List dense>
-                      {grupo.opciones.map((item) => (
+                      {grupo.opciones.map(item => (
                         <ListItem key={item.id} disableGutters>
                           <ListItemText
                             primary={item.materialNombre}
@@ -346,7 +313,7 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
                         <Divider sx={{ my: 1 }} />
                         <Typography variant="caption">Archivos de Cotización:</Typography>
                         <List dense disablePadding>
-                          {grupo.adjuntos.map((file) => (
+                          {grupo.adjuntos.map(file => (
                             <ListItem key={file.id} component={Link} href={file.ruta_archivo} target="_blank" button dense>
                               <ListItemIcon sx={{ minWidth: '32px' }}>
                                 <AttachFileIcon fontSize="small" />
@@ -375,12 +342,8 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
                       )}
                       <Divider sx={{ my: 1 }} />
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                          Total ({grupo.resumenFinanciero.moneda}):
-                        </Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                          ${grupo.resumenFinanciero.total.toFixed(2)}
-                        </Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>Total ({grupo.resumenFinanciero.moneda}):</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>${grupo.resumenFinanciero.total.toFixed(2)}</Typography>
                       </Box>
                     </Box>
                   </Paper>
@@ -388,7 +351,7 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
               </>
             )}
 
-            {proveedoresBloques.pendientes.length === 0 && proveedoresBloques.bloqueadas.length === 0 && (
+            {proveedoresBloques.pendientes.length === 0 && proveedoresBloques.bloqueadas.length === 0 && !loading && (
               <Alert severity="success">
                 ¡Excelente! Todas las líneas de este RFQ ya tienen una Orden de Compra generada.
               </Alert>
@@ -397,7 +360,9 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={handleClose}>Cerrar</Button>
+        <Button onClick={onClose} disabled={loading}> {/* Deshabilita Cerrar mientras se genera */}
+          Cerrar
+        </Button>
       </DialogActions>
     </Dialog>
   );
