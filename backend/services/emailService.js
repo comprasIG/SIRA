@@ -1,14 +1,17 @@
 // C:\SIRA\backend\services\emailService.js
 /**
  * =================================================================================================
- * SERVICIO: Envío de Correo (Versión Mejorada)
+ * SERVICIO: Envío de Correo (Versión con Firma)
  * =================================================================================================
- * @description Envía correos electrónicos con soporte para múltiples archivos adjuntos.
+ * @description Envía correos electrónicos con soporte para múltiples archivos adjuntos
+ * y una firma de imagen incrustada.
  */
 const nodemailer = require('nodemailer');
+const path = require('path'); // Necesario para la ruta de la firma
+const fs = require('fs'); // Necesario para leer la firma
 require('dotenv').config(); 
 
-// --- Configuración del Transportador de Correo ---
+// --- Configuración del Transportador de Correo (sin cambios) ---
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: process.env.SMTP_PORT,
@@ -19,27 +22,49 @@ const transporter = nodemailer.createTransport({
     },
 });
 
+// =================================================================
+// --- ¡NUEVO: Lógica de Firma Incrustada! ---
+// =================================================================
+const signaturePath = path.join(__dirname, '..', 'assets', 'firmas electronicas-GrupoIG.jpg');
+const signatureCid = 'sira-firma-ig@grupoig.com'; // ID único para la imagen
+let signatureAttachment = null;
+let signatureHtml = '';
+
+// Leer la imagen de firma solo una vez al iniciar el servidor
+if (fs.existsSync(signaturePath)) {
+    signatureAttachment = {
+        filename: 'firmas electronicas-GrupoIG.jpg',
+        path: signaturePath,
+        cid: signatureCid // El Content-ID que usará el HTML
+    };
+    signatureHtml = `<br><br><img src="cid:${signatureCid}" alt="Firma Grupo IG" />`;
+} else {
+    console.warn(`[EmailService] Archivo de firma no encontrado. Se omitirá. Ruta esperada: ${signaturePath}`);
+}
+// =================================================================
+
 /**
  * =================================================================================================
- * --- ¡NUEVA FUNCIÓN PRINCIPAL! ---
+ * --- FUNCIÓN PRINCIPAL (Modificada) ---
  * =================================================================================================
- * @description Envía un correo electrónico con múltiples archivos adjuntos.
- * @param {string[]} recipients - Arreglo de correos de los destinatarios.
- * @param {string} subject - Asunto del correo.
- * @param {string} htmlBody - Cuerpo del correo en HTML.
- * @param {Array<object>} attachments - Un ARREGLO de objetos de adjuntos.
- * Cada objeto debe tener { filename: 'nombre.pdf', content: bufferDeArchivo }.
+ * @description Envía un correo electrónico con múltiples archivos adjuntos y la firma.
  */
 const sendEmailWithAttachments = async (recipients, subject, htmlBody, attachments = []) => {
     // Filtramos para asegurarnos de que solo se incluyan adjuntos válidos.
     const validAttachments = attachments.filter(att => att && att.filename && att.content);
 
+    // --- CAMBIO: Añadir la firma a los adjuntos ---
+    if (signatureAttachment) {
+        validAttachments.push(signatureAttachment);
+    }
+
     const mailOptions = {
         from: `"SIRA PROJECT" <${process.env.SMTP_USER}>`,
         to: recipients.join(', '),
         subject: subject,
-        html: htmlBody,
-        attachments: validAttachments, // Asignamos el arreglo de adjuntos
+        // --- CAMBIO: Añadir el HTML de la firma al cuerpo ---
+        html: htmlBody + signatureHtml, 
+        attachments: validAttachments,
     };
 
     console.log(`Preparando para enviar correo a [${recipients.join(', ')}] con ${validAttachments.length} archivo(s) adjunto(s).`);
@@ -57,9 +82,8 @@ const sendEmailWithAttachments = async (recipients, subject, htmlBody, attachmen
 
 /**
  * =================================================================================================
- * --- FUNCIÓN ANTIGUA (Ahora es un atajo a la nueva) ---
+ * --- FUNCIÓN ANTIGUA (Sin cambios, depende de la principal) ---
  * =================================================================================================
- * @description Envía un correo con un único PDF. Mantenida por retrocompatibilidad.
  */
 const sendRequisitionEmail = async (recipients, subject, htmlBody, pdfBuffer, fileName) => {
     const attachments = [];
@@ -76,5 +100,5 @@ const sendRequisitionEmail = async (recipients, subject, htmlBody, pdfBuffer, fi
 
 module.exports = {
     sendRequisitionEmail,
-    sendEmailWithAttachments, // <-- Se exporta la nueva función
+    sendEmailWithAttachments,
 };

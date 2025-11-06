@@ -24,7 +24,7 @@ import { calcularResumenParaModal } from './vbRfqUtils';
 export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, setGlobalLoading }) {
   // --- Estado local ---
   const [details, setDetails] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // <-- Este 'loading' controla el botón
 
   // =============================================================================================
   // --- FUNCIONES DE CARGA Y UTILIDAD ---
@@ -33,7 +33,7 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
   // Cargar detalles del RFQ
   const fetchDetails = useCallback(async () => {
     if (!rfqId) return;
-    setLoading(true);
+    setLoading(true); // <-- Usamos el loading local para el spinner interno
     try {
       const data = await api.get(`/api/rfq/${rfqId}`);
       setDetails(data);
@@ -48,12 +48,11 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
     if (open) {
       fetchDetails();
     } else {
-      setDetails(null);
+      setDetails(null); // Limpia detalles al cerrar
     }
   }, [open, fetchDetails]);
 
   // Agrupar líneas: separa líneas pendientes vs. líneas ya con OC por proveedor
-// Agrupar líneas: separa líneas pendientes vs. líneas ya con OC por proveedor
 const proveedoresBloques = useMemo(() => {
   if (!details) return { pendientes: [], bloqueadas: [] };
 
@@ -144,21 +143,31 @@ const proveedoresBloques = useMemo(() => {
 
   // Generar OC (solo para bloque pendiente)
   const handleGenerateOC = async (proveedorId) => {
-    setGlobalLoading(true);
+    // ==================================================================
+    // --- INICIO DE LA CORRECCIÓN (BUG #2) ---
+    // ==================================================================
+    setLoading(true); // <-- CORRECCIÓN 1: Deshabilita el botón local INMEDIATAMENTE
+    setGlobalLoading(true); // Muestra el spinner global
+    
     try {
       toast.info("Iniciando proceso de generación...");
       const response = await api.post(`/api/rfq/${rfqId}/generar-ocs`, { proveedorId });
       toast.success(response.mensaje);
       if (response.ocs && response.ocs.length > 0) {
-        await handleDownloadPdf(response.ocs[0].id);
+        // Usa el ID que el backend (corregido) reporta
+        await handleDownloadPdf(response.ocs[0].id); 
       }
-      fetchDetails();
-      refreshList();
+      await fetchDetails(); // Espera a que los detalles se recarguen
+      refreshList(); // Actualiza la lista principal
     } catch (err) {
       toast.error(err.error || "Ocurrió un error al generar la OC.");
     } finally {
-      setGlobalLoading(false);
+      setGlobalLoading(false); // Oculta el spinner global
+      setLoading(false); // <-- CORRECCIÓN 2: Rehabilita el botón local al finalizar
     }
+    // ==================================================================
+    // --- FIN DE LA CORRECCIÓN ---
+    // ==================================================================
   };
 
   // =============================================================================================
@@ -171,7 +180,7 @@ const proveedoresBloques = useMemo(() => {
         Generar Órdenes de Compra para: <strong>{details?.rfq_code}</strong>
       </DialogTitle>
       <DialogContent dividers>
-        {loading ? (
+        {loading && !details ? ( // Muestra spinner solo si está cargando por primera vez
           <div style={{ textAlign: 'center', padding: '20px' }}>
             <CircularProgress />
           </div>
@@ -245,7 +254,7 @@ const proveedoresBloques = useMemo(() => {
                           variant="contained"
                           color="success"
                           onClick={() => handleGenerateOC(provId)}
-                          disabled={loading}
+                          disabled={loading} // <-- El botón ahora se deshabilita con el 'loading' local
                         >
                           Generar OC
                         </Button>
@@ -343,7 +352,7 @@ const proveedoresBloques = useMemo(() => {
               </>
             )}
 
-            {proveedoresBloques.pendientes.length === 0 && proveedoresBloques.bloqueadas.length === 0 && (
+            {proveedoresBloques.pendientes.length === 0 && proveedoresBloques.bloqueadas.length === 0 && !loading && (
               <Alert severity="success">
                 ¡Excelente! Todas las líneas de este RFQ ya tienen una Orden de Compra generada.
               </Alert>
@@ -352,7 +361,9 @@ const proveedoresBloques = useMemo(() => {
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cerrar</Button>
+        <Button onClick={onClose} disabled={loading}> {/* Deshabilita Cerrar mientras se genera */}
+          Cerrar
+        </Button>
       </DialogActions>
     </Dialog>
   );

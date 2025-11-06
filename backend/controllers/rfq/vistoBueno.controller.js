@@ -1,15 +1,17 @@
 /**
  * ================================================================================================
- * CONTROLADOR: Visto Bueno de Cotizaciones (VB_RFQ) - Versión Completa y Documentada
+ * CONTROLADOR: Visto Bueno de Cotizaciones (VB_RFQ) - (Versión 4.1 - Corrección de Query Faltante)
  * ================================================================================================
  * @file vistoBueno.controller.js
  * @description Gerente genera OCs, adjunta PDF y cotizaciones, sube a Drive y notifica por email.
+ * --- HISTORIAL DE CAMBIOS ---
+ * v4.1: Se re-inserta la consulta 'quoteFilesQuery' que se borró por error.
  */
 
 const pool = require('../../db/pool');
 const { generatePurchaseOrderPdf } = require('../../services/purchaseOrderPdfService');
-const { uploadPdfBuffer, downloadFileBuffer } = require('../../services/googleDrive');
-const { sendEmailWithAttachments } = require('../../services/emailService');
+const { uploadPdfBuffer, downloadFileBuffer } = require('../../services/googleDrive'); 
+const { sendEmailWithAttachments } = require('../../services/emailService'); 
 
 /* ================================================================================================
  * SECCIÓN 1: Helpers
@@ -76,8 +78,6 @@ const rechazarRfq = async (req, res) => {
 
 /**
  * POST /api/rfq/:id/generar-ocs
- * Genera una OC para cada proveedor solo con las líneas pendientes (NO bloqueadas).
- * Adjunta PDF, archivos de respaldo, sube a Drive, y manda email.
  */
 const generarOcsDesdeRfq = async (req, res) => {
     const { id: rfqId } = req.params;
@@ -96,7 +96,6 @@ const generarOcsDesdeRfq = async (req, res) => {
         const rfqData = rfqQuery.rows[0];
 
         // --- 2. Buscar opciones seleccionadas NO bloqueadas ---
-        // Opciones bloqueadas = las que YA tienen OC, estas NO se deben incluir
         const opcionesBloqueadasQuery = await client.query(
             `SELECT comparativa_precio_id FROM ordenes_compra_detalle 
              WHERE orden_compra_id IN (SELECT id FROM ordenes_compra WHERE rfq_id = $1)`, [rfqId]
@@ -114,14 +113,13 @@ const generarOcsDesdeRfq = async (req, res) => {
             opcionesQueryString += ` AND ro.proveedor_id = $2`;
             queryParams.push(proveedorId);
         }
-        // Solo incluir NO bloqueadas
         if (opcionesBloqueadas.length > 0) {
             opcionesQueryString += ` AND ro.id NOT IN (${opcionesBloqueadas.join(',')})`;
         }
         const opcionesQuery = await client.query(opcionesQueryString, queryParams);
         if (opcionesQuery.rows.length === 0) throw new Error('No hay opciones pendientes para generar OC para este proveedor.');
 
-        // --- 3. Agrupar por proveedor (SOLO los items pendientes, no bloqueados) ---
+        // --- 3. Agrupar por proveedor ---
         const comprasPorProveedor = opcionesQuery.rows.reduce((acc, opt) => {
             (acc[opt.proveedor_id] = acc[opt.proveedor_id] || []).push(opt);
             return acc;
@@ -129,25 +127,41 @@ const generarOcsDesdeRfq = async (req, res) => {
 
         const ocsGeneradasInfo = [];
 
-        // --- 4. Procesar cada proveedor (solo items que no tengan OC previa) ---
+        // --- 4. Procesar cada proveedor ---
         for (const provId in comprasPorProveedor) {
             const items = comprasPorProveedor[provId];
             const primerItem = items[0];
 
-            // Calcular totales de OC (solo de items pendientes)
+            // Calcular totales
             const subTotal = items.reduce((acc, x) => acc + Number(x.cantidad_cotizada) * Number(x.precio_unitario), 0);
             const iva = items.some(x => x.config_calculo?.isIvaActive === false) ? 0 : subTotal * 0.16;
             const total = subTotal + iva;
 
-            // --- 4A. Crear OC (solo con los items pendientes, no bloqueados) ---
-            const ocInsertResult = await client.query(
-                `INSERT INTO ordenes_compra (numero_oc, usuario_id, rfq_id, sitio_id, proyecto_id, lugar_entrega, sub_total, iva, total, impo, status, proveedor_id)
-                 VALUES ('OC-' || nextval('ordenes_compra_id_seq'), $1, $2, $3, $4, $5, $6, $7, $8, $9, 'POR_AUTORIZAR', $10) RETURNING id, numero_oc`,
-                [usuarioId, rfqId, rfqData.sitio_id, rfqData.proyecto_id, rfqData.lugar_entrega, subTotal, iva, total, items.some(i => i.es_importacion), provId]
-            );
-            const nuevaOcId = ocInsertResult.rows[0].id;
-            const nuevoNumeroOc = ocInsertResult.rows[0].numero_oc;
+            // --- 4A. (Paso A: Obtener el PRÓXIMO ID de la secuencia UNA SOLA VEZ) ---
+            const seqResult = await client.query("SELECT nextval('ordenes_compra_id_seq') AS id");
+            const nuevaOcId = seqResult.rows[0].id; // Ej. 286
+            const nuevoNumeroOc = 'OC-' + nuevaOcId; // Ej. 'OC-286'
 
+            // --- 4A. (Paso B: Insertar la fila proveyendo explícitamente el ID y el NUMERO_OC) ---
+            await client.query(
+                `INSERT INTO ordenes_compra (id, numero_oc, usuario_id, rfq_id, sitio_id, proyecto_id, lugar_entrega, sub_total, iva, total, impo, status, proveedor_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'POR_AUTORIZAR', $12)`,
+                [
+                    nuevaOcId,      // $1 - id
+                    nuevoNumeroOc,  // $2 - numero_oc
+                    usuarioId,      // $3 - usuario_id
+                    rfqId,          // $4 - rfq_id
+                    rfqData.sitio_id, // $5 - sitio_id
+                    rfqData.proyecto_id, // $6 - proyecto_id
+                    rfqData.lugar_entrega, // $7 - lugar_entrega
+                    subTotal,       // $8 - sub_total
+                    iva,            // $9 - iva
+                    total,          // $10 - total
+                    items.some(i => i.es_importacion), // $11 - impo
+                    provId          // $12 - proveedor_id
+                ]
+            );
+            
             // --- 4B. Insertar detalle de OC y actualizar requisiciones ---
             for (const item of items) {
                 await client.query(
@@ -161,103 +175,88 @@ const generarOcsDesdeRfq = async (req, res) => {
                 );
                 await client.query(
                     `UPDATE requisiciones_detalle SET status_compra = $1 WHERE id = $2 AND cantidad_procesada >= cantidad`,
-                    [nuevaOcId, item.requisicion_detalle_id]
+                    [nuevaOcId, item.requisicion_detalle_id] 
                 );
             }
+            
+            // --- 4C. Obtener datos COMPLETOS para el PDF ---
+            const ocDataQuery = await client.query(`
+                SELECT oc.*, p.razon_social AS proveedor_razon_social, p.marca AS proveedor_marca, p.rfc AS proveedor_rfc,
+                       proy.nombre AS proyecto_nombre, s.nombre AS sitio_nombre, u.nombre as usuario_nombre,
+                       (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) as moneda,
+                       NOW() as fecha_aprobacion
+                FROM ordenes_compra oc
+                JOIN proveedores p ON oc.proveedor_id = p.id
+                JOIN proyectos proy ON oc.proyecto_id = proy.id
+                JOIN sitios s ON oc.sitio_id = s.id
+                JOIN usuarios u ON oc.usuario_id = u.id
+                WHERE oc.id = $1;
+            `, [nuevaOcId]);
+            const ocDataParaPdf = ocDataQuery.rows[0];
 
-            // --- 4C. PDF de OC ---
-         // -------------------------------------------------------------------------------------
-// 4C. PREPARAR LOS DATOS PARA EL PDF DE ORDEN DE COMPRA (OC)
-// -------------------------------------------------------------------------------------
+            const itemsDataQuery = await client.query(`
+                SELECT ocd.*, cm.nombre AS material_nombre, cu.simbolo AS unidad_simbolo
+            FROM ordenes_compra_detalle ocd
+            JOIN catalogo_materiales cm ON ocd.material_id = cm.id
+            JOIN catalogo_unidades cu ON cm.unidad_de_compra = cu.id
+            WHERE ocd.orden_compra_id = $1;
+            `, [nuevaOcId]);
+            const pdfItems = itemsDataQuery.rows;
 
-// 1. Sacar los material_id únicos de los items de la OC (requisiciones_opciones)
-const materialIds = [...new Set(items.map(i => Number(i.material_id)).filter(x => !!x && !isNaN(x)))];
-
-// 2. Traer el nombre y la unidad de TODOS los materiales involucrados en la OC
-let materialInfoMap = {};
-if (materialIds.length > 0) {
-    // OJO: nombre viene de catalogo_materiales y unidad (símbolo) de catalogo_unidades
-    const materialesResult = await client.query(
-        `SELECT m.id, m.nombre, u.simbolo as unidad
-         FROM catalogo_materiales m
-         JOIN catalogo_unidades u ON m.unidad_de_compra = u.id
-         WHERE m.id = ANY($1::int[])`,
-        [materialIds]
-    );
-    // Mapeo para acceso rápido por id
-    materialInfoMap = Object.fromEntries(materialesResult.rows.map(row => [Number(row.id), row]));
-}
-
-// 3. Armar el array de items exactamente como lo espera tu plantilla de PDF
-const pdfItems = items.map(i => ({
-    ...i,
-    material: materialInfoMap[Number(i.material_id)]?.nombre || 'Material desconocido',
-    unidad: materialInfoMap[Number(i.material_id)]?.unidad || '',
-    cantidad: i.cantidad_cotizada,
-    precio_unitario: i.precio_unitario,
-    total: (Number(i.cantidad_cotizada) * Number(i.precio_unitario)).toFixed(2),
-}));
-
-// 4. Armar el objeto final para el PDF (asegúrate que los nombres de propiedades coincidan con lo que lee tu servicio PDF)
-const ocDataParaPdf = {
-    numero_oc: nuevoNumeroOc,
-    proveedor: primerItem.proveedor_razon_social,
-    items: pdfItems,  // El array que tu PDF espera
-    subTotal,
-    iva,
-    total,
-};
-
-// Log de depuración (esto te muestra en consola lo que realmente se manda al PDF)
-console.log('DEBUG PDF DATA', ocDataParaPdf);
-
-// 5. Generar el PDF usando el servicio
-const pdfBuffer = await generatePurchaseOrderPdf(ocDataParaPdf, ocDataParaPdf.items);
+            const pdfBuffer = await generatePurchaseOrderPdf(ocDataParaPdf, pdfItems, client);
+            
+            const pdfFileName = `${nuevoNumeroOc}.pdf`; // Ej: 'OC-286.pdf'
 
             // --- 4D. Subir PDF a Drive ---
-// --- 4D. Subir PDF a Drive ---
-const driveFile = await uploadPdfBuffer(
-    pdfBuffer,                          // 1. El contenido del PDF
-    `OC_${nuevoNumeroOc}.pdf`,          // 2. El nombre del archivo
-    'ORDENES_DE_COMPRA_PDF',            // 3. Carpeta Raíz
-    rfqData.rfq_code                    // 4. Sub-Carpeta (el código del RFQ)
-);
+            const driveFile = await uploadPdfBuffer(
+                pdfBuffer,
+                pdfFileName, // Nombre Corregido
+                'ORDENES_DE_COMPRA_PDF',
+                rfqData.rfq_code
+            );
 
-// --- VALIDACIÓN ROBUSTA ---
-if (!driveFile || !driveFile.webViewLink) {
-    throw new Error('Falló la subida del archivo PDF a Google Drive o no se recibió el link de vuelta.');
-}
+            if (!driveFile || !driveFile.webViewLink) {
+                throw new Error('Falló la subida del archivo PDF a Google Drive o no se recibió el link de vuelta.');
+            }
 
-// --- 4E. Adjuntar archivos de cotización del proveedor a la OC (Drive) ---
-const quoteFilesQuery = await client.query(
-    `SELECT * FROM rfq_proveedor_adjuntos WHERE proveedor_id = $1 AND requisicion_id = $2`,
-    [provId, rfqId]
-);
-const attachments = [];
-// PDF OC principal
-attachments.push({ filename: `OC_${nuevoNumeroOc}.pdf`, content: pdfBuffer });
+            // --- 4E. Adjuntar archivos de cotización ---
+            const attachments = [];
+            attachments.push({ filename: pdfFileName, content: pdfBuffer }); // Nombre Corregido
 
-for (const file of quoteFilesQuery.rows) {
-    try {
-        const fileId = file.ruta_archivo.split('/view')[0].split('/').pop();
-        const fileBuffer = await downloadFileBuffer(fileId);
-        attachments.push({ filename: file.nombre_archivo, content: fileBuffer });
-    } catch (downloadError) {
-        console.error(`No se pudo adjuntar el archivo ${file.nombre_archivo} de Drive. El proceso continuará sin él.`, downloadError);
-    }
-}
+            // ==================================================================
+            // --- ¡INICIO DE LA CORRECCIÓN! ---
+            // Esta línea faltaba
+            // ==================================================================
+            const quoteFilesQuery = await client.query(
+                `SELECT * FROM rfq_proveedor_adjuntos WHERE proveedor_id = $1 AND requisicion_id = $2`,
+                [provId, rfqId]
+            );
+            // ==================================================================
+            // --- ¡FIN DE LA CORRECCIÓN! ---
+            // ==================================================================
 
-// --- 4F. Notificar por correo al grupo ---
-const recipients = await _getRecipientEmailsByGroup('OC_GENERADA_NOTIFICAR', client);
-if (recipients.length > 0) {
-    const subject = `OC Generada para Autorización: ${nuevoNumeroOc} (${primerItem.proveedor_razon_social})`;
-    const htmlBody = `
-        <p>Se ha generado una nueva Orden de Compra y requiere autorización final.</p>
-        <p>Se adjuntan la Orden de Compra y los respaldos de la cotización.</p>
-        <p>Link a Drive: <a href="${driveFile.webViewLink}">Ver Archivo</a></p>
-    `;
-    await sendEmailWithAttachments(recipients, subject, htmlBody, attachments);
-}
+            // (RF) Esta es la línea 254 (antes 233) que ahora funcionará
+            for (const file of quoteFilesQuery.rows) { 
+                try {
+                    const fileId = file.ruta_archivo.split('/view')[0].split('/').pop();
+                    const fileBuffer = await downloadFileBuffer(fileId);
+                    attachments.push({ filename: file.nombre_archivo, content: fileBuffer });
+                } catch (downloadError) {
+                    console.error(`No se pudo adjuntar el archivo ${file.nombre_archivo} de Drive. El proceso continuará sin él.`, downloadError);
+                }
+            }
+
+            // --- 4F. Notificar por correo al grupo ---
+            const recipients = await _getRecipientEmailsByGroup('OC_GENERADA_NOTIFICAR', client);
+            if (recipients.length > 0) {
+                const subject = `OC Generada para Autorización: ${nuevoNumeroOc} (${primerItem.proveedor_razon_social})`;
+                const htmlBody = `
+                    <p>Se ha generado una nueva Orden de Compra y requiere autorización final.</p>
+                    <p>Se adjuntan la Orden de Compra y los respaldos de la cotización.</p>
+                    <p>Link a Drive: <a href="${driveFile.webViewLink}">Ver Archivo</a></p>
+                `;
+                await sendEmailWithAttachments(recipients, subject, htmlBody, attachments);
+            }
 
             ocsGeneradasInfo.push({ numero_oc: nuevoNumeroOc, id: nuevaOcId });
         }

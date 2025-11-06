@@ -1,4 +1,15 @@
 // C:\SIRA\backend\services\googleDrive.js
+/**
+ * =================================================================================================
+ * SERVICIO: Google Drive (Versión 4.4 - Corrección de Entorno Local)
+ * =================================================================================================
+ * @file googleDrive.js
+ * @description Maneja toda la interacción con Google Drive.
+ * --- HISTORIAL DE CAMBIOS ---
+ * v4.4: Se corrige la lógica de 'getEnvironmentRootFolderId' para usar una carpeta 'LOCAL'
+ * en lugar de 'STAGING' cuando se corre en desarrollo local.
+ */
+
 const { google } = require('googleapis');
 const stream = require('stream');
 
@@ -6,7 +17,7 @@ const stream = require('stream');
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
-const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID; // Carpeta raíz de tu instancia
+const SUPER_ROOT_FOLDER_ID = process.env.DRIVE_FOLDER_ID;
 const REDIRECT_URI = 'https://developers.google.com/oauthplayground';
 
 const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
@@ -15,162 +26,177 @@ oauth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
 const drive = () => google.drive({ version: 'v3', auth: oauth2Client });
 
 // ============================================================
-// Helpers internos
+// --- SECCIÓN 1: HELPERS DE CARPETAS ---
 // ============================================================
-const findOrCreateFolder = async (driveService, parentFolderId, folderName) => {
-  const escaped = folderName.replace(/'/g, "\\'");
-  const q = `name='${escaped}' and mimeType='application/vnd.google-apps.folder' and '${parentFolderId}' in parents and trashed=false`;
-  const res = await driveService.files.list({ q, fields: 'files(id, name)', spaces: 'drive' });
-  if (res.data.files.length > 0) return res.data.files[0].id;
 
-  const fileMetadata = {
-    name: folderName,
-    mimeType: 'application/vnd.google-apps.folder',
-    parents: [parentFolderId],
-  };
-  const created = await driveService.files.create({ requestBody: fileMetadata, fields: 'id' });
-  return created.data.id;
-};
+let environmentRootFolderId = null;
 
-const getWebViewLink = async (fileId) => {
-  const meta = await drive().files.get({ fileId, fields: 'id, webViewLink' });
-  return meta.data.webViewLink || null;
-};
+/**
+ * Encuentra o crea la carpeta raíz del AMBIENTE (PRODUCCION, STAGING o LOCAL)
+ */
+const getEnvironmentRootFolderId = async () => {
+  if (environmentRootFolderId) return environmentRootFolderId;
 
-// ============================================================
-// Carpeta estándar para OC: ORDENES DE COMPRA (PDF)/OC-<NUMERO_OC>
-// ============================================================
-const ensureOcFolder = async (numeroOc) => {
-  const d = drive();
-  const rootOcFolderId = await findOrCreateFolder(d, DRIVE_FOLDER_ID, 'ORDENES DE COMPRA (PDF)');
-  const ocFolderName = `OC-${numeroOc}`;
-  const ocFolderId = await findOrCreateFolder(d, rootOcFolderId, ocFolderName);
-  const webViewLink = await getWebViewLink(ocFolderId);
-  return { ocFolderId, webViewLink };
-};
+  // ==================================================================
+  // --- ¡INICIO DE LA CORRECCIÓN (Bug de Entorno)! ---
+  // ==================================================================
+  const env = process.env.NODE_ENV || 'development';
+  let rootFolderName;
 
-// ============================================================
-// Subidas a carpeta de OC
-// ============================================================
-const uploadBufferToFolder = async (folderId, buffer, mimeType, fileName) => {
-  const bufferStream = new stream.PassThrough();
-  bufferStream.end(buffer);
-  const result = await drive().files.create({
-    media: { mimeType, body: bufferStream },
-    requestBody: { name: fileName, parents: [folderId] },
-    fields: 'id, name, webViewLink, webContentLink',
-  });
-  return result.data;
-};
+  if (env === 'production') {
+    rootFolderName = 'PRODUCCION';
+  } else if (env === 'staging') {
+    rootFolderName = 'STAGING';
+  } else {
+    // Si es 'development' o cualquier otra cosa, usa 'LOCAL'
+    rootFolderName = 'LOCAL'; 
+  }
+  // ==================================================================
+  // --- ¡FIN DE LA CORRECCIÓN! ---
+  // ==================================================================
 
-const uploadPdfToOcFolder = async (pdfBuffer, numeroOc, fileName) => {
-  const { ocFolderId, webViewLink: folderWebViewLink } = await ensureOcFolder(numeroOc);
-  const file = await uploadBufferToFolder(ocFolderId, pdfBuffer, 'application/pdf', fileName);
-  return { ...file, folderWebViewLink, folderId: ocFolderId };
-};
-
-const uploadFileToOcFolder = async (fileBuffer, mimeType, numeroOc, fileName) => {
-  const { ocFolderId, webViewLink: folderWebViewLink } = await ensureOcFolder(numeroOc);
-  const file = await uploadBufferToFolder(ocFolderId, fileBuffer, mimeType, fileName);
-  return { ...file, folderWebViewLink, folderId: ocFolderId };
-};
-
-// Para rutas con Multer: req.file (comprobante)
-const uploadMulterFileToOcFolder = async (fileObject, numeroOc, fileNameOverride) => {
-  if (!fileObject || !fileObject.buffer) throw new Error('Archivo inválido.');
-  const fname = fileNameOverride || fileObject.originalname;
-  return uploadFileToOcFolder(fileObject.buffer, fileObject.mimetype, numeroOc, fname);
-};
-
-// ============================================================
-// Funciones existentes (se conservan)
-// ============================================================
-const uploadRequisitionFiles = async (files, departmentAbbreviation, requisitionNumber) => {
   try {
-    const d = drive();
-    const requisicionesFolderId = await findOrCreateFolder(d, DRIVE_FOLDER_ID, 'REQUISICIONES');
-    const departmentFolderId = await findOrCreateFolder(d, requisicionesFolderId, departmentAbbreviation);
-    const targetFolderId = await findOrCreateFolder(d, departmentFolderId, requisitionNumber);
-    const uploadPromises = files.map(fileObject => {
-      const bufferStream = new stream.PassThrough();
-      bufferStream.end(fileObject.buffer);
-      return d.files.create({
-        media: { mimeType: fileObject.mimetype, body: bufferStream },
-        requestBody: { name: fileObject.originalname, parents: [targetFolderId] },
-        fields: 'id, name, webViewLink',
-      });
-    });
-    const results = await Promise.all(uploadPromises);
-    return results.map(res => res.data);
+    let folderId = await findFolder(rootFolderName, SUPER_ROOT_FOLDER_ID);
+    if (!folderId) {
+      console.log(`[Drive] Creando carpeta raíz de ambiente: ${rootFolderName}`);
+      folderId = await createFolder(rootFolderName, SUPER_ROOT_FOLDER_ID);
+    }
+    environmentRootFolderId = folderId;
+    return folderId;
   } catch (error) {
-    console.error('Error durante la subida de archivos de requisición:', error);
-    throw error;
+    console.error(`Error crítico al obtener la carpeta raíz del ambiente (${rootFolderName}):`, error);
+    throw new Error('No se pudo inicializar la carpeta raíz de Google Drive.');
   }
 };
 
-const uploadQuoteFiles = async (files, rfqCode, providerName) => {
+/**
+ * Busca una carpeta por nombre dentro de un 'parentId'.
+ */
+const findFolder = async (folderName, parentId) => {
   try {
-    const d = drive();
-    const quotesFolderId = await findOrCreateFolder(d, DRIVE_FOLDER_ID, 'COTIZACIONES');
-    const rfqFolderId = await findOrCreateFolder(d, quotesFolderId, rfqCode);
-    const uploadPromises = files.map(fileObject => {
-      const bufferStream = new stream.PassThrough();
-      bufferStream.end(fileObject.buffer);
-      const fileName = `${rfqCode}_COT_${providerName.replace(/\s+/g, '_')}_${fileObject.originalname}`;
-      return d.files.create({
-        media: { mimeType: fileObject.mimetype, body: bufferStream },
-        requestBody: { name: fileName, parents: [rfqFolderId] },
-        fields: 'id, name, webViewLink',
-      });
+    const res = await drive().files.list({
+      q: `name='${folderName}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: 'files(id)',
+      spaces: 'drive',
     });
-    const results = await Promise.all(uploadPromises);
-    return results.map((res, index) => ({ ...res.data, originalName: files[index].originalname }));
+    return res.data.files.length > 0 ? res.data.files[0].id : null;
   } catch (error) {
-    console.error(`Error durante la subida de archivos de cotización para ${rfqCode}:`, error);
-    throw error;
-  }
-};
-
-// Mantengo por compatibilidad, pero mejor usa uploadPdfToOcFolder para OCs
-const uploadPdfBuffer = async (pdfBuffer, fileName, rootFolderName, subFolderName) => {
-  try {
-    const d = drive();
-    const rootFolderId = await findOrCreateFolder(d, DRIVE_FOLDER_ID, rootFolderName);
-    const targetFolderId = await findOrCreateFolder(d, rootFolderId, subFolderName);
-    const bufferStream = new stream.PassThrough();
-    bufferStream.end(pdfBuffer);
-    const result = await d.files.create({
-      media: { mimeType: 'application/pdf', body: bufferStream },
-      requestBody: { name: fileName, parents: [targetFolderId] },
-      fields: 'id, name, webViewLink',
-    });
-    return result.data;
-  } catch (error) {
-    console.error(`Error CRÍTICO al subir PDF a Drive (${fileName}):`, error);
+    console.error(`[Drive] Error buscando carpeta '${folderName}':`, error.message);
     return null;
   }
 };
 
-const uploadQuoteFile = async (fileObject, rfqCode, providerName) => {
+/**
+ * Crea una carpeta por nombre dentro de un 'parentId'.
+ */
+const createFolder = async (folderName, parentId) => {
+  const fileMetadata = {
+    name: folderName,
+    mimeType: 'application/vnd.google-apps.folder',
+    parents: [parentId],
+  };
   try {
-    const d = drive();
-    const quotesFolderId = await findOrCreateFolder(d, DRIVE_FOLDER_ID, 'COTIZACIONES');
-    const rfqFolderId = await findOrCreateFolder(d, quotesFolderId, rfqCode);
-    const providerFolderId = await findOrCreateFolder(d, rfqFolderId, providerName.replace(/\s+/g, '_'));
-    const bufferStream = new stream.PassThrough();
-    bufferStream.end(fileObject.buffer);
-    const result = await d.files.create({
-      media: { mimeType: fileObject.mimetype, body: bufferStream },
-      requestBody: { name: fileObject.originalname, parents: [providerFolderId] },
-      fields: 'id, name, webViewLink',
+    const file = await drive().files.create({
+      resource: fileMetadata,
+      fields: 'id',
     });
-    return result.data;
+    return file.data.id;
   } catch (error) {
-    console.error(`Error durante la subida de archivo de cotización para ${rfqCode}:`, error);
+    console.error(`[Drive] Error creando carpeta '${folderName}':`, error.message);
     throw error;
   }
 };
 
+/**
+ * Sube un Buffer de PDF (Usado por OC).
+ */
+const uploadPdfBuffer = async (pdfBuffer, fileName, folderType, reqNum) => {
+  try {
+    let reqFolderId = await findFolder(reqNum, await getEnvironmentRootFolderId());
+
+    if (!reqFolderId) {
+      console.log(`[Drive] No se encontró la carpeta ${reqNum}. Creando...`);
+      const envRootId = await getEnvironmentRootFolderId();
+      reqFolderId = await createFolder(reqNum, envRootId); 
+    }
+
+    let targetFolderId = await findFolder(folderType, reqFolderId);
+    if (!targetFolderId) {
+      console.log(`[Drive] Creando sub-carpeta ${folderType} en ${reqNum}...`);
+      targetFolderId = await createFolder(folderType, reqFolderId);
+    }
+
+    const bufferStream = new stream.PassThrough();
+    bufferStream.end(pdfBuffer);
+
+    const media = {
+      mimeType: 'application/pdf',
+      body: bufferStream,
+    };
+    const fileMetadata = {
+      name: fileName,
+      parents: [targetFolderId],
+    };
+
+    const file = await drive().files.create({
+      resource: fileMetadata,
+      media: media,
+      fields: 'id, name, webViewLink, webContentLink',
+    });
+
+    console.log(`[Drive] PDF de OC subido: ${file.data.name} (ID: ${file.data.id})`);
+    return file.data;
+  } catch (error) {
+    console.error(`Error durante la subida del PDF de OC para ${reqNum}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Sube un archivo de Cotización (Usado por G-RFQ).
+ */
+const uploadQuoteFile = async (fileBuffer, fileName, mimeType, reqNum, deptoCode, provId) => {
+  try {
+    const envRootId = await getEnvironmentRootFolderId();
+    
+    // 1. Carpeta de Departamento
+    let deptoFolderId = await findFolder(deptoCode, envRootId);
+    if (!deptoFolderId) deptoFolderId = await createFolder(deptoCode, envRootId);
+    
+    // 2. Carpeta de Requisición
+    let reqFolderId = await findFolder(reqNum, deptoFolderId);
+    if (!reqFolderId) reqFolderId = await createFolder(reqNum, deptoFolderId);
+
+    // 3. Carpeta de Cotizaciones
+    let quotesFolderId = await findFolder('COTIZACIONES', reqFolderId);
+    if (!quotesFolderId) quotesFolderId = await createFolder('COTIZACIONES', reqFolderId);
+
+    const bufferStream = new stream.PassThrough();
+    bufferStream.end(fileBuffer);
+
+    const media = { mimeType, body: bufferStream };
+    const fileMetadata = {
+      name: `[${provId}]_${fileName}`,
+      parents: [quotesFolderId],
+    };
+
+    const result = await drive().files.create({
+      resource: fileMetadata,
+      media: media,
+      fields: 'id, name, webViewLink, webContentLink',
+    });
+    
+    console.log(`[Drive] Archivo de cotización subido: ${result.data.name}`);
+    return result.data;
+  } catch (error) {
+    console.error(`Error durante la subida de archivo de cotización para ${reqNum}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Descarga un archivo (Usado por G-RFQ Visto Bueno)
+ */
 const downloadFileBuffer = async (fileId) => {
   try {
     const response = await drive().files.get({ fileId, alt: 'media' }, { responseType: 'arraybuffer' });
@@ -181,43 +207,30 @@ const downloadFileBuffer = async (fileId) => {
   }
 };
 
-const getFolderIdByPath = async (folderPath) => {
+/**
+ * Borra un archivo de Drive (Usado por G-RFQ al guardar)
+ */
+const deleteFile = async (fileId) => {
   try {
-    const d = drive();
-    let parentId = DRIVE_FOLDER_ID;
-    for (const folderName of folderPath) {
-      const escaped = folderName.replace(/'/g, "\\'");
-      const q = `name='${escaped}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
-      const res = await d.files.list({ q, fields: 'files(id, name)', spaces: 'drive' });
-      if (!res.data.files.length) return null;
-      parentId = res.data.files[0].id;
+    await drive().files.delete({ fileId });
+    return true;
+  } catch (error)
+   {
+    if (error.code === 404) {
+      console.warn(`[Drive] Intento de borrar archivo no encontrado (ID: ${fileId}).`);
+      return true; // Si ya no existe, se considera "borrado"
     }
-    return parentId;
-  } catch (err) {
-    console.error('Error en getFolderIdByPath:', err);
-    return null;
+    console.error(`[Drive] Error al borrar archivo (ID: ${fileId}):`, error.message);
+    throw error;
   }
 };
 
-// Link directo a la carpeta de una OC
-const getOcFolderWebLink = async (numeroOc) => {
-  const { ocFolderId, webViewLink } = await ensureOcFolder(numeroOc);
-  return { folderId: ocFolderId, webViewLink };
-};
-
 module.exports = {
-  // Nuevos (recomendados para OC)
-  ensureOcFolder,
-  uploadPdfToOcFolder,
-  uploadFileToOcFolder,
-  uploadMulterFileToOcFolder,
-  getOcFolderWebLink,
-
-  // Existentes (compatibilidad)
-  uploadRequisitionFiles,
-  uploadQuoteFiles,
-  uploadPdfBuffer,
+  getEnvironmentRootFolderId,
+  findFolder,
+  createFolder,
   uploadQuoteFile,
+  uploadPdfBuffer,
   downloadFileBuffer,
-  getFolderIdByPath,
+  deleteFile
 };
