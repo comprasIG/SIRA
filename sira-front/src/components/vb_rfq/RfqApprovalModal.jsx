@@ -144,7 +144,7 @@ const proveedoresBloques = useMemo(() => {
   // Generar OC (solo para bloque pendiente)
   const handleGenerateOC = async (proveedorId) => {
     // ==================================================================
-    // --- INICIO DE LA CORRECCIÓN ---
+    // --- INICIO DE LA CORRECCIÓN (BUG #2) ---
     // ==================================================================
     setLoading(true); // <-- CORRECCIÓN 1: Deshabilita el botón local INMEDIATAMENTE
     setGlobalLoading(true); // Muestra el spinner global
@@ -154,7 +154,8 @@ const proveedoresBloques = useMemo(() => {
       const response = await api.post(`/api/rfq/${rfqId}/generar-ocs`, { proveedorId });
       toast.success(response.mensaje);
       if (response.ocs && response.ocs.length > 0) {
-        await handleDownloadPdf(response.ocs[0].id);
+        // Usa el ID que el backend (corregido) reporta
+        await handleDownloadPdf(response.ocs[0].id); 
       }
       await fetchDetails(); // Espera a que los detalles se recarguen
       refreshList(); // Actualiza la lista principal
