@@ -1,13 +1,17 @@
 // C:\SIRA\backend\services\googleDrive.js
 /**
  * =================================================================================================
- * SERVICIO: Google Drive (Versión 4.4 - Corrección de Entorno Local)
+ * SERVICIO: Google Drive (Versión 5.0 - Refactorización de Requisiciones)
  * =================================================================================================
  * @file googleDrive.js
  * @description Maneja toda la interacción con Google Drive.
  * --- HISTORIAL DE CAMBIOS ---
- * v4.4: Se corrige la lógica de 'getEnvironmentRootFolderId' para usar una carpeta 'LOCAL'
- * en lugar de 'STAGING' cuando se corre en desarrollo local.
+ * v5.0:
+ * - Se renombró 'uploadPdfBuffer' a 'uploadOcPdfBuffer' para aclarar que es para Órdenes de Compra.
+ * - Se añadió 'uploadRequisitionFiles' para manejar múltiples adjuntos en la creación de requisiciones.
+ * - Se añadió 'uploadRequisitionPdf' para manejar el PDF único generado en la aprobación de requisiciones.
+ * v4.4: 
+ * - Se corrige la lógica de 'getEnvironmentRootFolderId' para usar 'LOCAL'.
  */
 
 const { google } = require('googleapis');
@@ -26,7 +30,7 @@ oauth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
 const drive = () => google.drive({ version: 'v3', auth: oauth2Client });
 
 // ============================================================
-// --- SECCIÓN 1: HELPERS DE CARPETAS ---
+// --- SECCIÓN 1: HELPERS DE CARPETAS (Sin cambios) ---
 // ============================================================
 
 let environmentRootFolderId = null;
@@ -37,9 +41,6 @@ let environmentRootFolderId = null;
 const getEnvironmentRootFolderId = async () => {
   if (environmentRootFolderId) return environmentRootFolderId;
 
-  // ==================================================================
-  // --- ¡INICIO DE LA CORRECCIÓN (Bug de Entorno)! ---
-  // ==================================================================
   const env = process.env.NODE_ENV || 'development';
   let rootFolderName;
 
@@ -48,12 +49,8 @@ const getEnvironmentRootFolderId = async () => {
   } else if (env === 'staging') {
     rootFolderName = 'STAGING';
   } else {
-    // Si es 'development' o cualquier otra cosa, usa 'LOCAL'
     rootFolderName = 'LOCAL'; 
   }
-  // ==================================================================
-  // --- ¡FIN DE LA CORRECCIÓN! ---
-  // ==================================================================
 
   try {
     let folderId = await findFolder(rootFolderName, SUPER_ROOT_FOLDER_ID);
@@ -107,16 +104,133 @@ const createFolder = async (folderName, parentId) => {
   }
 };
 
+
 /**
- * Sube un Buffer de PDF (Usado por OC).
+ * @description Sube un único archivo (buffer) a una estructura de carpetas anidada.
+ * Esta es una función de ayuda interna.
+ * @param {Buffer} fileBuffer El buffer del archivo.
+ * @param {string} fileName El nombre del archivo.
+ * @param {string} mimeType El tipo MIME del archivo.
+ * @param {string[]} folderPath Un array de nombres de carpetas. Ej: ['DEPTO_TI', 'REQ_001', 'ADJUNTOS']
+ * @returns {object} El objeto del archivo subido (id, name, webViewLink, etc.)
  */
-const uploadPdfBuffer = async (pdfBuffer, fileName, folderType, reqNum) => {
+const uploadFileToPath = async (fileBuffer, fileName, mimeType, folderPath) => {
   try {
-    let reqFolderId = await findFolder(reqNum, await getEnvironmentRootFolderId());
+    let currentParentId = await getEnvironmentRootFolderId();
+
+    // 1. Navegar o crear la ruta de carpetas
+    for (const folderName of folderPath) {
+      let folderId = await findFolder(folderName, currentParentId);
+      if (!folderId) {
+        console.log(`[Drive] Creando sub-carpeta: ${folderName} en ${currentParentId}`);
+        folderId = await createFolder(folderName, currentParentId);
+      }
+      currentParentId = folderId;
+    }
+
+    // 2. Subir el archivo a la carpeta destino
+    const bufferStream = new stream.PassThrough();
+    bufferStream.end(fileBuffer);
+
+    const media = { mimeType, body: bufferStream };
+    const fileMetadata = {
+      name: fileName,
+      parents: [currentParentId],
+    };
+
+    const file = await drive().files.create({
+      resource: fileMetadata,
+      media: media,
+      fields: 'id, name, webViewLink, webContentLink',
+    });
+
+    console.log(`[Drive] Archivo subido: ${file.data.name} (ID: ${file.data.id})`);
+    return file.data;
+
+  } catch (error) {
+    console.error(`Error durante la subida de '${fileName}' a la ruta [${folderPath.join('/')}]:`, error);
+    throw error;
+  }
+};
+
+
+// ============================================================
+// --- SECCIÓN 2: LÓGICA DE SUBIDA ESPECÍFICA ---
+// ============================================================
+
+/**
+ * @description Sube múltiples archivos adjuntos (req.files) de una Requisición.
+ * Esta es la función que 'generacion.controller.js' necesita.
+ * @param {Array<object>} files - El array de archivos de multer (req.files)
+ * @param {string} deptoCode - Código del departamento (ej. 'TI')
+ * @param {string} reqNum - Número de la requisición (ej. 'TI_0001')
+ * @returns {Promise<Array<object>>} Una promesa que resuelve a un array de los archivos subidos.
+ */
+const uploadRequisitionFiles = async (files, deptoCode, reqNum) => {
+  if (!files || files.length === 0) {
+    return [];
+  }
+  
+  const folderPath = [deptoCode, reqNum, 'ADJUNTOS_REQ'];
+  const uploadedFiles = [];
+
+  // Usamos un bucle 'for...of' para manejar las promesas secuencialmente
+  for (const file of files) {
+    try {
+      const uploadedFile = await uploadFileToPath(
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+        folderPath
+      );
+      uploadedFiles.push(uploadedFile);
+    } catch (error) {
+      console.error(`[Drive] Falló la subida de ${file.originalname} para ${reqNum}. Saltando...`);
+      // Opcional: podrías decidir si lanzar el error y detener la operación
+    }
+  }
+  
+  return uploadedFiles;
+};
+
+
+/**
+ * @description Sube el PDF único generado al APROBAR una Requisición.
+ * Esta es la función que 'vistoBueno.controller.js' necesita.
+ * @param {Buffer} pdfBuffer - El buffer del PDF generado.
+ * @param {string} fileName - El nombre del archivo (ej. 'TI_0001.pdf')
+ * @param {string} deptoCode - Código del departamento (ej. 'TI')
+ * @param {string} reqNum - Número de la requisición (ej. 'TI_0001')
+ * @returns {Promise<object>} El objeto del archivo subido.
+ */
+const uploadRequisitionPdf = async (pdfBuffer, fileName, deptoCode, reqNum) => {
+  const folderPath = [deptoCode, reqNum, 'PDF_APROBADO'];
+  
+  return await uploadFileToPath(
+    pdfBuffer,
+    fileName,
+    'application/pdf',
+    folderPath
+  );
+};
+
+
+/**
+ * @description Sube el PDF de una Orden de Compra (OC).
+ * (Anteriormente 'uploadPdfBuffer')
+ * @param {Buffer} pdfBuffer El buffer del PDF.
+ * @param {string} fileName El nombre del archivo.
+ * @param {string} folderType El tipo de carpeta (ej. 'OC_FIRMADA')
+ * @param {string} reqNum El número de requisición o OC asociado.
+ */
+const uploadOcPdfBuffer = async (pdfBuffer, fileName, folderType, reqNum) => {
+  // Esta función mantiene su lógica original, pero ahora tiene un nombre claro.
+  try {
+    const envRootId = await getEnvironmentRootFolderId();
+    let reqFolderId = await findFolder(reqNum, envRootId);
 
     if (!reqFolderId) {
       console.log(`[Drive] No se encontró la carpeta ${reqNum}. Creando...`);
-      const envRootId = await getEnvironmentRootFolderId();
       reqFolderId = await createFolder(reqNum, envRootId); 
     }
 
@@ -152,42 +266,22 @@ const uploadPdfBuffer = async (pdfBuffer, fileName, folderType, reqNum) => {
   }
 };
 
+
 /**
- * Sube un archivo de Cotización (Usado por G-RFQ).
+ * @description Sube un archivo de Cotización (Usado por G-RFQ). (Sin cambios)
  */
 const uploadQuoteFile = async (fileBuffer, fileName, mimeType, reqNum, deptoCode, provId) => {
   try {
-    const envRootId = await getEnvironmentRootFolderId();
+    const folderPath = [deptoCode, reqNum, 'COTIZACIONES'];
+    const finalFileName = `[${provId}]_${fileName}`;
+
+    return await uploadFileToPath(
+      fileBuffer,
+      finalFileName,
+      mimeType,
+      folderPath
+    );
     
-    // 1. Carpeta de Departamento
-    let deptoFolderId = await findFolder(deptoCode, envRootId);
-    if (!deptoFolderId) deptoFolderId = await createFolder(deptoCode, envRootId);
-    
-    // 2. Carpeta de Requisición
-    let reqFolderId = await findFolder(reqNum, deptoFolderId);
-    if (!reqFolderId) reqFolderId = await createFolder(reqNum, deptoFolderId);
-
-    // 3. Carpeta de Cotizaciones
-    let quotesFolderId = await findFolder('COTIZACIONES', reqFolderId);
-    if (!quotesFolderId) quotesFolderId = await createFolder('COTIZACIONES', reqFolderId);
-
-    const bufferStream = new stream.PassThrough();
-    bufferStream.end(fileBuffer);
-
-    const media = { mimeType, body: bufferStream };
-    const fileMetadata = {
-      name: `[${provId}]_${fileName}`,
-      parents: [quotesFolderId],
-    };
-
-    const result = await drive().files.create({
-      resource: fileMetadata,
-      media: media,
-      fields: 'id, name, webViewLink, webContentLink',
-    });
-    
-    console.log(`[Drive] Archivo de cotización subido: ${result.data.name}`);
-    return result.data;
   } catch (error) {
     console.error(`Error durante la subida de archivo de cotización para ${reqNum}:`, error);
     throw error;
@@ -195,7 +289,7 @@ const uploadQuoteFile = async (fileBuffer, fileName, mimeType, reqNum, deptoCode
 };
 
 /**
- * Descarga un archivo (Usado por G-RFQ Visto Bueno)
+ * @description Descarga un archivo (Usado por G-RFQ Visto Bueno) (Sin cambios)
  */
 const downloadFileBuffer = async (fileId) => {
   try {
@@ -208,7 +302,7 @@ const downloadFileBuffer = async (fileId) => {
 };
 
 /**
- * Borra un archivo de Drive (Usado por G-RFQ al guardar)
+ * @description Borra un archivo de Drive (Usado por G-RFQ al guardar) (Sin cambios)
  */
 const deleteFile = async (fileId) => {
   try {
@@ -225,12 +319,24 @@ const deleteFile = async (fileId) => {
   }
 };
 
+// ============================================================
+// --- SECCIÓN 3: EXPORTACIONES (¡ACTUALIZADO!) ---
+// ============================================================
+
 module.exports = {
+  // Funciones de ayuda
   getEnvironmentRootFolderId,
   findFolder,
   createFolder,
+  
+  // Funciones de lógica de negocio (Refactorizadas)
+  uploadRequisitionFiles,   // <-- ¡NUEVA! Para generacion.controller.js
+  uploadRequisitionPdf,     // <-- ¡NUEVA! Para vistoBueno.controller.js
+  
+  uploadOcPdfBuffer,        // <-- Renombrada (antes uploadPdfBuffer)
   uploadQuoteFile,
-  uploadPdfBuffer,
+  
+  // Funciones de utilidad
   downloadFileBuffer,
   deleteFile
 };
