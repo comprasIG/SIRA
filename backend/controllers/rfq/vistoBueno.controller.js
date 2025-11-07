@@ -1,3 +1,5 @@
+//C:\SIRA\backend\controllers\rfq\vistoBueno.controller.js
+
 /**
  * ================================================================================================
  * CONTROLADOR: Visto Bueno de Cotizaciones (VB_RFQ) - (Versión 4.1 - Corrección de Query Faltante)
