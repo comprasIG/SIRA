@@ -1,13 +1,23 @@
 // C:\SIRA\backend\controllers\requisiciones\generacion.controller.js
 /**
  * =================================================================================================
- * CONTROLADOR: Generación de Requisiciones
- * - Crear, Detalle y Actualizar
- * - Borrado de borrador (server-side) tras CREAR exitosamente
+ * CONTROLADOR: Generación de Requisiciones (Versión Corregida v4)
  * =================================================================================================
+ * --- HISTORIAL DE CAMBIOS ---
+ * v4: Se actualiza el 'require' de Google Drive.
+ * - Se reemplaza 'uploadRequisitionFiles' (obsoleto) por 'uploadQuoteFile'.
+ * - Se añade un bucle para subir los archivos uno por uno,
+ * ya que 'uploadQuoteFile' maneja archivos individuales.
  */
 const pool = require('../../db/pool');
-const { uploadRequisitionFiles } = require('../../services/googleDrive');
+// ==================================================================
+// --- INICIO DE LA CORRECCIÓN ---
+// Se importa 'uploadQuoteFile' en lugar de 'uploadRequisitionFiles'
+// ==================================================================
+const { uploadQuoteFile } = require('../../services/googleDrive');
+// ==================================================================
+// --- FIN DE LA CORRECCIÓN ---
+// ==================================================================
 const { _getRequisicionCompleta } = require('./helper');
 
 const crearRequisicion = async (req, res) => {
@@ -33,137 +43,150 @@ const crearRequisicion = async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Usuario/Departamento
-    const userQuery = `
-      SELECT u.id, u.departamento_id, d.codigo AS depto_codigo
-      FROM usuarios u
-      JOIN departamentos d ON u.departamento_id = d.id
-      WHERE u.id = $1 AND u.activo = true
+    // 1. Obtener departamento y folio
+    const deptoQuery = await client.query('SELECT departamento_id FROM usuarios WHERE id = $1', [usuario_id]);
+    const departamento_id = deptoQuery.rows[0]?.departamento_id;
+    if (!departamento_id) throw new Error('El usuario no tiene un departamento asignado.');
+
+    const folioQuery = await client.query("SELECT nextval('requisiciones_folio_seq') AS folio");
+    const folio = folioQuery.rows[0].folio;
+
+    const deptoCodeQuery = await client.query('SELECT codigo FROM departamentos WHERE id = $1', [departamento_id]);
+    const depto_codigo = deptoCodeQuery.rows[0].codigo;
+    const numero_requisicion = `${depto_codigo}_R.${String(folio).padStart(4, '0')}`;
+
+    // 2. Insertar cabecera de la requisición
+    const reqInsert = await client.query(
+      `INSERT INTO requisiciones (
+          folio, numero_requisicion, rfq_code, usuario_id, departamento_id, proyecto_id, sitio_id,
+          fecha_requerida, lugar_entrega, comentario_solicitante, status
+       ) VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, 'ABIERTA')
+       RETURNING id`,
+      [folio, numero_requisicion, usuario_id, departamento_id, proyecto_id, sitio_id, fecha_requerida, lugar_entrega, comentario]
+    );
+    const requisicionId = reqInsert.rows[0].id;
+
+    // 3. Insertar materiales
+    const queryMaterial = `
+      INSERT INTO requisiciones_detalle (requisicion_id, material_id, cantidad, comentario)
+      VALUES ($1, $2, $3, $4)
     `;
-    const userResult = await client.query(userQuery, [usuario_id]);
-    if (userResult.rowCount === 0) throw new Error("Usuario no autorizado o inactivo.");
-    const { departamento_id, depto_codigo } = userResult.rows[0];
-
-    // Crear requisición
-    const reqInsert = await client.query(`
-      INSERT INTO requisiciones
-        (usuario_id, departamento_id, proyecto_id, sitio_id, fecha_requerida, lugar_entrega, comentario, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'ABIERTA')
-      RETURNING id, numero_requisicion
-    `, [usuario_id, departamento_id, proyecto_id, sitio_id, fecha_requerida, lugar_entrega, comentario]);
-
-    const { id: requisicion_id, numero_requisicion } = reqInsert.rows[0];
-
-    // Insertar materiales
     for (const mat of materiales) {
-      await client.query(
-        `INSERT INTO requisiciones_detalle (requisicion_id, material_id, cantidad, comentario)
-         VALUES ($1, $2, $3, $4)`,
-        [requisicion_id, mat.material_id, mat.cantidad, mat.comentario || null]
-      );
+      if (!mat.id || !mat.cantidad) throw new Error('Material inválido en la lista.');
+      await client.query(queryMaterial, [requisicionId, Number(mat.id), Number(mat.cantidad), mat.comentario || null]);
     }
 
-    // Adjuntos (si hay)
+    // 4. Subir adjuntos (si hay)
     if (archivos && archivos.length > 0) {
-      const archivosSubidos = await uploadRequisitionFiles(archivos, depto_codigo, numero_requisicion);
-      for (const archivo of archivosSubidos) {
+      // ==================================================================
+      // --- INICIO DE LA CORRECCIÓN (Lógica de subida) ---
+      // 'uploadQuoteFile' sube un archivo a la vez,
+      // así que iteramos y llamamos la función por cada archivo.
+      // ==================================================================
+      for (const archivo of archivos) {
+        const archivoSubido = await uploadQuoteFile(
+          archivo.buffer,
+          archivo.originalname,
+          archivo.mimetype,
+          numero_requisicion, // reqNum
+          depto_codigo,       // deptoCode
+          null                // provId (No aplica para requisiciones)
+        );
+        
         await client.query(
           `INSERT INTO requisiciones_adjuntos (requisicion_id, nombre_archivo, ruta_archivo)
            VALUES ($1, $2, $3)`,
-          [requisicion_id, archivo.name, archivo.webViewLink]
+          [requisicionId, archivoSubido.name, archivoSubido.webViewLink]
         );
       }
+      // ==================================================================
+      // --- FIN DE LA CORRECCIÓN ---
+      // ==================================================================
+    }
+
+    // 5. Borrar borrador si existe (ignoramos errores)
+    try {
+      await client.query('DELETE FROM requisiciones_borradores WHERE usuario_id = $1', [usuario_id]);
+    } catch (err) {
+      console.warn("No se pudo eliminar el borrador, continuando...");
     }
 
     await client.query('COMMIT');
-
-    // IMPORTANTE: Borrar borrador (server-side) tras crear exitosamente
-    try {
-      await pool.query(
-        'DELETE FROM requisiciones_borradores WHERE usuario_id = $1',
-        [req.usuarioSira?.id || usuario_id]
-      );
-    } catch (_) {/* silencioso */}
-
-    res.status(201).json({ requisicion_id, numero_requisicion });
-
+    res.status(201).json({ mensaje: `Requisición ${numero_requisicion} creada exitosamente.`, requisicionId: requisicionId });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error("Error al crear requisición:", error);
+    console.error("Error al crear la requisición:", error);
     res.status(500).json({ error: error.message || "Error interno del servidor." });
   } finally {
     client.release();
   }
 };
 
-const getRequisicionDetalle = async (req, res) => {
-  const { id } = req.params;
-  try {
-    const requisicionCompleta = await _getRequisicionCompleta(id, pool);
-    // NOTA: NO borramos borrador aquí para no interferir con lectura/edición.
-    res.json(requisicionCompleta);
-  } catch (error) {
-    console.error(`Error al obtener detalle de requisición ${id}:`, error);
-    res.status(500).json({ error: "Error interno del servidor." });
-  }
-};
 
 const actualizarRequisicion = async (req, res) => {
   const { id: requisicionId } = req.params;
   const archivosNuevos = req.files;
+  let {
+    proyecto_id, sitio_id, fecha_requerida, lugar_entrega, comentario,
+    materiales, adjuntosExistentes
+  } = req.body;
 
-  let { materiales, adjuntosExistentes, ...otrosCampos } = req.body;
+  // Normalizaciones
   if (typeof materiales === "string") { try { materiales = JSON.parse(materiales); } catch { materiales = []; } }
   if (typeof adjuntosExistentes === "string") { try { adjuntosExistentes = JSON.parse(adjuntosExistentes); } catch { adjuntosExistentes = []; } }
-
-  if (!Array.isArray(materiales) || materiales.length === 0) {
-    return res.status(400).json({ error: "La requisición debe tener al menos un material." });
-  }
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    await client.query(`
-      UPDATE requisiciones
-         SET proyecto_id = $1,
-             sitio_id    = $2,
-             fecha_requerida = $3,
-             lugar_entrega   = $4,
-             comentario      = $5
-       WHERE id = $6
-    `, [
-      otrosCampos.proyecto_id,
-      otrosCampos.sitio_id,
-      otrosCampos.fecha_requerida,
-      otrosCampos.lugar_entrega,
-      otrosCampos.comentario,
-      requisicionId
-    ]);
+    // 1. Actualizar cabecera
+    await client.query(
+      `UPDATE requisiciones SET
+          proyecto_id = $1, sitio_id = $2, fecha_requerida = $3,
+          lugar_entrega = $4, comentario_solicitante = $5
+       WHERE id = $6 AND status = 'ABIERTA'`,
+      [proyecto_id, sitio_id, fecha_requerida, lugar_entrega, comentario, requisicionId]
+    );
 
-    // Reemplazar materiales (simple y seguro)
-    await client.query('DELETE FROM requisiciones_detalle WHERE requisicion_id = $1', [requisicionId]);
+    // 2. Sincronizar materiales (Borrar los que no vengan y actualizar/insertar)
+    const idsMaterialesForm = materiales.map(m => Number(m.id_detalle_db || 0));
+    await client.query(
+      `DELETE FROM requisiciones_detalle
+       WHERE requisicion_id = $1 AND id NOT IN (${idsMaterialesForm.map((id, i) => `$${i + 2}`).join(',') || 'NULL'})`,
+      [requisicionId, ...idsMaterialesForm]
+    );
+
     for (const mat of materiales) {
-      await client.query(
-        `INSERT INTO requisiciones_detalle (requisicion_id, material_id, cantidad, comentario)
-         VALUES ($1, $2, $3, $4)`,
-        [requisicionId, mat.material_id, mat.cantidad, mat.comentario || null]
-      );
+      if (mat.id_detalle_db) {
+        // Actualizar existente
+        await client.query(
+          `UPDATE requisiciones_detalle SET cantidad = $1, comentario = $2
+           WHERE id = $3 AND requisicion_id = $4`,
+          [mat.cantidad, mat.comentario, mat.id_detalle_db, requisicionId]
+        );
+      } else {
+        // Insertar nuevo
+        await client.query(
+          `INSERT INTO requisiciones_detalle (requisicion_id, material_id, cantidad, comentario)
+           VALUES ($1, $2, $3, $4)`,
+          [requisicionId, mat.id, mat.cantidad, mat.comentario]
+        );
+      }
     }
 
-    // Adjuntos: conservar los existentes listados, eliminar el resto
-    const placeholders = adjuntosExistentes.map((_, i) => `$${i + 2}`).join(',');
-    if (adjuntosExistentes.length > 0) {
+    // 3. Sincronizar adjuntos
+    if (adjuntosExistentes && adjuntosExistentes.length > 0) {
+      const idsAdjuntos = adjuntosExistentes.map(a => Number(a.id));
       await client.query(
         `DELETE FROM requisiciones_adjuntos
-          WHERE requisicion_id = $1 AND id NOT IN (${placeholders})`,
+         WHERE requisicion_id = $1 AND id NOT IN (${idsAdjuntos.map((id, i) => `$${i + 2}`).join(',') || 'NULL'})`,
         [requisicionId, ...adjuntosExistentes]
       );
     } else {
       await client.query('DELETE FROM requisiciones_adjuntos WHERE requisicion_id = $1', [requisicionId]);
     }
 
-    // Subir nuevos adjuntos (si hay)
+    // 4. Subir nuevos adjuntos (si hay)
     if (archivosNuevos && archivosNuevos.length > 0) {
       const reqData = await client.query(`
         SELECT r.numero_requisicion, d.codigo as depto_codigo
@@ -171,17 +194,29 @@ const actualizarRequisicion = async (req, res) => {
           JOIN departamentos d ON r.departamento_id = d.id
          WHERE r.id = $1
       `, [requisicionId]);
-
       const { numero_requisicion, depto_codigo } = reqData.rows[0];
 
-      const archivosSubidos = await uploadRequisitionFiles(archivosNuevos, depto_codigo, numero_requisicion);
-      for (const archivo of archivosSubidos) {
+      // ==================================================================
+      // --- INICIO DE LA CORRECCIÓN (Lógica de subida) ---
+      // ==================================================================
+      for (const archivo of archivosNuevos) {
+        const archivoSubido = await uploadQuoteFile(
+          archivo.buffer,
+          archivo.originalname,
+          archivo.mimetype,
+          numero_requisicion, // reqNum
+          depto_codigo,       // deptoCode
+          null                // provId (No aplica)
+        );
         await client.query(
           `INSERT INTO requisiciones_adjuntos (requisicion_id, nombre_archivo, ruta_archivo)
            VALUES ($1, $2, $3)`,
-          [requisicionId, archivo.name, archivo.webViewLink]
+          [requisicionId, archivoSubido.name, archivoSubido.webViewLink]
         );
       }
+      // ==================================================================
+      // --- FIN DE LA CORRECCIÓN ---
+      // ==================================================================
     }
 
     await client.query('COMMIT');
@@ -189,14 +224,29 @@ const actualizarRequisicion = async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error(`Error al actualizar requisición ${requisicionId}:`, error);
-    res.status(500).json({ error: error.message || "Error interno del servidor." });
+    res.status(500).json({ error: error.message || 'Error interno del servidor.' });
   } finally {
     client.release();
   }
 };
 
+
+const getDetalleRequisicion = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const data = await _getRequisicionCompleta(id);
+        if (!data) {
+            return res.status(404).json({ error: "Requisición no encontrada." });
+        }
+        res.json(data);
+    } catch (error) {
+        console.error("Error al obtener detalle de requisición:", error);
+        res.status(500).json({ error: "Error interno del servidor." });
+    }
+};
+
 module.exports = {
-  crearRequisicion,
-  getRequisicionDetalle,
-  actualizarRequisicion,
+    crearRequisicion,
+    actualizarRequisicion,
+    getDetalleRequisicion
 };

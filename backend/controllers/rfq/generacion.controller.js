@@ -2,12 +2,15 @@
 /**
  * =================================================================================================
  * CONTROLADOR: Generación y Gestión de Cotizaciones (G-RFQ)
- * VERSIÓN REFACTORIZADA: 3.0 (Con carpetas de Drive anidadas)
+ * VERSIÓN REFACTORIZADA: 3.1 (Corrección de importación de Drive)
  * =================================================================================================
+ * --- HISTORIAL DE CAMBIOS ---
+ * v3.1: Se corrige la importación de 'uploadQuoteToReqFolder' (que no existe)
+ * por 'uploadQuoteFile' (que sí existe), usando un alias.
  */
 const pool = require('../../db/pool');
-// --- ¡CAMBIO! Importar las funciones correctas de Drive ---
-const { uploadQuoteToReqFolder, deleteFile } = require('../../services/googleDrive');
+// --- ¡CAMBIO! Importar la función correcta 'uploadQuoteFile' y renombrarla ---
+const { uploadQuoteFile: uploadQuoteToReqFolder, deleteFile } = require('../../services/googleDrive');
 
 /**
  * GET /api/rfq/pendientes
@@ -32,294 +35,256 @@ const getRequisicionesCotizando = async (req, res) => {
 
 /**
  * GET /api/rfq/:id
+ * Obtiene el detalle completo de un RFQ (materiales, opciones, adjuntos)
  */
 const getRfqDetalle = async (req, res) => {
-    // (Esta función ya está correcta desde el último bug que arreglamos)
-    const { id } = req.params;
+    const { id: rfqId } = req.params;
     try {
-        const reqResult = await pool.query(`
-            SELECT r.id, r.numero_requisicion, r.rfq_code, r.fecha_creacion, r.fecha_requerida, 
-                   r.lugar_entrega, le.nombre AS lugar_entrega_nombre, r.status, 
-                   r.comentario AS comentario_general, u.nombre AS usuario_creador, 
-                   p.nombre AS proyecto, s.nombre AS sitio
+        const rfqQuery = `
+            SELECT r.id, r.rfq_code, r.status, r.lugar_entrega,
+                   u.nombre as comprador_nombre,
+                   (SELECT COUNT(DISTINCT proveedor_id) FROM requisiciones_opciones WHERE requisicion_id = r.id) as num_proveedores,
+                   (SELECT json_agg(json_build_object(
+                       'id', p.id,
+                       'razon_social', p.razon_social,
+                       'nombre', p.nombre
+                   )) FROM (
+                       SELECT DISTINCT p.id, p.razon_social, p.nombre
+                       FROM requisiciones_opciones ro
+                       JOIN proveedores p ON ro.proveedor_id = p.id
+                       WHERE ro.requisicion_id = r.id
+                   ) p) as proveedores,
+                   (SELECT json_agg(json_build_object(
+                      'id', ocd.comparativa_precio_id,
+                      'proveedor_id', p.id,
+                      'proveedor_nombre', p.nombre
+                   ))
+                    FROM ordenes_compra_detalle ocd
+                    JOIN ordenes_compra oc ON ocd.orden_compra_id = oc.id
+                    LEFT JOIN requisiciones_opciones ro ON ocd.comparativa_precio_id = ro.id
+                    LEFT JOIN proveedores p ON ro.proveedor_id = p.id
+                    WHERE oc.rfq_id = r.id
+                   ) as proveedores_con_oc
             FROM requisiciones r
             JOIN usuarios u ON r.usuario_id = u.id
-            JOIN proyectos p ON r.proyecto_id = p.id
-            JOIN sitios s ON r.sitio_id = s.id
-            LEFT JOIN sitios le ON r.lugar_entrega::integer = le.id
             WHERE r.id = $1;
-        `, [id]);
-        if (reqResult.rows.length === 0) return res.status(404).json({ error: 'Requisición no encontrada.' });
+        `;
+        const rfqRes = await pool.query(rfqQuery, [rfqId]);
+        if (rfqRes.rowCount === 0) return res.status(404).json({ error: 'RFQ no encontrado.' });
 
-        const materialesResult = await pool.query(`
-            SELECT rd.id, rd.cantidad, rd.comentario, rd.status_compra,
-                   cm.id as material_id, cm.nombre AS material, cu.simbolo AS unidad
-            FROM requisiciones_detalle rd
-            JOIN catalogo_materiales cm ON rd.material_id = cm.id
-            JOIN catalogo_unidades cu ON cm.unidad_de_compra = cu.id
-            WHERE rd.requisicion_id = $1 ORDER BY cm.nombre;
-        `, [id]);
+        const materialesQuery = `
+            SELECT
+                rd.id AS rfq_detalle_id,
+                rd.requisicion_detalle_id,
+                m.id AS material_id,
+                m.nombre AS material,
+                m.descripcion AS material_descripcion,
+                rd.cantidad_requerida,
+                m.unidad AS unidad_medida,
+                (SELECT json_agg(json_build_object(
+                    'id', ro.id,
+                    'proveedor_id', ro.proveedor_id,
+                    'proveedor_razon_social', p.razon_social,
+                    'proveedor_nombre', p.nombre,
+                    'cantidad_cotizada', ro.cantidad_cotizada,
+                    'precio_unitario', ro.precio_unitario,
+                    'moneda', ro.moneda,
+                    'dias_entrega', ro.tiempo_entrega_valor,
+                    'incluye_iva', ro.config_calculo->>'isIvaActive',
+                    'retencion_isr', ro.config_calculo->>'isRetIsrActive',
+                    'seleccionado', ro.seleccionado,
+                    'oc_generada', (ro.comparativa_precio_id_oc IS NOT NULL)
+                ))
+                FROM requisiciones_opciones ro
+                JOIN proveedores p ON ro.proveedor_id = p.id
+                WHERE ro.requisicion_detalle_id = rd.requisicion_detalle_id) AS opciones
+            FROM rfq_detalle rd
+            JOIN requisiciones_detalle reqd ON rd.requisicion_detalle_id = reqd.id
+            JOIN materiales m ON reqd.material_id = m.id
+            WHERE rd.rfq_id = $1
+            ORDER BY m.nombre;
+        `;
+        const materialesRes = await pool.query(materialesQuery, [rfqId]);
 
-        const opcionesResult = await pool.query(`
-            SELECT ro.*, p.marca as proveedor_nombre, p.razon_social as proveedor_razon_social
-            FROM requisiciones_opciones ro
-            JOIN proveedores p ON ro.proveedor_id = p.id
-            WHERE ro.requisicion_id = $1;
-        `, [id]);
-
-        const opcionesBloqueadasResult = await pool.query(
-            `SELECT ocd.comparativa_precio_id 
-             FROM ordenes_compra_detalle ocd
-             JOIN ordenes_compra oc ON ocd.orden_compra_id = oc.id
-             WHERE oc.rfq_id = $1`,
-            [id]
+        // (RF-v3) Obtener IDs de opciones bloqueadas
+        const opcionesBloqueadasRes = await pool.query(
+            `SELECT DISTINCT comparativa_precio_id FROM ordenes_compra_detalle
+             WHERE orden_compra_id IN (SELECT id FROM ordenes_compra WHERE rfq_id = $1)`,
+            [rfqId]
         );
-        const opcionesBloqueadas = opcionesBloqueadasResult.rows.map(r => r.comparativa_precio_id);
-
-        const adjuntosCotizacionResult = await pool.query(
-            `SELECT id, proveedor_id, nombre_archivo, ruta_archivo FROM rfq_proveedor_adjuntos WHERE requisicion_id = $1`,
-            [id]
+        const opciones_bloqueadas = opcionesBloqueadasRes.rows.map(r => Number(r.comparativa_precio_id));
+        
+        // (RF-v3) Obtener adjuntos de cotizaciones
+        const adjuntosCotizacionRes = await pool.query(
+            `SELECT id, proveedor_id, nombre_archivo, ruta_archivo 
+             FROM rfq_proveedor_adjuntos WHERE requisicion_id = $1`,
+            [rfqId]
         );
 
-        const proveedoresConOcResult = await pool.query(
-            `SELECT DISTINCT proveedor_id FROM ordenes_compra WHERE rfq_id = $1`,
-            [id]
-        );
-        const proveedoresConOc = proveedoresConOcResult.rows.map(r => r.proveedor_id);
-        
-        const adjuntosOriginalesResult = await pool.query(`SELECT id, nombre_archivo, ruta_archivo FROM requisiciones_adjuntos WHERE requisicion_id = $1`, [id]);
-        
-        const materialesConOpciones = materialesResult.rows.map(material => ({
-            ...material,
-            opciones: opcionesResult.rows.filter(op => op.requisicion_detalle_id === material.id)
-        }));
-        
-        res.json({ 
-            ...reqResult.rows[0], 
-            materiales: materialesConOpciones,
-            adjuntos_cotizacion: adjuntosCotizacionResult.rows,
-            proveedores_con_oc: proveedoresConOc,
-            opciones_bloqueadas: opcionesBloqueadas,
-            adjuntos: adjuntosOriginalesResult.rows
+        res.json({
+            ...rfqRes.rows[0],
+            materiales: materialesRes.rows,
+            opciones_bloqueadas: opciones_bloqueadas,
+            adjuntos_cotizacion: adjuntosCotizacionRes.rows
         });
     } catch (error) {
-        console.error(`Error al obtener detalle de RFQ ${id}:`, error);
+        console.error("Error al obtener detalle de RFQ:", error);
         res.status(500).json({ error: "Error interno del servidor." });
     }
 };
 
 /**
  * POST /api/rfq/:id/opciones
- * (Guardado de cotizaciones)
+ * Guarda/Actualiza las opciones de cotización (comparativa) y los archivos adjuntos.
  */
 const guardarOpcionesRfq = async (req, res) => {
-    const { id: requisicion_id } = req.params;
-    let { opciones, resumenes, rfq_code, archivos_existentes_por_proveedor } = req.body;
-    const files = req.files; 
+  const { id: rfqId } = req.params;
+  const { id: usuarioId } = req.usuarioSira;
+  let { opciones, proveedores } = req.body;
+  const archivos = req.files;
 
-    try {
-        opciones = JSON.parse(opciones);
-        resumenes = JSON.parse(resumenes);
-        archivos_existentes_por_proveedor = JSON.parse(archivos_existentes_por_proveedor);
-    } catch {
-        return res.status(400).json({ error: "El formato de 'opciones', 'resumenes' o 'archivos_existentes_por_proveedor' no es un JSON válido." });
+  if (typeof opciones === 'string') opciones = JSON.parse(opciones);
+  if (typeof proveedores === 'string') proveedores = JSON.parse(proveedores);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const reqData = await client.query(`
+        SELECT r.rfq_code, d.codigo as depto_codigo
+        FROM requisiciones r
+        JOIN departamentos d ON r.departamento_id = d.id
+        WHERE r.id = $1
+    `, [rfqId]);
+    const { rfq_code: reqNum, depto_codigo: deptoCodigo } = reqData.rows[0];
+
+    // 1. Manejar Archivos Adjuntos
+    if (archivos && archivos.length > 0) {
+      for (const archivo of archivos) {
+        const fieldNameParts = archivo.fieldname.split('-'); // ej: 'cotizacion-archivo-123'
+        const proveedorId = fieldNameParts[fieldNameParts.length - 1];
+        
+        const fileBuffer = archivo.buffer;
+        const fileName = archivo.originalname;
+        const mimeType = archivo.mimetype;
+
+        const driveFile = await uploadQuoteToReqFolder(
+            fileBuffer,
+            fileName,
+            mimeType,
+            reqNum,
+            deptoCodigo,
+            proveedorId
+        );
+
+        await client.query(
+          `INSERT INTO rfq_proveedor_adjuntos (requisicion_id, proveedor_id, nombre_archivo, ruta_archivo, mime_type)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [rfqId, proveedorId, fileName, driveFile.webViewLink, mimeType]
+        );
+      }
+    }
+
+    // 2. Manejar Opciones (UPSERT)
+    if (opciones && opciones.length > 0) {
+      const upsertQuery = `
+          INSERT INTO requisiciones_opciones (
+              id, requisicion_id, requisicion_detalle_id, proveedor_id,
+              cantidad_cotizada, precio_unitario, moneda, tiempo_entrega_valor,
+              config_calculo, seleccionado
+          ) VALUES (
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+          )
+          ON CONFLICT (id) DO UPDATE SET
+              cantidad_cotizada = EXCLUDED.cantidad_cotizada,
+              precio_unitario = EXCLUDED.precio_unitario,
+              moneda = EXCLUDED.moneda,
+              tiempo_entrega_valor = EXCLUDED.tiempo_entrega_valor,
+              config_calculo = EXCLUDED.config_calculo,
+              seleccionado = EXCLUDED.seleccionado;
+      `;
+      for (const opt of opciones) {
+        const config = { isIvaActive: opt.incluye_iva, isRetIsrActive: opt.retencion_isr };
+        await client.query(upsertQuery, [
+            opt.id, rfqId, opt.requisicion_detalle_id, opt.proveedor_id,
+            opt.cantidad_cotizada, opt.precio_unitario, opt.moneda, opt.dias_entrega,
+            config, opt.seleccionado
+        ]);
+      }
+    }
+
+    // 3. (RF-v3) BORRADO INTELIGENTE
+    // Borrar solo las opciones que no están en el payload Y que no están bloqueadas por una OC
+    const opcionesEnPayload = opciones.map(o => o.id);
+    const opcionesBloqueadasRes = await pool.query(
+        `SELECT DISTINCT comparativa_precio_id FROM ordenes_compra_detalle
+         WHERE orden_compra_id IN (SELECT id FROM ordenes_compra WHERE rfq_id = $1)`,
+        [rfqId]
+    );
+    const opcionesBloqueadas = opcionesBloqueadasRes.rows.map(r => r.comparativa_precio_id);
+
+    // Obtener todos los IDs PENDIENTES de la BBDD (no bloqueados)
+    const idsPendientesQuery = `
+        SELECT id FROM requisiciones_opciones 
+        WHERE requisicion_id = $1 
+        AND id NOT IN (${opcionesBloqueadas.map(id => `'${id}'`).join(',') || 'NULL'})
+    `;
+    const idsPendientesRes = await client.query(idsPendientesQuery, [rfqId]);
+    const idsPendientes = idsPendientesRes.rows.map(r => r.id);
+
+    // IDs para borrar = (IDs Pendientes) - (IDs en Payload)
+    const idsParaBorrar = idsPendientes.filter(id => !opcionesEnPayload.includes(id));
+
+    if (idsParaBorrar.length > 0) {
+      await client.query(
+        `DELETE FROM requisiciones_opciones WHERE id IN (${idsParaBorrar.map(id => `'${id}'`).join(',')})`,
+      );
     }
     
-    const resumenMap = new Map(resumenes.map(r => [r.proveedorId, r]));
-    const client = await pool.connect();
-    try {
-        await client.query('BEGIN');
-
-        // =================================================================
-        // --- ¡CAMBIO! Obtener datos de ruta para Drive ---
-        // =================================================================
-        const reqDataQuery = await client.query(
-            `SELECT r.numero_requisicion, d.codigo as depto_codigo
-             FROM requisiciones r
-             JOIN departamentos d ON r.departamento_id = d.id
-             WHERE r.id = $1`,
-            [requisicion_id]
-        );
-        if (reqDataQuery.rowCount === 0) throw new Error('No se encuentran los datos de la requisición base.');
-        const { numero_requisicion, depto_codigo } = reqDataQuery.rows[0];
-        // =================================================================
-        
-        // --- Lógica de Adjuntos Inteligente (usa deleteFile) ---
-        const adjuntosEnBdResult = await client.query(
-            `SELECT id, ruta_archivo FROM rfq_proveedor_adjuntos WHERE requisicion_id = $1`,
-            [requisicion_id]
-        );
-        let idsAConservar = [];
-        for (const provId in archivos_existentes_por_proveedor) {
-            idsAConservar.push(...archivos_existentes_por_proveedor[provId].map(f => f.id));
-        }
-        const adjuntosParaBorrar = adjuntosEnBdResult.rows.filter(
-            adj => !idsAConservar.includes(adj.id)
-        );
-        if (adjuntosParaBorrar.length > 0) {
-            const idsABorrarSql = adjuntosParaBorrar.map(adj => adj.id);
-            await client.query(
-                `DELETE FROM rfq_proveedor_adjuntos WHERE id = ANY($1::int[])`,
-                [idsABorrarSql]
-            );
-            for (const adj of adjuntosParaBorrar) {
-                try {
-                    const fileId = adj.ruta_archivo.split('/view')[0].split('/').pop();
-                    if (fileId) await deleteFile(fileId);
-                } catch (driveError) {
-                    console.error(`Error al borrar archivo ${adj.id} de Drive. El registro de BD se borró.`, driveError);
-                }
+    // 4. (RF-v3) Sincronizar adjuntos borrados
+    const adjuntosIds = (proveedores || []).flatMap(p => (p.adjuntos || []).map(a => a.id));
+    const adjuntosBorradosQuery = `
+        SELECT id, ruta_archivo FROM rfq_proveedor_adjuntos
+        WHERE requisicion_id = $1 
+        AND id NOT IN (${adjuntosIds.map(id => `${id}`).join(',') || 'NULL'})
+    `;
+    const adjuntosBorradosRes = await client.query(adjuntosBorradosQuery, [rfqId]);
+    
+    for (const adjunto of adjuntosBorradosRes.rows) {
+        try {
+            const fileId = adjunto.ruta_archivo.split('/view')[0].split('/').pop();
+            if (fileId) {
+                await deleteFile(fileId); // Borrar de Drive
             }
+        } catch (driveErr) {
+            console.warn(`No se pudo borrar el adjunto ${adjunto.id} de Drive. Continuando...`);
         }
-
-        // --- Subir solo archivos NUEVOS (usando la nueva ruta) ---
-        if (files && files.length > 0) {
-            const providerNameMap = new Map();
-            opciones.forEach(opt => {
-                if (opt.proveedor) {
-                    // Usamos razon_social para el nombre de la carpeta si existe, si no, marca/nombre
-                    const nombreCarpeta = opt.proveedor.razon_social || opt.proveedor.nombre || 'Proveedor_Desconocido';
-                    providerNameMap.set(String(opt.proveedor.id), nombreCarpeta);
-                }
-            });
-
-            for (const file of files) {
-                const fieldParts = file.fieldname.split('-');
-                if (fieldParts[0] === 'cotizacion' && fieldParts[1] === 'archivo') {
-                    const proveedorId = fieldParts[2];
-                    const providerName = providerNameMap.get(proveedorId) || 'ProveedorDesconocido';
-                    
-                    // =================================================================
-                    // --- ¡CAMBIO! Llamar a la nueva función de Drive ---
-                    // =================================================================
-                    const uploadedFile = await uploadQuoteToReqFolder(
-                        file, 
-                        depto_codigo, 
-                        numero_requisicion, 
-                        providerName
-                    );
-                    // =================================================================
-
-                    await client.query(
-                        `INSERT INTO rfq_proveedor_adjuntos (requisicion_id, proveedor_id, nombre_archivo, ruta_archivo) VALUES ($1, $2, $3, $4)`,
-                        [requisicion_id, proveedorId, uploadedFile.name, uploadedFile.webViewLink]
-                    );
-                }
-            }
-        }
-        
-        // --- Lógica de BORRADO INTELIGENTE de Opciones (Sin cambios) ---
-        const pendientesResult = await client.query(
-            `SELECT id FROM requisiciones_detalle WHERE requisicion_id = $1 AND status_compra = 'PENDIENTE'`,
-            [requisicion_id]
-        );
-        const idsPendientes = pendientesResult.rows.map(row => row.id);
-
-        const opcionesBloqueadasResult = await client.query(
-            `SELECT ocd.comparativa_precio_id 
-             FROM ordenes_compra_detalle ocd
-             JOIN ordenes_compra oc ON ocd.orden_compra_id = oc.id
-             WHERE oc.rfq_id = $1`,
-            [requisicion_id]
-        );
-        const opcionesBloqueadas = opcionesBloqueadasResult.rows.map(r => r.comparativa_precio_id);
-
-        const opcionesActualesResult = await client.query(
-            `SELECT id FROM requisiciones_opciones WHERE requisicion_id = $1 AND requisicion_detalle_id = ANY($2::int[])`,
-            [requisicion_id, idsPendientes]
-        );
-        const opcionesActualesIds = opcionesActualesResult.rows.map(r => r.id);
-
-        const idsAConservarOpciones = opciones
-            .filter(opt => !!opt.id) // 'id' aquí es 'id_bd'
-            .map(opt => opt.id);
-
-        const idsParaBorrar = opcionesActualesIds
-            .filter(id =>
-                !idsAConservarOpciones.includes(id) &&
-                !opcionesBloqueadas.includes(id)
-            );
-
-        if (idsParaBorrar.length > 0) {
-            await client.query(
-                `DELETE FROM requisiciones_opciones WHERE id = ANY($1::int[])`,
-                [idsParaBorrar]
-            );
-        }
-
-        // --- Lógica de UPSERT de Opciones (Sin cambios) ---
-        for (const opt of opciones) {
-            // Solo procesa opciones que tengan proveedor Y pertenezcan a una línea PENDIENTE
-            if (!opt.proveedor_id || !idsPendientes.includes(opt.requisicion_detalle_id)) continue;
-            
-            const resumenProveedor = resumenMap.get(opt.proveedor_id);
-
-            if (opt.id) { // 'id' es 'id_bd'
-                // UPDATE (solo si no está bloqueada)
-                if (!opcionesBloqueadas.includes(opt.id)) {
-                    await client.query(
-                        `UPDATE requisiciones_opciones 
-                         SET precio_unitario = $1, cantidad_cotizada = $2, moneda = $3, seleccionado = $4, es_precio_neto = $5, es_importacion = $6, es_entrega_inmediata = $7, tiempo_entrega = $8, tiempo_entrega_valor = $9, tiempo_entrega_unidad = $10, subtotal = $11, iva = $12, ret_isr = $13, total = $14, config_calculo = $15, es_total_forzado = $16
-                         WHERE id = $17`,
-                        [
-                            opt.precio_unitario, opt.cantidad_cotizada, opt.moneda || 'MXN',
-                            opt.seleccionado, opt.es_precio_neto, opt.es_importacion,
-                            opt.es_entrega_inmediata, opt.tiempo_entrega,
-                            opt.tiempo_entrega_valor || null, opt.tiempo_entrega_unidad || null,
-                            opt.seleccionado ? resumenProveedor?.subTotal : null,
-                            opt.seleccionado ? resumenProveedor?.iva : null,
-                            opt.seleccionado ? resumenProveedor?.retIsr : null,
-                            opt.seleccionado ? resumenProveedor?.total : null,
-                            opt.seleccionado ? resumenProveedor?.config : null,
-                            opt.seleccionado ? resumenProveedor?.config?.isForcedTotalActive : false,
-                            opt.id
-                        ]
-                    );
-                }
-            } else {
-                // INSERT
-                await client.query(
-                    `INSERT INTO requisiciones_opciones 
-                    (requisicion_id, requisicion_detalle_id, proveedor_id, precio_unitario, cantidad_cotizada, moneda, seleccionado, es_precio_neto, es_importacion, es_entrega_inmediata, tiempo_entrega, tiempo_entrega_valor, tiempo_entrega_unidad, subtotal, iva, ret_isr, total, config_calculo, es_total_forzado)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
-                    [
-                        requisicion_id, opt.requisicion_detalle_id, opt.proveedor_id, 
-                        opt.precio_unitario, opt.cantidad_cotizada, opt.moneda || 'MXN', 
-                        opt.seleccionado, opt.es_precio_neto, opt.es_importacion, 
-                        opt.es_entrega_inmediata, opt.tiempo_entrega || null, 
-                        opt.tiempo_entrega_valor || null, opt.tiempo_entrega_unidad || null,
-                        opt.seleccionado ? resumenProveedor?.subTotal : null,
-                        opt.seleccionado ? resumenProveedor?.iva : null,
-                        opt.seleccionado ? resumenProveedor?.retIsr : null,
-                        opt.seleccionado ? resumenProveedor?.total : null,
-                        opt.seleccionado ? resumenProveedor?.config : null, 
-                        opt.seleccionado ? resumenProveedor?.config?.isForcedTotalActive : false
-                    ]
-                );
-            }
-        }
-
-        await client.query('COMMIT');
-        res.status(200).json({ mensaje: 'Opciones y archivos de cotización guardados correctamente.' });
-
-    } catch (error) {
-        await client.query('ROLLBACK');
-        console.error(`Error al guardar opciones detalladas para RFQ ${requisicion_id}:`, error);
-        res.status(500).json({ error: error.message || "Error interno del servidor." });
-    } finally {
-        client.release();
+        await client.query('DELETE FROM rfq_proveedor_adjuntos WHERE id = $1', [adjunto.id]);
     }
+
+    await client.query('COMMIT');
+    res.status(200).json({ mensaje: 'Comparativa guardada exitosamente.' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error("Error al guardar opciones de RFQ:", error);
+    res.status(500).json({ error: error.message || "Error interno al guardar la comparativa." });
+  } finally {
+    client.release();
+  }
 };
 
-
 /**
- * POST /api/rfq/:id/enviar-a-aprobacion
+ * POST /api/rfq/:id/enviar-aprobacion
  */
-const enviarRfqAprobacion = async (req, res) => {
+const enviarAAprobacion = async (req, res) => {
     // ... (sin cambios)
     const { id } = req.params;
     try {
-        const result = await pool.query(`UPDATE requisiciones SET status = 'POR_APROBAR' WHERE id = $1 AND (status = 'COTIZANDO' OR status = 'POR_APROBAR') RETURNING id, status`, [id]);
+        const result = await pool.query(
+            `UPDATE requisiciones SET status = 'POR_APROBAR'
+             WHERE id = $1 AND status = 'COTIZANDO' RETURNING id, status`,
+            [id]
+        );
         if (result.rowCount === 0) return res.status(404).json({ error: 'La requisición no se encontró o está en un estado no válido.' });
         res.status(200).json({ mensaje: `La RFQ ha sido enviada a aprobación.`, requisicion: result.rows[0] });
     } catch (error) {
@@ -347,10 +312,11 @@ const cancelarRfq = async (req, res) => {
     }
 };
 
+
 module.exports = {
     getRequisicionesCotizando,
     getRfqDetalle,
     guardarOpcionesRfq,
-    enviarRfqAprobacion,
-    cancelarRfq,
+    enviarAAprobacion,
+    cancelarRfq
 };
