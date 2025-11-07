@@ -46,6 +46,9 @@ jobs:
           docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }} ./backend
           docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
 
+      # ==================================================================
+      # --- INICIO DE LA CORRECCIÓN ---
+      # ==================================================================
       - name: Desplegar a Cloud Run
         run: |-
           gcloud run deploy ${{ env.SERVICE_NAME }} \
@@ -56,4 +59,15 @@ jobs:
             --add-cloudsql-instances="sira-grupo-ig:us-central1:grupo-ig-main-db" \
             --allow-unauthenticated \
             --set-env-vars="NODE_ENV=staging,DB_NAME=ig_biogas_core,INSTANCE_UNIX_SOCKET=/cloudsql/sira-grupo-ig:us-central1:grupo-ig-main-db,SMTP_HOST=smtp.hostinger.com,SMTP_PORT=465" \
-            --set-secrets="DB_USER=db-user-stg:latest,DB_PASSWORD=db-pass-stg:latest,JWT_SECRET=jwt-secret-stg:latest,GOOGLE_CLIENT_ID=google-client-id:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest,GOOGLE_REFRESH_TOKEN=google-refresh-token:latest,DRIVE_FOLDER_ID=drive-folder-id:latest,SMTP_USER=smtp-user:latest,SMTP_PASSWORD=smtp-password:latest"
+            --set-secrets="DB_USER=db-user-stg:latest" \
+            --set-secrets="DB_PASSWORD=db-pass-stg:latest" \
+            --set-secrets="SMTP_USER=smtp-user:latest" \
+            --set-secrets="SMTP_PASSWORD=smtp-password:latest" \
+            --set-secrets="JWT_SECRET=jwt-secret-stg:latest" \
+            --set-secrets="GOOGLE_CLIENT_ID=google-client-id:latest" \
+            --set-secrets="GOOGLE_CLIENT_SECRET=google-client-secret:latest" \
+            --set-secrets="GOOGLE_REFRESH_TOKEN=google-refresh-token:latest" \
+            --set-secrets="DRIVE_FOLDER_ID=drive-folder-id:latest"
+      # ==================================================================
+      # --- FIN DE LA CORRECCIÓN ---
+      # ==================================================================
