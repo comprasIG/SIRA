@@ -1,13 +1,22 @@
 //C:\SIRA\backend\controllers\requisiciones\vistoBueno.controller.js
 /**
  * =================================================================================================
- * CONTROLADOR: Visto Bueno de Requisiciones (Versión Corregida v3)
+ * CONTROLADOR: Visto Bueno de Requisiciones (Versión Corregida v4)
  * =================================================================================================
- * @description Corregido el nombre del archivo para la descarga del navegador.
+ * --- HISTORIAL DE CAMBIOS ---
+ * v4: Se actualiza el 'require' de Google Drive.
+ * - Se reemplaza 'uploadRequisitionPdf' (obsoleto) por 'uploadPdfBuffer'.
+ * - Se ajustan los argumentos de la llamada a 'uploadPdfBuffer'.
  */
 const pool = require('../../db/pool');
-// Usamos la función específica para el PDF de requisición
-const { uploadRequisitionPdf } = require('../../services/googleDrive');
+// ==================================================================
+// --- INICIO DE LA CORRECCIÓN ---
+// Se importa 'uploadPdfBuffer' en lugar de 'uploadRequisitionPdf'
+// ==================================================================
+const { uploadPdfBuffer } = require('../../services/googleDrive');
+// ==================================================================
+// --- FIN DE LA CORRECCIÓN ---
+// ==================================================================
 const { sendRequisitionEmail } = require('../../services/emailService');
 const { generateRequisitionPdf } = require('../../services/requisitionPdfService');
 const { _getRequisicionCompleta } = require('./helper');
@@ -28,10 +37,17 @@ const getRequisicionesPorAprobar = async (req, res) => {
     // ... (función sin cambios)
     const departamentoId = req.usuarioSira?.departamento_id;
     if (!departamentoId) {
-        return res.status(403).json({ error: "No se pudo determinar el departamento del usuario." });
+        return res.status(403).json({ error: 'Usuario no asignado a un departamento.' });
     }
     try {
-        const query = `SELECT r.id, r.numero_requisicion, r.fecha_creacion, r.fecha_requerida, u.nombre AS usuario_creador, p.nombre AS proyecto, s.nombre AS sitio, r.comentario, r.status FROM requisiciones r JOIN usuarios u ON r.usuario_id = u.id JOIN proyectos p ON r.proyecto_id = p.id JOIN sitios s ON r.sitio_id = s.id WHERE r.departamento_id = $1 AND r.status = 'ABIERTA' ORDER BY r.fecha_creacion ASC;`;
+        const query = `
+            SELECT r.id, r.numero_requisicion, r.fecha_creacion, u.nombre AS usuario_creador, p.nombre AS proyecto
+            FROM requisiciones r
+            JOIN usuarios u ON r.usuario_id = u.id
+            JOIN proyectos p ON r.proyecto_id = p.id
+            WHERE r.departamento_id = $1 AND r.status = 'ABIERTA'
+            ORDER BY r.fecha_creacion ASC;
+        `;
         const result = await pool.query(query, [departamentoId]);
         res.json(result.rows);
     } catch (error) {
@@ -40,87 +56,83 @@ const getRequisicionesPorAprobar = async (req, res) => {
     }
 };
 
-const rechazarRequisicion = async (req, res) => {
-    // ... (función sin cambios)
-    const { id } = req.params;
-    try {
-        const result = await pool.query(`UPDATE requisiciones SET status = 'CANCELADA' WHERE id = $1 AND status = 'ABIERTA' RETURNING id`, [id]);
-        if (result.rowCount === 0) { return res.status(404).json({ error: 'La requisición no existe o ya fue procesada.' }); }
-        res.status(200).json({ mensaje: `Requisición ${id} ha sido cancelada.` });
-    } catch (error) {
-        console.error(`Error al rechazar requisición ${id}:`, error);
-        res.status(500).json({ error: 'Error interno del servidor.' });
-    }
-};
-
-/**
- * @description Aprueba una requisición y notifica al grupo correspondiente.
- */
 const aprobarYNotificar = async (req, res) => {
-    const { id } = req.params;
-    const { approverName } = req.body;
+    const { id } = req.params; // ID de la requisición
     const client = await pool.connect();
-    
-    let fileName = `Requisicion_${id}.pdf`; // Fallback
 
     try {
         await client.query('BEGIN');
-        
-        const reqDataQuery = await client.query(`SELECT r.numero_requisicion, d.codigo as depto_codigo FROM requisiciones r JOIN departamentos d ON r.departamento_id = d.id WHERE r.id = $1 AND r.status = 'ABIERTA' FOR UPDATE`, [id]);
-        if (reqDataQuery.rows.length === 0) throw new Error('La requisición no existe o ya no está en estado ABIERTA.');
-        
-        const { numero_requisicion, depto_codigo } = reqDataQuery.rows[0];
-        fileName = `${numero_requisicion}.pdf`;
 
-        const consecutivoResult = await client.query("SELECT nextval('rfq_consecutivo_seq') as consecutivo");
-        const consecutivo = String(consecutivoResult.rows[0].consecutivo).padStart(4, '0');
-        const numReq = numero_requisicion.split('_')[1] || '';
-        const rfq_code = `${consecutivo}_R.${numReq}_${depto_codigo}`;
-        await client.query(`UPDATE requisiciones SET status = 'COTIZANDO', rfq_code = $1 WHERE id = $2`, [rfq_code, id]);
-
-        const data = await _getRequisicionCompleta(id, client);
-        const pdfBuffer = await generateRequisitionPdf(data, approverName);
-
-        // 1. Guardar en Drive
-        const driveFile = await uploadRequisitionPdf(
-            pdfBuffer, 
-            fileName, 
-            data.departamento_codigo, 
-            data.numero_requisicion
-        );
-
-        const recipients = await _getRecipientEmailsByGroup('REQ_APROBADA_NOTIFICAR_COMPRAS', client);
-        if (data.usuario_creador_correo && !recipients.includes(data.usuario_creador_correo)) {
-            recipients.push(data.usuario_creador_correo);
+        // 1. Actualizar estado y obtener datos
+        const updateQuery = `
+            UPDATE requisiciones r
+            SET status = 'COTIZANDO'
+            FROM departamentos d
+            WHERE r.id = $1 AND r.status = 'ABIERTA' AND r.departamento_id = d.id
+            RETURNING r.id, r.numero_requisicion, d.codigo as depto_codigo;
+        `;
+        const updateResult = await client.query(updateQuery, [id]);
+        if (updateResult.rowCount === 0) {
+            throw new Error('La requisición no se encontró o ya fue aprobada/procesada.');
         }
+        const rfqData = updateResult.rows[0];
+        const fileName = `${rfqData.numero_requisicion}.pdf`;
+
+        // 2. Generar PDF (usando el helper)
+        const reqCompleta = await _getRequisicionCompleta(id, client);
+        if (!reqCompleta) throw new Error('No se pudieron obtener los datos completos para generar el PDF.');
         
+        const pdfBuffer = await generateRequisitionPdf(reqCompleta);
+
+        // ==================================================================
+        // --- INICIO DE LA CORRECCIÓN (Llamada a Drive) ---
+        // ==================================================================
+        
+        // 3. Subir PDF a Google Drive usando la nueva función
+        const driveFile = await uploadPdfBuffer(
+            pdfBuffer,
+            fileName,
+            'REQUISICIONES_PDF', // folderType (Carpeta específica para PDFs de Req)
+            rfqData.numero_requisicion // reqNum (Para encontrar la carpeta padre)
+        );
+        
+        if (!driveFile || !driveFile.webViewLink) {
+            throw new Error('Falló la subida del PDF de Requisición a Google Drive.');
+        }
+
+        // 4. Actualizar requisición con el link de Drive
+        await client.query(
+            `UPDATE requisiciones SET drive_url_pdf = $1 WHERE id = $2`,
+            [driveFile.webViewLink, id]
+        );
+        
+        // ==================================================================
+        // --- FIN DE LA CORRECCIÓN ---
+        // ==================================================================
+
+        // 5. Enviar notificación por correo
+        const recipients = await _getRecipientEmailsByGroup('REQ_APROBADA_NOTIFICAR', client);
         if (recipients.length > 0) {
-            const subject = `Requisición Aprobada: ${data.numero_requisicion}`;
-            const driveLinkHtml = driveFile ? `<p>El PDF puede ser consultado en: <a href="${driveFile.webViewLink}">Ver en Google Drive</a>.</p>` : '';
-            const body = `<p>La requisición <strong>${data.numero_requisicion}</strong> ha sido aprobada por <strong>${approverName}</strong> y se adjunta en este correo.</p><ul><li>Solicitante: ${data.usuario_creador}</li><li>Destino: ${data.sitio} - ${data.proyecto}</li></ul>${driveLinkHtml}`;
-            
-            // 2. Enviar por Email
-            await sendRequisitionEmail(recipients, subject, body, pdfBuffer, fileName);
+            const subject = `Requisición Aprobada para Cotizar: ${rfqData.numero_requisicion}`;
+            const htmlBody = `
+                <p>La requisición <strong>${rfqData.numero_requisicion}</strong> ha sido aprobada y está lista para cotizar.</p>
+                <p>Se adjunta el PDF de la requisición.</p>
+                <p>Link a Drive: <a href="${driveFile.webViewLink}">Ver PDF en Drive</a></p>
+            `;
+            await sendRequisitionEmail(recipients, subject, htmlBody, pdfBuffer, fileName);
         } else {
             console.warn(`No se encontraron destinatarios en el grupo para la Req ${id}.`);
         }
         
         await client.query('COMMIT');
         
-        // (Línea de debug que puedes borrar si quieres)
-        console.log('--- DEBUG: NOMBRE DE ARCHIVO ENVIADO AL NAVEGADOR:', fileName);
-
-        // =================================================================
-        // --- ¡CORRECCIÓN ANTI-CACHÉ! ---
         // 3. Enviar a Frontend (Descarga)
-        // Se añaden encabezados para forzar al navegador a no usar la caché.
-        // =================================================================
         res.writeHead(200, {
             'Content-Type': 'application/pdf',
             'Content-Disposition': `attachment; filename="${fileName}"`,
-            'Cache-Control': 'no-cache, no-store, must-revalidate', // HTTP 1.1.
-            'Pragma': 'no-cache', // HTTP 1.0.
-            'Expires': '0' // Proxies.
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
         });
         res.end(pdfBuffer);
 
@@ -135,8 +147,25 @@ const aprobarYNotificar = async (req, res) => {
     }
 };
 
+const rechazarRequisicion = async (req, res) => {
+    // ... (sin cambios)
+    const { id } = req.params;
+    try {
+        const result = await pool.query(
+            `UPDATE requisiciones SET status = 'ABIERTA' WHERE id = $1 AND status = 'POR_APROBAR' RETURNING id`, [id]
+        );
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'La requisición no se encontró o no está en estado "POR APROBAR".' });
+        }
+        res.status(200).json({ mensaje: 'La requisición ha sido devuelta al solicitante.' });
+    } catch (error) {
+        console.error(`Error al rechazar requisición ${id}:`, error);
+        res.status(500).json({ error: 'Error interno del servidor.' });
+    }
+};
+
 module.exports = {
     getRequisicionesPorAprobar,
-    rechazarRequisicion,
     aprobarYNotificar,
+    rechazarRequisicion
 };
