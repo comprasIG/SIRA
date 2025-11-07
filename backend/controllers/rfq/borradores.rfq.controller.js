@@ -1,7 +1,7 @@
 // C:\SIRA\backend\controllers\rfq\borradores.rfq.controller.js
 /**
  * =================================================================================================
- * CONTROLADOR: Borradores de Cotizaciones (Snapshots de RFQ)
+ * CONTROLADOR: Borradores de Cotizaciones   (Snapshots de RFQ)
  * =================================================================================================
  * Basado en la lógica de borradores.controller.js
  * pero adaptado para RFQ (usa requisicion_id y usuario_id del token).
