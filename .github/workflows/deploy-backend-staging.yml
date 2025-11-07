@@ -1,4 +1,3 @@
-# C:\SIRA\SIRA\.github\workflows\deploy-backend-staging.yml
 # .github/workflows/deploy-backend-staging.yml
 
 name: Desplegar Backend a Staging
@@ -55,5 +54,7 @@ jobs:
             --service-account="sa-sira-deployer@sira-grupo-ig.iam.gserviceaccount.com" \
             --add-cloudsql-instances="sira-grupo-ig:us-central1:grupo-ig-main-db" \
             --allow-unauthenticated \
-            --set-env-vars="NODE_ENV=staging,DB_NAME=ig_biogas_core,INSTANCE_UNIX_SOCKET=/cloudsql/sira-grupo-ig:us-central1:grupo-ig-main-db,SMTP_HOST=smtp.hostinger.com,SMTP_PORT=465" \
-            --set-secrets="DB_USER=db-user-stg:latest,DB_PASSWORD=db-pass-stg:latest,JWT_SECRET=jwt-secret-stg:latest,GOOGLE_CLIENT_ID=google-client-id:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest,GOOGLE_REFRESH_TOKEN=google-refresh-token:latest,DRIVE_FOLDER_ID=drive-folder-id:latest,SMTP_USER=smtp-user:latest,SMTP_PASSWORD=smtp-password:latest"
+            # --- CAMBIO AQUÍ: Se quitaron SMTP_HOST y SMTP_PORT de esta línea ---
+            --set-env-vars="NODE_ENV=staging,DB_NAME=ig_biogas_core,INSTANCE_UNIX_SOCKET=/cloudsql/sira-grupo-ig:us-central1:grupo-ig-main-db" \
+            # --- CAMBIO AQUÍ: Se añadieron SMTP_HOST y SMTP_PORT para que lean los secretos ---
+            --set-secrets="DB_USER=db-user-stg:latest,DB_PASSWORD=db-pass-stg:latest,JWT_SECRET=jwt-secret-stg:latest,GOOGLE_CLIENT_ID=google-client-id:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest,GOOGLE_REFRESH_TOKEN=google-refresh-token:latest,DRIVE_FOLDER_ID=drive-folder-id:latest,SMTP_USER=smtp-user:latest,SMTP_PASSWORD=smtp-password:latest,SMTP_HOST=smtp-host:latest,SMTP_PORT=smtp-port:latest"
