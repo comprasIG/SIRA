@@ -43,6 +43,6 @@ router.post("/:id/aprobar-y-notificar", vbController.aprobarYNotificar);
 router.post("/:id/rechazar", vbController.rechazarRequisicion);
 
 /* ------------------------ Detalle (dejar hasta el final) ---------------------- */
-router.get("/:id", genController.getRequisicionDetalle);
+router.get("/:id", genController.getDetalleRequisicion);
 
 module.exports = router;

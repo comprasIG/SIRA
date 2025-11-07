@@ -1,28 +1,24 @@
 //C:\SIRA\backend\controllers\requisiciones\vistoBueno.controller.js
 /**
  * =================================================================================================
- * CONTROLADOR: Visto Bueno de Requisiciones (Versión Corregida v4)
+ * CONTROLADOR: Visto Bueno de Requisiciones (Versión 5 - Fina)
  * =================================================================================================
  * --- HISTORIAL DE CAMBIOS ---
- * v4: Se actualiza el 'require' de Google Drive.
- * - Se reemplaza 'uploadRequisitionPdf' (obsoleto) por 'uploadPdfBuffer'.
- * - Se ajustan los argumentos de la llamada a 'uploadPdfBuffer'.
+ * v5: Solución profesional (sin parches).
+ * - Se importa 'uploadPdfBuffer' (el nombre correcto) en lugar de 'uploadRequisitionPdf'.
+ * - Se ajustan los argumentos de la llamada a 'uploadPdfBuffer'
+ * para que coincidan con la firma de la función.
  */
 const pool = require('../../db/pool');
-// ==================================================================
-// --- INICIO DE LA CORRECCIÓN ---
-// Se importa 'uploadPdfBuffer' en lugar de 'uploadRequisitionPdf'
-// ==================================================================
+// --- CORRECCIÓN ---
+// Importar el nombre de la función que SÍ existe en googleDrive.js
 const { uploadPdfBuffer } = require('../../services/googleDrive');
-// ==================================================================
 // --- FIN DE LA CORRECCIÓN ---
-// ==================================================================
 const { sendRequisitionEmail } = require('../../services/emailService');
 const { generateRequisitionPdf } = require('../../services/requisitionPdfService');
 const { _getRequisicionCompleta } = require('./helper');
 
 const _getRecipientEmailsByGroup = async (codigoGrupo, client) => {
-    // ... (función sin cambios)
     const query = `
         SELECT u.correo FROM usuarios u
         JOIN notificacion_grupo_usuarios ngu ON u.id = ngu.usuario_id
@@ -34,7 +30,6 @@ const _getRecipientEmailsByGroup = async (codigoGrupo, client) => {
 };
 
 const getRequisicionesPorAprobar = async (req, res) => {
-    // ... (función sin cambios)
     const departamentoId = req.usuarioSira?.departamento_id;
     if (!departamentoId) {
         return res.status(403).json({ error: 'Usuario no asignado a un departamento.' });
@@ -76,6 +71,8 @@ const aprobarYNotificar = async (req, res) => {
             throw new Error('La requisición no se encontró o ya fue aprobada/procesada.');
         }
         const rfqData = updateResult.rows[0];
+        // --- CORRECCIÓN ---
+        // El nombre de archivo debe ser consistente
         const fileName = `${rfqData.numero_requisicion}.pdf`;
 
         // 2. Generar PDF (usando el helper)
@@ -84,11 +81,8 @@ const aprobarYNotificar = async (req, res) => {
         
         const pdfBuffer = await generateRequisitionPdf(reqCompleta);
 
-        // ==================================================================
-        // --- INICIO DE LA CORRECCIÓN (Llamada a Drive) ---
-        // ==================================================================
-        
-        // 3. Subir PDF a Google Drive usando la nueva función
+        // --- CORRECCIÓN ---
+        // 3. Subir PDF a Google Drive usando la nueva función 'uploadPdfBuffer'
         const driveFile = await uploadPdfBuffer(
             pdfBuffer,
             fileName,
@@ -106,10 +100,6 @@ const aprobarYNotificar = async (req, res) => {
             [driveFile.webViewLink, id]
         );
         
-        // ==================================================================
-        // --- FIN DE LA CORRECCIÓN ---
-        // ==================================================================
-
         // 5. Enviar notificación por correo
         const recipients = await _getRecipientEmailsByGroup('REQ_APROBADA_NOTIFICAR', client);
         if (recipients.length > 0) {
@@ -126,7 +116,7 @@ const aprobarYNotificar = async (req, res) => {
         
         await client.query('COMMIT');
         
-        // 3. Enviar a Frontend (Descarga)
+        // 6. Enviar a Frontend (Descarga)
         res.writeHead(200, {
             'Content-Type': 'application/pdf',
             'Content-Disposition': `attachment; filename="${fileName}"`,
@@ -148,7 +138,6 @@ const aprobarYNotificar = async (req, res) => {
 };
 
 const rechazarRequisicion = async (req, res) => {
-    // ... (sin cambios)
     const { id } = req.params;
     try {
         const result = await pool.query(

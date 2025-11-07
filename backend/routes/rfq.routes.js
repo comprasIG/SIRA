@@ -35,7 +35,7 @@ router.post("/:id/borrador", borradorController.upsertMiBorradorRfq);
 
 // --- Rutas de Acción de GENERACIÓN (Comprador) ---
 router.post("/:id/opciones", upload.any(), genController.guardarOpcionesRfq);
-router.post("/:id/enviar-a-aprobacion", genController.enviarRfqAprobacion);
+router.post("/:id/enviar-a-aprobacion", genController.enviarAAprobacion);
 router.post("/:id/cancelar", genController.cancelarRfq);
 
 // --- Rutas de Acción de VISTO BUENO (Gerente) ---

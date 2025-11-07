@@ -1,23 +1,19 @@
 // C:\SIRA\backend\controllers\requisiciones\generacion.controller.js
 /**
  * =================================================================================================
- * CONTROLADOR: Generación de Requisiciones (Versión Corregida v4)
+ * CONTROLADOR: Generación de Requisiciones (Versión 5 - Fina)
  * =================================================================================================
  * --- HISTORIAL DE CAMBIOS ---
- * v4: Se actualiza el 'require' de Google Drive.
- * - Se reemplaza 'uploadRequisitionFiles' (obsoleto) por 'uploadQuoteFile'.
- * - Se añade un bucle para subir los archivos uno por uno,
- * ya que 'uploadQuoteFile' maneja archivos individuales.
+ * v5: Solución profesional (sin parches).
+ * - Se importa 'uploadQuoteFile' de googleDrive (el nombre correcto).
+ * - Se modifica la lógica de 'crearRequisicion' y 'actualizarRequisicion'
+ * para iterar y subir archivos uno por uno, que es como 'uploadQuoteFile' funciona.
+ * - Se asegura que 'module.exports' esté completo (corrige el crash de inicio).
  */
 const pool = require('../../db/pool');
-// ==================================================================
-// --- INICIO DE LA CORRECCIÓN ---
-// Se importa 'uploadQuoteFile' en lugar de 'uploadRequisitionFiles'
-// ==================================================================
+// --- CORRECCIÓN ---
+// Importar el nombre de la función que SÍ existe en googleDrive.js
 const { uploadQuoteFile } = require('../../services/googleDrive');
-// ==================================================================
-// --- FIN DE LA CORRECCIÓN ---
-// ==================================================================
 const { _getRequisicionCompleta } = require('./helper');
 
 const crearRequisicion = async (req, res) => {
@@ -78,11 +74,8 @@ const crearRequisicion = async (req, res) => {
 
     // 4. Subir adjuntos (si hay)
     if (archivos && archivos.length > 0) {
-      // ==================================================================
-      // --- INICIO DE LA CORRECCIÓN (Lógica de subida) ---
-      // 'uploadQuoteFile' sube un archivo a la vez,
-      // así que iteramos y llamamos la función por cada archivo.
-      // ==================================================================
+      // --- CORRECCIÓN ---
+      // 'uploadQuoteFile' sube un archivo a la vez. Iteramos.
       for (const archivo of archivos) {
         const archivoSubido = await uploadQuoteFile(
           archivo.buffer,
@@ -99,9 +92,6 @@ const crearRequisicion = async (req, res) => {
           [requisicionId, archivoSubido.name, archivoSubido.webViewLink]
         );
       }
-      // ==================================================================
-      // --- FIN DE LA CORRECCIÓN ---
-      // ==================================================================
     }
 
     // 5. Borrar borrador si existe (ignoramos errores)
@@ -196,9 +186,7 @@ const actualizarRequisicion = async (req, res) => {
       `, [requisicionId]);
       const { numero_requisicion, depto_codigo } = reqData.rows[0];
 
-      // ==================================================================
-      // --- INICIO DE LA CORRECCIÓN (Lógica de subida) ---
-      // ==================================================================
+      // --- CORRECCIÓN ---
       for (const archivo of archivosNuevos) {
         const archivoSubido = await uploadQuoteFile(
           archivo.buffer,
@@ -214,9 +202,6 @@ const actualizarRequisicion = async (req, res) => {
           [requisicionId, archivoSubido.name, archivoSubido.webViewLink]
         );
       }
-      // ==================================================================
-      // --- FIN DE LA CORRECCIÓN ---
-      // ==================================================================
     }
 
     await client.query('COMMIT');
@@ -245,6 +230,9 @@ const getDetalleRequisicion = async (req, res) => {
     }
 };
 
+// --- CORRECCIÓN ---
+// Este bloque es el que soluciona el crash de inicio.
+// Debe exportar todas las funciones que 'requisiciones.routes.js' importa.
 module.exports = {
     crearRequisicion,
     actualizarRequisicion,

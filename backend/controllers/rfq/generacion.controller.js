@@ -6,11 +6,12 @@
  * =================================================================================================
  * --- HISTORIAL DE CAMBIOS ---
  * v3.1: Se corrige la importación de 'uploadQuoteToReqFolder' (que no existe)
- * por 'uploadQuoteFile' (que sí existe), usando un alias.
+ * por 'uploadQuoteFile' (que sí existe). Se actualiza la llamada a la función.
  */
 const pool = require('../../db/pool');
-// --- ¡CAMBIO! Importar la función correcta 'uploadQuoteFile' y renombrarla ---
-const { uploadQuoteFile: uploadQuoteToReqFolder, deleteFile } = require('../../services/googleDrive');
+// --- CORRECCIÓN ---
+// Se importa 'uploadQuoteFile' (la función real) y 'deleteFile'
+const { uploadQuoteFile, deleteFile } = require('../../services/googleDrive');
 
 /**
  * GET /api/rfq/pendientes
@@ -168,7 +169,9 @@ const guardarOpcionesRfq = async (req, res) => {
         const fileName = archivo.originalname;
         const mimeType = archivo.mimetype;
 
-        const driveFile = await uploadQuoteToReqFolder(
+        // --- CORRECCIÓN ---
+        // Se llama a 'uploadQuoteFile' (la función real)
+        const driveFile = await uploadQuoteFile(
             fileBuffer,
             fileName,
             mimeType,
@@ -277,7 +280,6 @@ const guardarOpcionesRfq = async (req, res) => {
  * POST /api/rfq/:id/enviar-aprobacion
  */
 const enviarAAprobacion = async (req, res) => {
-    // ... (sin cambios)
     const { id } = req.params;
     try {
         const result = await pool.query(
@@ -297,11 +299,10 @@ const enviarAAprobacion = async (req, res) => {
  * POST /api/rfq/:id/cancelar
  */
 const cancelarRfq = async (req, res) => {
-    // ... (sin cambios)
     const { id } = req.params;
     try {
         const rfqActual = await pool.query(`SELECT status FROM requisiciones WHERE id = $1`, [id]);
-        if (rfqActual.rowCount === 0) return res.status(404).json({ error: 'El RFQ no existe.' });
+        if (rfqActual.rowCount === 0) return res.status(4404).json({ error: 'El RFQ no existe.' });
         const statusActual = rfqActual.rows[0].status;
         if (statusActual !== 'COTIZANDO') return res.status(409).json({ error: `No se puede cancelar. El RFQ ya está en estado '${statusActual}'.` });
         await pool.query(`UPDATE requisiciones SET status = 'CANCELADA' WHERE id = $1`, [id]);
