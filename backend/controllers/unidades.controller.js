@@ -34,8 +34,16 @@ const getUnidades = async (req, res) => {
         s.id AS sitio_id, -- El ID del sitio "UNIDADES"
         (SELECT COUNT(*) FROM requisiciones r WHERE r.proyecto_id = p.id AND r.status NOT IN ('ENTREGADA', 'CANCELADA')) AS requisiciones_abiertas
       FROM public.unidades u
-      JOIN public.usuarios usr ON u.responsable_id = usr.id
-      JOIN public.departamentos d ON usr.departamento_id = d.id
+      
+      -- ==========================================================
+      -- ¡AQUÍ ESTÁ LA CORRECCIÓN!
+      -- Cambiamos a LEFT JOIN para que las unidades aparezcan
+      -- aunque su responsable o depto. sean nulos o inválidos.
+      -- ==========================================================
+      LEFT JOIN public.usuarios usr ON u.responsable_id = usr.id
+      LEFT JOIN public.departamentos d ON usr.departamento_id = d.id
+      -- ==========================================================
+
       LEFT JOIN public.proyectos p ON p.nombre = u.unidad -- Ligamos por nombre
       LEFT JOIN public.sitios s ON p.sitio_id = s.id
       WHERE s.nombre = 'UNIDADES' -- ¡La clave! Solo traemos las ligadas al sitio UNIDADES
@@ -44,6 +52,7 @@ const getUnidades = async (req, res) => {
     const params = [];
 
     if (filtroDeptoId) {
+      // Usamos 'd.id' para filtrar por depto.
       query += ` AND d.id = $${params.length + 1}`;
       params.push(filtroDeptoId);
     }
@@ -178,9 +187,54 @@ const crearRequisicionVehicular = async (req, res) => {
   }
 };
 
+/**
+ * @description Obtiene los datos necesarios para poblar el modal de "Solicitar Servicio".
+ * - Tipos de Evento (para la bitácora)
+ * - Materiales/SKU (para la requisición)
+ */
+const getDatosModalServicio = async (req, res) => {
+  try {
+    // 1. Obtenemos los tipos de evento que NO son 'INCIDENCIA' o 'OTRO' (esos no generan compra)
+    const tiposQuery = `
+      SELECT id, codigo, nombre 
+      FROM unidades_evento_tipos
+      WHERE codigo NOT IN ('INCIDENCIA', 'OTRO') AND activo = true
+      ORDER BY nombre;
+    `;
+
+    // 2. Obtenemos los materiales genéricos que creamos en el seed
+    const materialesQuery = `
+      SELECT nombre, sku 
+      FROM catalogo_materiales
+      WHERE sku IN ('SERV-VEH-PREV', 'SERV-VEH-CORR', 'LLANTA-GEN', 'COMBUS-GEN')
+      AND activo = true;
+    `;
+
+    const [tiposRes, materialesRes] = await Promise.all([
+      pool.query(tiposQuery),
+      pool.query(materialesQuery),
+    ]);
+
+    // 3. Mapeamos los materiales a sus SKUs para fácil acceso en el front
+    const materialesMap = materialesRes.rows.reduce((acc, m) => {
+      acc[m.sku] = m.nombre;
+      return acc;
+    }, {});
+
+    res.json({
+      tiposDeEvento: tiposRes.rows,
+      materialesMap: materialesMap,
+    });
+
+  } catch (error) {
+    console.error('Error al obtener datos para el modal de servicio:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+};
 
 module.exports = {
   getUnidades,
   getHistorialUnidad,
   crearRequisicionVehicular,
+  getDatosModalServicio,
 };

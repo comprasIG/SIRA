@@ -17,7 +17,7 @@ export const useUnidades = () => {
       // ¡AQUÍ ESTÁ LA CORRECCIÓN!
       // Añadimos el prefijo '/api' para que coincida con app.js
       // ==========================================================
-      const { data } = await api.get('/api/unidades'); 
+      const  data  = await api.get('/api/unidades'); 
 
     setUnidades(data);
     } catch (error) {

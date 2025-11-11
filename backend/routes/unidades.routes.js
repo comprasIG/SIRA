@@ -12,6 +12,9 @@ router.use(verifyFirebaseToken, loadSiraUser);
 // Obtiene la lista principal de unidades (para el dashboard vehicular)
 router.get('/', unidadesController.getUnidades);
 
+// GET /api/unidades/datos-modal-servicio
+router.get('/datos-modal-servicio', unidadesController.getDatosModalServicio);
+
 // GET /api/unidades/:id/historial
 // Obtiene la bitácora de una sola unidad
 router.get('/:id/historial', unidadesController.getHistorialUnidad);

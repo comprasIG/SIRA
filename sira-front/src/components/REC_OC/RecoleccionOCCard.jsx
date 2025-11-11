@@ -12,10 +12,24 @@ import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import EmailIcon from '@mui/icons-material/Email';
 import CommentIcon from '@mui/icons-material/Comment';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import DirectionsCarIcon from '@mui/icons-material/DirectionsCar'; // Icono para el botón vehicular
 
 const cardVariants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4 } } };
 
-export default function RecoleccionOCCard({ oc, onProcesar }) {
+// ===============================================
+// --- ¡CAMBIO! Recibimos la nueva prop 'onCerrarVehicular' ---
+// ===============================================
+export default function RecoleccionOCCard({ oc, onProcesar, onCerrarVehicular }) {
+  
+  // ===============================================
+  // --- ¡LÓGICA CLAVE! Detectamos si es vehicular ---
+  // ===============================================
+  // Usamos el ID 23 que corresponde al sitio "UNIDADES"
+  const SITIO_UNIDADES_ID = 23; 
+  const esVehicular = oc.sitio_id === SITIO_UNIDADES_ID;
+  // ===============================================
+
+  // Estados para el flujo normal (se quedan)
   const [step, setStep] = useState(1);
   const [metodo, setMetodo] = useState('');
   const [showComments, setShowComments] = useState(false);
@@ -26,9 +40,10 @@ export default function RecoleccionOCCard({ oc, onProcesar }) {
     evidencias: [],
     comentarioRecoleccion: '',
     paqueteriaPago: 'PAGADA',
-    entregaResponsable: 'EQUIPO_RECOLECCION', // Valor por defecto
+    entregaResponsable: 'EQUIPO_RECOLECCION',
   });
   
+  // Handlers para el flujo normal (se quedan)
   const handleMetodoSelect = (metodoId, tipo) => {
     setMetodo(tipo);
     setFormData(prev => ({ ...prev, metodoRecoleccionId: metodoId }));
@@ -65,99 +80,130 @@ export default function RecoleccionOCCard({ oc, onProcesar }) {
             <Typography variant="h6" fontWeight="bold" lineHeight={1.2}>{oc.proveedor_marca}</Typography>
             <Typography variant="body2" color="text.secondary">{oc.proveedor_razon_social}</Typography>
           <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-            <Chip size="small" icon={<WorkspacesIcon />} label={oc.proyecto_nombre} color="primary" />
+            <Chip size="small" icon={esVehicular ? <DirectionsCarIcon /> : <WorkspacesIcon />} label={oc.proyecto_nombre} color={esVehicular ? "info" : "primary"} />
             <Chip size="small" icon={<PlaceIcon />} label={oc.sitio_nombre} />
           </Stack>
         </Box>
         <Divider />
 
-        <Box sx={{ p: 2, flexGrow: 1 }}>
-          {/* PASO 1: MÉTODO DE ENTREGA */}
-          {step === 1 && (
-            <Stack spacing={2} justifyContent="center" sx={{height: '100%'}}>
-              <Typography variant="subtitle2" align="center" color="text.secondary">PASO 1: Método de Entrega</Typography>
-              <Button variant="contained" startIcon={<MopedIcon />} onClick={() => handleMetodoSelect(1, 'local')}>Recolección Local</Button>
-              <Button variant="outlined" startIcon={<LocalShippingIcon />} onClick={() => handleMetodoSelect(2, 'paqueteria')}>Paquetería</Button>
-            </Stack>
-          )}
+        <Box sx={{ p: 2, flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          
+          {/* ======================================================== */}
+          {/* --- ¡INICIO DE LA LÓGICA CONDICIONAL (ATAJO)! --- */}
+          {/* ======================================================== */}
 
-          {/* PASO 2: COMPLETAR INFORMACIÓN */}
-          {step === 2 && (
-            <Stack spacing={2}>
-              <Typography variant="subtitle2" color="text.secondary">PASO 2: Completar Información</Typography>
-              
-              {/* Lógica para Recolección Local */}
-              {metodo === 'local' && (
-                  <FormControl>
-                      <FormLabel>Responsable de la entrega</FormLabel>
-                      <RadioGroup row value={formData.entregaResponsable} onChange={(e) => setFormData(prev => ({...prev, entregaResponsable: e.target.value}))}>
-                          <FormControlLabel value="EQUIPO_RECOLECCION" control={<Radio />} label="Equipo de Recolección" />
-                          <FormControlLabel value="PROVEEDOR" control={<Radio />} label="Proveedor Entrega" />
-                      </RadioGroup>
-                  </FormControl>
+          {esVehicular ? (
+            // --- A. Si es Vehicular, mostramos el botón de cierre ---
+            <Stack spacing={2} justifyContent="center" sx={{height: '100%'}}>
+              <Typography variant="subtitle2" align="center" color="text.secondary">
+                SERVICIO VEHICULAR
+              </Typography>
+              <Button 
+                variant="contained" 
+                color="info" 
+                startIcon={<CheckCircleIcon />} 
+                onClick={() => onCerrarVehicular(oc)} // Llama a la función del padre
+              >
+                Confirmar Servicio y Cerrar
+              </Button>
+              <Typography variant="caption" align="center" color="text.secondary" sx={{mt: 1}}>
+                Esto marcará la OC como "ENTREGADA" y registrará el cierre en la bitácora del vehículo.
+              </Typography>
+            </Stack>
+
+          ) : (
+            // --- B. Si NO es Vehicular, mostramos el flujo normal de 3 pasos ---
+            <>
+              {/* PASO 1: MÉTODO DE ENTREGA */}
+              {step === 1 && (
+                <Stack spacing={2} justifyContent="center" sx={{height: '100%'}}>
+                  <Typography variant="subtitle2" align="center" color="text.secondary">PASO 1: Método de Entrega</Typography>
+                  <Button variant="contained" startIcon={<MopedIcon />} onClick={() => handleMetodoSelect(1, 'local')}>Recolección Local</Button>
+                  <Button variant="outlined" startIcon={<LocalShippingIcon />} onClick={() => handleMetodoSelect(2, 'paqueteria')}>Paquetería</Button>
+                </Stack>
               )}
 
-              {/* Lógica para Paquetería */}
-              {metodo === 'paqueteria' && (
+              {/* PASO 2: COMPLETAR INFORMACIÓN */}
+              {step === 2 && (
                 <Stack spacing={2}>
-                  <FormControl fullWidth size="small"><InputLabel>Paquetería</InputLabel>
-                    <Select value={formData.paqueteriaId} label="Paquetería" onChange={(e) => setFormData(prev => ({ ...prev, paqueteriaId: e.target.value }))}>
-                      <MenuItem value={1}>DHL</MenuItem><MenuItem value={2}>Estafeta</MenuItem><MenuItem value={3}>FedEx</MenuItem>
-                    </Select>
-                  </FormControl>
-                  <TextField fullWidth size="small" label="Número de Guía" value={formData.numeroGuia} onChange={(e) => setFormData(prev => ({ ...prev, numeroGuia: e.target.value }))} />
-                  <Button component="label" variant="text" size="small" startIcon={<UploadFileIcon />}>Cargar Evidencia(s) ({formData.evidencias.length})
-                    <input type="file" hidden multiple onChange={handleFileChange} />
-                  </Button>
+                  <Typography variant="subtitle2" color="text.secondary">PASO 2: Completar Información</Typography>
+                  
+                  {metodo === 'local' && (
+                      <FormControl>
+                          <FormLabel>Responsable de la entrega</FormLabel>
+                          <RadioGroup row value={formData.entregaResponsable} onChange={(e) => setFormData(prev => ({...prev, entregaResponsable: e.target.value}))}>
+                              <FormControlLabel value="EQUIPO_RECOLECCION" control={<Radio />} label="Equipo de Recolección" />
+                              <FormControlLabel value="PROVEEDOR" control={<Radio />} label="Proveedor Entrega" />
+                          </RadioGroup>
+                      </FormControl>
+                  )}
+
+                  {metodo === 'paqueteria' && (
+                    <Stack spacing={2}>
+                      <FormControl fullWidth size="small"><InputLabel>Paquetería</InputLabel>
+                        <Select value={formData.paqueteriaId} label="Paquetería" onChange={(e) => setFormData(prev => ({ ...prev, paqueteriaId: e.target.value }))}>
+                          <MenuItem value={1}>DHL</MenuItem><MenuItem value={2}>Estafeta</MenuItem><MenuItem value={3}>FedEx</MenuItem>
+                        </Select>
+                      </FormControl>
+                      <TextField fullWidth size="small" label="Número de Guía" value={formData.numeroGuia} onChange={(e) => setFormData(prev => ({ ...prev, numeroGuia: e.target.value }))} />
+                      <Button component="label" variant="text" size="small" startIcon={<UploadFileIcon />}>Cargar Evidencia(s) ({formData.evidencias.length})
+                        <input type="file" hidden multiple onChange={handleFileChange} />
+                      </Button>
+                    </Stack>
+                  )}
+
+                  <Link component="button" variant="body2" onClick={() => setShowComments(!showComments)} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <CommentIcon fontSize="small"/> Añadir Comentario
+                  </Link>
+                  <Collapse in={showComments}>
+                    <TextField label="Comentarios Adicionales" multiline rows={2} fullWidth value={formData.comentarioRecoleccion} onChange={(e) => setFormData(prev => ({...prev, comentarioRecoleccion: e.target.value}))}/>
+                  </Collapse>
                 </Stack>
               )}
 
-              {/* Comentarios con animación */}
-              <Link component="button" variant="body2" onClick={() => setShowComments(!showComments)} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <CommentIcon fontSize="small"/> Añadir Comentario
-              </Link>
-              <Collapse in={showComments}>
-                <TextField label="Comentarios Adicionales" multiline rows={2} fullWidth value={formData.comentarioRecoleccion} onChange={(e) => setFormData(prev => ({...prev, comentarioRecoleccion: e.target.value}))}/>
-              </Collapse>
-            </Stack>
-          )}
-
-          {/* PASO 3: NOTIFICAR AL PROVEEDOR */}
-          {step === 3 && (
-            <Stack spacing={2} justifyContent="center" sx={{height: '100%'}}>
-                <Typography variant="subtitle2" color="text.secondary" align="center">PASO 3: Notificar al Proveedor</Typography>
-                <Typography variant="body2" align="center">
-                    {formData.entregaResponsable === 'EQUIPO_RECOLECCION' 
-                    ? 'Se notificará al proveedor que programe la recolección con nuestro equipo.' 
-                    : 'Se notificará al proveedor para que proceda con la entrega del material.'}
-                </Typography>
-                <Stack direction="row" spacing={2} justifyContent="center">
-                    <Tooltip title="Notificar por WhatsApp (Simulado)"><IconButton color="success"><WhatsAppIcon/></IconButton></Tooltip>
-                    <Tooltip title="Notificar por Correo (Simulado)"><IconButton color="primary"><EmailIcon/></IconButton></Tooltip>
+              {/* PASO 3: NOTIFICAR AL PROVEEDOR */}
+              {step === 3 && (
+                <Stack spacing={2} justifyContent="center" sx={{height: '100%'}}>
+                    <Typography variant="subtitle2" color="text.secondary" align="center">PASO 3: Notificar al Proveedor</Typography>
+                    <Typography variant="body2" align="center">
+                        {formData.entregaResponsable === 'EQUIPO_RECOLECCION' 
+                        ? 'Se notificará al proveedor que programe la recolección con nuestro equipo.' 
+                        : 'Se notificará al proveedor para que proceda con la entrega del material.'}
+                    </Typography>
+                    <Stack direction="row" spacing={2} justifyContent="center">
+                        <Tooltip title="Notificar por WhatsApp (Simulado)"><IconButton color="success"><WhatsAppIcon/></IconButton></Tooltip>
+                        <Tooltip title="Notificar por Correo (Simulado)"><IconButton color="primary"><EmailIcon/></IconButton></Tooltip>
+                    </Stack>
                 </Stack>
-            </Stack>
+              )}
+            </>
           )}
+          {/* ======================================================== */}
+          {/* --- ¡FIN DE LA LÓGICA CONDICIONAL! --- */}
+          {/* ======================================================== */}
         </Box>
 
-        {/* FOOTER DE ACCIONES */}
-        <Box sx={{ p: 2, mt: 'auto' }}>
-            {step > 1 && (
-                 <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center">
-                    <Button size="small" onClick={() => setStep(step - 1)}>Atrás</Button>
-                    {metodo === 'local' && formData.entregaResponsable === 'EQUIPO_RECOLECCION' && step === 2 && (
-                        <Tooltip title="Avisar al equipo de recolección (Simulado)">
-                            <IconButton color="primary"><WhatsAppIcon /></IconButton>
-                        </Tooltip>
-                    )}
-                    {step === 2 && (
-                        <Button variant="contained" size="small" endIcon={<ArrowForwardIcon/>} onClick={() => setStep(3)}>Siguiente</Button>
-                    )}
-                    {step === 3 && (
-                        <Button variant="contained" color="primary" endIcon={<CheckCircleIcon />} onClick={handleSubmit}>Pasar a "En Proceso"</Button>
-                    )}
-                 </Stack>
-            )}
-        </Box>
+        {/* FOOTER DE ACCIONES (SOLO PARA FLUJO NORMAL) */}
+        {!esVehicular && (
+          <Box sx={{ p: 2, mt: 'auto' }}>
+              {step > 1 && (
+                  <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center">
+                      <Button size="small" onClick={() => setStep(step - 1)}>Atrás</Button>
+                      {metodo === 'local' && formData.entregaResponsable === 'EQUIPO_RECOLECCION' && step === 2 && (
+                          <Tooltip title="Avisar al equipo de recolección (Simulado)">
+                              <IconButton color="primary"><WhatsAppIcon /></IconButton>
+                          </Tooltip>
+                      )}
+                      {step === 2 && (
+                          <Button variant="contained" size="small" endIcon={<ArrowForwardIcon/>} onClick={() => setStep(3)}>Siguiente</Button>
+                      )}
+                      {step === 3 && (
+                          <Button variant="contained" color="primary" endIcon={<CheckCircleIcon />} onClick={handleSubmit}>Pasar a "En Proceso"</Button>
+                      )}
+                  </Stack>
+              )}
+          </Box>
+        )}
       </Paper>
     </motion.div>
   );
