@@ -60,6 +60,7 @@ const getUsuariosConFunciones = async (req, res) => {
  * =================================================================================================
  * Endpoint seguro: Devuelve el usuario autenticado con sus datos SIRA
  * y una lista de OBJETOS de función completos para el sidebar dinámico.
+ * (CORREGIDO: Ahora usa UNION para incluir siempre el Dashboard)
  */
 const getUsuarioActual = async (req, res) => {
   const correo_google = req.usuario?.correo_google;
@@ -95,21 +96,33 @@ const getUsuarioActual = async (req, res) => {
     }
 
     let funcionesResult;
-    // La consulta ahora selecciona todos los campos necesarios para el sidebar.
     const camposDeFuncion = 'f.codigo, f.nombre, f.modulo, f.icono, f.ruta';
 
     if (usuario.es_superusuario) {
-      // Superusuario obtiene TODAS las funciones de la tabla.
+      // Superusuario obtiene TODAS las funciones.
       funcionesResult = await pool.query(`SELECT ${camposDeFuncion} FROM funciones f ORDER BY f.modulo, f.nombre`);
     } else {
-      // Usuario normal obtiene solo las funciones de su rol.
+      // ===============================================
+      // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+      // Usuario normal obtiene las funciones de su rol
+      // MÁS (UNION) las funciones del módulo 'Dashboard'.
+      // ===============================================
       funcionesResult = await pool.query(`
-        SELECT ${camposDeFuncion}
-        FROM rol_funcion rf
-        JOIN funciones f ON f.id = rf.funcion_id
-        WHERE rf.rol_id = $1
-        ORDER BY f.modulo, f.nombre
+        (
+          SELECT ${camposDeFuncion}
+          FROM rol_funcion rf
+          JOIN funciones f ON f.id = rf.funcion_id
+          WHERE rf.rol_id = $1
+        )
+        UNION
+        (
+          SELECT ${camposDeFuncion}
+          FROM funciones f
+          WHERE f.modulo = 'Dashboard'
+        )
+        ORDER BY modulo, nombre
       `, [usuario.role_id]);
+      // ===============================================
     }
 
     // El payload final ahora incluye la lista de objetos 'funciones'.
@@ -126,26 +139,22 @@ const getUsuarioActual = async (req, res) => {
 
 
 /**
- * Crea un nuevo usuario SIRA en la base de datos.
- */
-/**
  * =================================================================================================
  * ¡NUEVA FUNCIÓN!
  * =================================================================================================
-
  * @route   GET /api/usuarios/search
  * @desc    Busca usuarios por nombre para el componente Autocomplete.
  * @access  Privado (requiere autenticación)
  */
 const searchUsuarios = async (req, res) => {
-    const { query } = req.query; // Obtiene el término de búsqueda de la URL (ej. ?query=Agustin)
+    const { query } = req.query; 
 
     if (!query || query.length < 3) {
-        return res.json([]); // No busca si el término es muy corto
+        return res.json([]); 
     }
 
     try {
-        const searchTerm = `%${query}%`; // Prepara el término para la búsqueda LIKE
+        const searchTerm = `%${query}%`; 
         const result = await pool.query(
             `SELECT id, nombre, correo FROM usuarios WHERE unaccent(nombre) ILIKE unaccent($1) AND activo = true LIMIT 10`,
             [searchTerm]

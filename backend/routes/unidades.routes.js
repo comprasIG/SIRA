@@ -22,5 +22,6 @@ router.get('/:id/historial', unidadesController.getHistorialUnidad);
 // POST /api/unidades/requisicion
 // Crea la requisición vehicular (la llama el modal)
 router.post('/requisicion', unidadesController.crearRequisicionVehicular);
+router.post('/historial/manual', unidadesController.agregarRegistroManualHistorial);
 
 module.exports = router;

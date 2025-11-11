@@ -42,11 +42,29 @@ export const useUnidadServicios = () => {
       return false; // Fracaso
     }
   };
+  // 4. Función para ENVIAR un registro manual a la bitácora
+  // Para agregar un registro manual (gasolina, incidencia, etc.)
+  const agregarRegistroManual = async (payload) => {
+    setIsSubmitting(true);
+    try {
+      const data = await api.post('/api/unidades/historial/manual', payload);
+      toast.success(data.mensaje || 'Registro agregado a la bitácora.');
+      setIsSubmitting(false);
+      return true; // Éxito
+    } catch (error) {
+      console.error("Error al agregar registro manual:", error);
+      toast.error(error?.error || 'No se pudo agregar el registro.');
+      setIsSubmitting(false);
+      return false; // Fracaso
+    }
+  };
+  // ===================================
 
   return {
     datosModal,
     loadingDatosModal: loading,
     isSubmitting,
     crearRequisicion,
+    agregarRegistroManual, // <<< ¡NUEVA FUNCIÓN EXPORTADA!
   };
 };
