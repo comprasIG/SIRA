@@ -8,22 +8,20 @@ import { useAuth } from '../../context/authContext';
 import UnidadKPIs from './UnidadKPIs';
 import UnidadFiltros from './UnidadFiltros';
 import UnidadCard from './UnidadCard';
-// ======== ¡NUEVO! Importamos el Modal ========
 import ModalSolicitarServicio from './ModalSolicitarServicio';
-// =============================================
+// ======== ¡NUEVO! Importamos el Modal de Bitácora ========
+import ModalVerHistorial from './ModalVerHistorial';
+// ========================================================
 
 export default function Unidades() {
-  // ======== ¡CAMBIO! Obtenemos la función de recarga ========
   const { unidades, loading, refetchUnidades } = useUnidades();
   const { usuario } = useAuth();
   
-  // Estado para los filtros
   const [filters, setFilters] = useState({ departamentoId: '' });
-
-  // ======== ¡NUEVO! Estado para manejar los modales ========
+  
   const [modalState, setModalState] = useState({ 
     servicio: false, 
-    historial: false, 
+    historial: false, // <-- Ya existía
     unidadSeleccionada: null 
   });
   
@@ -32,29 +30,27 @@ export default function Unidades() {
     setModalState({ servicio: true, historial: false, unidadSeleccionada: unidad });
   };
   
+  // ======== ¡CAMBIO! Esta función ahora abre el modal ========
   const handleOpenHistorialModal = (unidad) => {
-    // (Aún no lo implementamos, pero ya dejamos la función lista)
-    alert(`TODO: Abrir historial de ${unidad.unidad}`);
-    // setModalState({ servicio: false, historial: true, unidadSeleccionada: unidad });
+    setModalState({ servicio: false, historial: true, unidadSeleccionada: unidad });
   };
+  // =========================================================
 
   const handleCloseModal = () => {
     setModalState({ servicio: false, historial: false, unidadSeleccionada: null });
   };
 
-  // Función que se pasa al modal para recargar las "cards"
   const handleRequisicionCreada = () => {
     refetchUnidades();
   };
-  // =========================================================
+  
+  // ... (El resto del archivo: puedeVerTodo, unidadesFiltradas, filterOptions, etc. se queda igual) ...
 
-  // Lógica para saber si el usuario puede filtrar (sin cambios)
   const puedeVerTodo = useMemo(() => {
     if (!usuario) return false;
     return usuario.es_superusuario || ['FIN', 'SSD'].includes(usuario.departamento_codigo);
   }, [usuario]);
 
-  // Lógica para filtrar las unidades (sin cambios)
   const unidadesFiltradas = useMemo(() => {
     if (!usuario || !unidades) return [];
     
@@ -69,7 +65,6 @@ export default function Unidades() {
     });
   }, [unidades, filters, puedeVerTodo, usuario]);
 
-  // Opciones de departamento para el filtro (sin cambios)
   const filterOptions = useMemo(() => {
     const departamentos = new Map();
     unidades.forEach(u => {
@@ -79,7 +74,6 @@ export default function Unidades() {
     });
     return Array.from(departamentos, ([codigo, nombre]) => ({ codigo, nombre }));
   }, [unidades]);
-
 
   if (loading || !usuario) {
     return (
@@ -116,27 +110,33 @@ export default function Unidades() {
       <Grid container spacing={3} sx={{ mt: 1 }}>
         {unidadesFiltradas.map((unidad) => (
           <Grid item key={unidad.id} xs={12} sm={6} md={4} lg={3}>
-            {/* ======== ¡CAMBIO! Pasamos las funciones a la Card ======== */}
             <UnidadCard 
               unidad={unidad} 
               onAbrirServicio={() => handleOpenServicioModal(unidad)}
-              onAbrirHistorial={() => handleOpenHistorialModal(unidad)}
+              onAbrirHistorial={() => handleOpenHistorialModal(unidad)} // <-- Esto ya estaba listo
             />
           </Grid>
         ))}
       </Grid>
 
-      {/* ======== ¡NUEVO! Renderizamos el Modal (se mostrará cuando 'open' sea true) ======== */}
+      {/* Renderizamos ambos modales (solo se mostrará el que tenga 'open = true') */}
       {modalState.unidadSeleccionada && (
-        <ModalSolicitarServicio
-          open={modalState.servicio}
-          onClose={handleCloseModal}
-          unidad={modalState.unidadSeleccionada}
-          onReqCreada={handleRequisicionCreada}
-        />
+        <>
+          <ModalSolicitarServicio
+            open={modalState.servicio}
+            onClose={handleCloseModal}
+            unidad={modalState.unidadSeleccionada}
+            onReqCreada={handleRequisicionCreada}
+          />
+          
+          {/* ======== ¡NUEVO! Renderizamos el Modal de Bitácora ======== */}
+          <ModalVerHistorial
+            open={modalState.historial}
+            onClose={handleCloseModal}
+            unidad={modalState.unidadSeleccionada}
+          />
+        </>
       )}
-
-      {/* (Aquí irá el ModalVerHistorial en el futuro) */}
 
     </Box>
   );
