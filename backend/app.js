@@ -8,15 +8,11 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(express.json());
-app.use(cors());
-
-// ===============================================
-// NUEVO: Middleware "espía" para ver todas las peticiones
-// ===============================================
-app.use((req, res, next) => {
-  console.log(`Petición recibida: ${req.method} ${req.originalUrl}`);
-  next();
-});
+app.use(cors({
+  origin: 'http://localhost:5173', // Permite solicitudes SOLO desde tu frontend
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // Métodos permitidos
+  allowedHeaders: ['Content-Type', 'Authorization'], // Encabezados permitidos
+}));
 
 // ===============================================
 // Endpoint de Health Check (MOVIDO AL PRINCIPIO)
@@ -88,6 +84,9 @@ app.use('/api/retiro', retiroRoutes);
 
 const inventarioRoutes = require('./routes/inventario.routes');
 app.use('/api/inventario', inventarioRoutes);
+
+const unidadesRoutes = require('./routes/unidades.routes');
+app.use('/api/unidades', unidadesRoutes);
 
 // Ruta base de prueba
 app.get('/', (_req, res) => {

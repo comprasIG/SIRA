@@ -3,6 +3,13 @@ const pool = require('../db/pool');
 const { uploadMulterFileToOcFolder } = require('../services/googleDrive');
 const { sendWhatsAppMessage } = require('../services/whatsappService');
 
+const SKU_EVENTO_MAP = {
+  'SERV-VEH-PREV': 'SERVICIO_PREV',
+  'SERV-VEH-CORR': 'SERVICIO_CORR',
+  'LLANTA-GEN': 'LLANTAS',
+  'COMBUS-GEN': 'COMBUSTIBLE',
+};
+
 const getOcsAprobadas = async (req, res) => {
   // Esta es la línea clave de la corrección
   const { departamentoId, sitioId, proyectoId, proveedorId, search } = req.query;
@@ -62,6 +69,7 @@ const getOcsAprobadas = async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor.' });
   }
 };
+
 
 const procesarOcParaRecoleccion = async (req, res) => {
     const { id: ordenCompraId } = req.params;
@@ -279,6 +287,125 @@ const getDatosParaFiltros = async (_req, res) => {
     }
 };
 
+/**
+ * @description Cierra una Orden de Compra Vehicular.
+ * 1. Cambia el status de la OC a 'ENTREGADA'.
+ * 2. ¡NUEVO! Cambia el status de la Requisición a 'ENTREGADA'.
+ * 3. Registra la entrada final en la bitácora 'unidades_historial'.
+ */
+const cerrarOcVehicular = async (req, res) => {
+  const { id: ordenCompraId } = req.params;
+  const { id: usuarioId } = req.usuarioSira;
+  const {
+    kilometraje_final,
+    numeros_serie,
+    comentario_cierre,
+  } = req.body;
+
+  // Validación
+  const kmNum = parseInt(kilometraje_final, 10);
+  if (!kmNum || kmNum <= 0) {
+    return res.status(400).json({ error: 'El kilometraje final es obligatorio.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Obtener datos de la OC y bloquearla
+    const ocQuery = await client.query(
+      `SELECT proyecto_id, total, rfq_id, status, numero_oc 
+       FROM ordenes_compra 
+       WHERE id = $1 FOR UPDATE`,
+      [ordenCompraId]
+    );
+
+    if (ocQuery.rowCount === 0) {
+      throw new Error('Orden de Compra no encontrada.');
+    }
+    const oc = ocQuery.rows[0];
+    const unidadId = oc.proyecto_id; // En nuestro flujo, proyecto_id ES el unidad_id
+    const requisicionId = oc.rfq_id; // ¡La ID que necesitamos!
+
+    if (oc.status !== 'APROBADA' && oc.status !== 'EN_PROCESO') {
+      throw new Error(`La OC no puede cerrarse, su estado es '${oc.status}'.`);
+    }
+    
+    // 2. Obtener el SKU de la OC para saber qué evento registrar
+    const detalleQuery = await client.query(
+      `SELECT m.sku 
+       FROM ordenes_compra_detalle od
+       JOIN catalogo_materiales m ON od.material_id = m.id
+       WHERE od.orden_compra_id = $1
+       LIMIT 1`,
+      [ordenCompraId]
+    );
+    if (detalleQuery.rowCount === 0) {
+      throw new Error('No se encontraron detalles en la OC.');
+    }
+    
+    const sku = detalleQuery.rows[0].sku;
+    const eventoCodigo = SKU_EVENTO_MAP[sku];
+    if (!eventoCodigo) {
+      throw new Error(`SKU no reconocido para bitácora vehicular: ${sku}`);
+    }
+
+    const eventoQuery = await client.query(
+      `SELECT id FROM unidades_evento_tipos WHERE codigo = $1`, 
+      [eventoCodigo]
+    );
+    const eventoTipoId = eventoQuery.rows[0]?.id;
+    if (!eventoTipoId) {
+      throw new Error(`Código de evento no encontrado en la BD: ${eventoCodigo}`);
+    }
+
+    // 3. Actualizar la OC a ENTREGADA
+    await client.query(
+      `UPDATE ordenes_compra SET status = 'ENTREGADA', actualizado_en = NOW() WHERE id = $1`,
+      [ordenCompraId]
+    );
+
+    // ===============================================
+    // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+    // ===============================================
+    // 3b. Actualizar la Requisición original a ENTREGADA
+    await client.query(
+      `UPDATE requisiciones SET status = 'ENTREGADA', actualizado_en = NOW() WHERE id = $1`,
+      [requisicionId] // Usamos el rfq_id de la OC
+    );
+    // ===============================================
+
+    // 4. Insertar el registro final en la bitácora
+    const descripcionFinal = `Cierre de OC ${oc.numero_oc}. ${comentario_cierre || ''}`;
+    await client.query(
+      `INSERT INTO unidades_historial 
+       (unidad_id, fecha, kilometraje, evento_tipo_id, descripcion, costo_total, numeros_serie, usuario_id, orden_compra_id)
+       VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        unidadId,
+        kmNum,
+        eventoTipoId,
+        descripcionFinal,
+        oc.total, // El costo final es el total de la OC
+        numeros_serie || null,
+        usuarioId,
+        ordenCompraId
+      ]
+    );
+    
+    await client.query('COMMIT');
+    res.status(200).json({ mensaje: `Servicio para OC ${oc.numero_oc} cerrado y registrado en bitácora.` });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(`Error al cerrar OC vehicular ${ordenCompraId}:`, error);
+    res.status(500).json({ error: error.message || 'Error interno del servidor.' });
+  } finally {
+    client.release();
+  }
+};
+
+// ... (asegúrate de que el module.exports sigue incluyendo cerrarOcVehicular)
 module.exports = {
   getOcsAprobadas,
   procesarOcParaRecoleccion,
@@ -286,4 +413,5 @@ module.exports = {
   getRecoleccionKpis,
   getOcsEnProceso,
   getDatosParaFiltros,
+  cerrarOcVehicular,
 };
