@@ -8,20 +8,60 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(express.json());
-app.use(cors({
-  origin: 'http://localhost:5173', // Permite solicitudes SOLO desde tu frontend
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // Métodos permitidos
-  allowedHeaders: ['Content-Type', 'Authorization'], // Encabezados permitidos
-}));
 
 // ===============================================
-// Endpoint de Health Check (MOVIDO AL PRINCIPIO)
+// --- ¡CORRECCIÓN 1: LÓGICA DE CORS DINÁMICA! ---
+// (Esto arregla el error de Staging)
 // ===============================================
+
+// 1. Define tu "lista blanca" de orígenes permitidos
+const whitelist = [
+  'https://stg.sira-ig.com',    // Tu frontend de Staging
+  'https://www.sira-ig.com',  // Tu frontend de Producción
+];
+
+// 2. Agrega el origen local SÓLO si estás en modo desarrollo
+if (process.env.NODE_ENV === 'development') {
+  whitelist.push('http://localhost:5173');
+}
+
+// 3. Configuración de CORS
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Permite peticiones de la lista blanca o sin origen (como Postman)
+    if (whitelist.indexOf(origin) !== -1 || !origin) {
+      callback(null, true);
+    } else {
+      // Rechaza peticiones de otros orígenes
+      callback(new Error(`CORS: El origen ${origin} no está permitido.`));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+// 4. Usa la nueva configuración de CORS
+app.use(cors(corsOptions));
+// ===============================================
+// --- FIN DE LA CORRECCIÓN 1 ---
+// ===============================================
+
+
+// Middleware "espía" para ver todas las peticiones
+app.use((req, res, next) => {
+  console.log(`Petición recibida: ${req.method} ${req.originalUrl}`);
+  next();
+});
+
+// Endpoint de Health Check
 app.get('/status', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Service is up and running' });
 });
 
-// Routers principales
+// ===============================================
+// --- ¡CORRECCIÓN 2: SINTAXIS DE REQUIRE ORIGINAL! ---
+// (Esto arregla tu error 'MODULE_NOT_FOUND' local)
+// ===============================================
 const requisicionesRoutes = require('./routes/requisiciones.routes');
 app.use('/api/requisiciones', requisicionesRoutes);
 
@@ -85,8 +125,12 @@ app.use('/api/retiro', retiroRoutes);
 const inventarioRoutes = require('./routes/inventario.routes');
 app.use('/api/inventario', inventarioRoutes);
 
+// --- ¡NUESTRA RUTA (AHORA CORRECTA)! ---
 const unidadesRoutes = require('./routes/unidades.routes');
 app.use('/api/unidades', unidadesRoutes);
+// ===============================================
+// --- FIN DE LA CORRECCIÓN 2 ---
+// ===============================================
 
 // Ruta base de prueba
 app.get('/', (_req, res) => {
