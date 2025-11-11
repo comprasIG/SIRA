@@ -15,6 +15,8 @@ router.get('/', unidadesController.getUnidades);
 // GET /api/unidades/datos-modal-servicio
 router.get('/datos-modal-servicio', unidadesController.getDatosModalServicio);
 
+router.get('/datos-filtros', unidadesController.getDatosParaFiltros);
+
 // GET /api/unidades/:id/historial
 // Obtiene la bitácora de una sola unidad
 router.get('/:id/historial', unidadesController.getHistorialUnidad);
