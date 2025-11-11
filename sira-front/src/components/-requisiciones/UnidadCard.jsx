@@ -9,34 +9,40 @@ import BuildIcon from '@mui/icons-material/Build';
 import PlagiarismIcon from '@mui/icons-material/Plagiarism';
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
 import SpeedIcon from '@mui/icons-material/Speed';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'; // <-- ¡NUEVO ICONO!
 
 const cardVariants = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
 };
 
-// Helper para formatear KM
-const formatKm = (km) => km ? `${Number(km).toLocaleString('es-MX')} km` : 'N/A';
+const formatKm = (km) => (typeof km === 'number') 
+  ? `${Number(km).toLocaleString('es-MX')} km` 
+  : 'N/A';
 
-// ======== ¡CAMBIO! Recibimos las nuevas funciones en las props ========
-export default function UnidadCard({ unidad, onAbrirServicio, onAbrirHistorial }) {
+// ======== ¡CAMBIO! Recibimos la nueva prop 'onAbrirRegistro' ========
+export default function UnidadCard({ unidad, onAbrirServicio, onAbrirHistorial, onAbrirRegistro }) {
   const tieneReqAbierta = parseInt(unidad.requisiciones_abiertas, 10) > 0;
 
-  // ======== ¡CAMBIO! Estas funciones ya no muestran 'alert' ========
   const handleSolicitarServicio = () => {
-    onAbrirServicio(unidad); // Llama a la función del padre
+    onAbrirServicio(unidad);
   };
 
   const handleVerBitacora = () => {
-    onAbrirHistorial(unidad); // Llama a la función del padre
+    onAbrirHistorial(unidad);
   };
-  // ===============================================================
+
+  // ======== ¡NUEVA FUNCIÓN! ========
+  const handleAgregarRegistro = () => {
+    onAbrirRegistro(unidad);
+  };
+  // ===================================
 
   return (
     <motion.div variants={cardVariants} style={{ height: '100%' }}>
       <Paper elevation={3} sx={{ borderRadius: 3, display: 'flex', flexDirection: 'column', height: '100%', borderTop: tieneReqAbierta ? '4px solid' : '4px solid transparent', borderColor: 'warning.main' }}>
         
-        {/* Encabezado (sin cambios) */}
+        {/* ... (Encabezado y Detalles sin cambios) ... */}
         <Box sx={{ p: 2 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Typography variant="caption" color="text.secondary">
@@ -60,8 +66,6 @@ export default function UnidadCard({ unidad, onAbrirServicio, onAbrirHistorial }
           </Typography>
         </Box>
         <Divider />
-
-        {/* Detalles (sin cambios) */}
         <Box sx={{ p: 2, flexGrow: 1 }}>
           <Stack spacing={1}>
             <InfoChip icon={<AccountCircleIcon />} label={unidad.responsable_nombre || 'Sin responsable'} />
@@ -70,13 +74,29 @@ export default function UnidadCard({ unidad, onAbrirServicio, onAbrirHistorial }
             <InfoChip icon={<LocalGasStationIcon />} label={`Combustible: ${unidad.tipo_combustible || 'N/A'}`} />
           </Stack>
         </Box>
+        {/* =================================== */}
 
-        {/* Footer de Acciones (sin cambios, ahora los onClick funcionan) */}
+        {/* Footer de Acciones (ACTUALIZADO) */}
         <Box sx={{ p: 2, mt: 'auto' }}>
-          <Stack direction="row" spacing={1} justifyContent="flex-end">
-            <Button size="small" variant="text" startIcon={<PlagiarismIcon />} onClick={handleVerBitacora}>
-              Bitácora
-            </Button>
+          <Stack direction="row" spacing={1} justifyContent="space-between">
+            {/* Botones de Bitácora y Registro a la izquierda */}
+            <Stack direction="row" spacing={0.5}>
+              <Button size="small" variant="text" startIcon={<PlagiarismIcon />} onClick={handleVerBitacora}>
+                Bitácora
+              </Button>
+              <Button 
+                size="small" 
+                variant="text" 
+                startIcon={<AddCircleOutlineIcon />} 
+                onClick={handleAgregarRegistro} 
+                title="Agregar registro manual (gasolina, incidencia, etc.)"
+                disabled={!unidad.activo}
+              >
+                Registrar
+              </Button>
+            </Stack>
+            
+            {/* Botón de Servicio a la derecha */}
             <Button 
               size="small" 
               variant="contained" 
@@ -93,7 +113,7 @@ export default function UnidadCard({ unidad, onAbrirServicio, onAbrirHistorial }
   );
 }
 
-// Componente helper interno (sin cambios)
+// ... (Componente helper InfoChip sin cambios) ...
 function InfoChip({ icon, label }) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

@@ -7,14 +7,14 @@ import {
 import { useUnidadHistorial } from '../../hooks/useUnidadHistorial';
 import dayjs from 'dayjs';
 
-// ... (styleModal y formatFecha se quedan igual) ...
+// Estilos del modal (más grande para la bitácora)
 const styleModal = {
   position: 'absolute',
   top: '50%',
   left: '50%',
   transform: 'translate(-50%, -50%)',
   width: '90%',
-  maxWidth: 700,
+  maxWidth: 700, // Más ancho
   bgcolor: 'background.paper',
   boxShadow: 24,
   p: 4,
@@ -23,26 +23,27 @@ const styleModal = {
   flexDirection: 'column',
 };
 
+// Formateador de fecha
 const formatFecha = (fecha) => {
   return dayjs(fecha).format('DD/MMM/YYYY [a las] hh:mm A');
 };
 
 export default function ModalVerHistorial({ open, onClose, unidad }) {
+  // 1. Usamos el nuevo hook
   const { historial, loading, fetchHistorial } = useUnidadHistorial();
 
-  // 2. Cuando el modal se abre...
+  // 2. Cuando el modal se abre (o la unidad cambia), llamamos al hook
   useEffect(() => {
     // ==========================================================
-    // ¡AQUÍ ESTÁ LA CORRECCIÓN!
-    // Le pasamos 'unidad.proyecto_id' (ej. 10) 
-    // en lugar de 'unidad.id' (ej. 1)
+    // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+    // Volvemos a usar 'unidad.id' (ej: 1), ya que la bitácora
+    // ahora SÍ se guarda con el ID de la unidad real.
     // ==========================================================
-    if (open && unidad?.proyecto_id) {
-      fetchHistorial(unidad.proyecto_id);
+    if (open && unidad?.id) {
+      fetchHistorial(unidad.id);
     }
   }, [open, unidad, fetchHistorial]);
-  
-  // ... (El resto del return (JSX) se queda exactamente igual) ...
+
   return (
     <Modal open={open} onClose={onClose}>
       <Box sx={styleModal}>

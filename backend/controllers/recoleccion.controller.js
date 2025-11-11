@@ -289,9 +289,7 @@ const getDatosParaFiltros = async (_req, res) => {
 
 /**
  * @description Cierra una Orden de Compra Vehicular.
- * 1. Cambia el status de la OC a 'ENTREGADA'.
- * 2. ¡NUEVO! Cambia el status de la Requisición a 'ENTREGADA'.
- * 3. Registra la entrada final en la bitácora 'unidades_historial'.
+ * (MODIFICADO: Ahora busca el unidad_id real antes de insertar en bitácora)
  */
 const cerrarOcVehicular = async (req, res) => {
   const { id: ordenCompraId } = req.params;
@@ -302,7 +300,6 @@ const cerrarOcVehicular = async (req, res) => {
     comentario_cierre,
   } = req.body;
 
-  // Validación
   const kmNum = parseInt(kilometraje_final, 10);
   if (!kmNum || kmNum <= 0) {
     return res.status(400).json({ error: 'El kilometraje final es obligatorio.' });
@@ -320,18 +317,42 @@ const cerrarOcVehicular = async (req, res) => {
       [ordenCompraId]
     );
 
-    if (ocQuery.rowCount === 0) {
-      throw new Error('Orden de Compra no encontrada.');
-    }
+    if (ocQuery.rowCount === 0) throw new Error('Orden de Compra no encontrada.');
+    
     const oc = ocQuery.rows[0];
-    const unidadId = oc.proyecto_id; // En nuestro flujo, proyecto_id ES el unidad_id
-    const requisicionId = oc.rfq_id; // ¡La ID que necesitamos!
+    const proyectoEspejoId = oc.proyecto_id; // Este es el ID del proyecto (ej: 23)
+    const requisicionId = oc.rfq_id; 
 
     if (oc.status !== 'APROBADA' && oc.status !== 'EN_PROCESO') {
       throw new Error(`La OC no puede cerrarse, su estado es '${oc.status}'.`);
     }
+
+    // ==========================================================
+    // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+    // Necesitamos encontrar el 'unidad.id' real (ej: 14) usando el 'proyecto_id' (ej: 23)
+    // ==========================================================
+    const unidadQuery = await client.query(
+      `SELECT u.id, u.km 
+       FROM unidades u
+       JOIN proyectos p ON u.unidad = p.nombre -- Unimos por nombre
+       WHERE p.id = $1 AND p.sitio_id = (SELECT id FROM sitios WHERE nombre = 'UNIDADES')`,
+      [proyectoEspejoId]
+    );
+
+    if (unidadQuery.rowCount === 0) {
+      throw new Error(`No se pudo encontrar la unidad correspondiente al proyecto ID ${proyectoEspejoId}.`);
+    }
+    const unidadId = unidadQuery.rows[0].id; // <<< ¡Este es el ID correcto (ej: 14)!
+    const kmActual = unidadQuery.rows[0].km || 0;
+
+    // 1b. Validar Kilometraje
+    if (kmNum < kmActual) {
+      throw new Error(`El kilometraje (${kmNum}) no puede ser menor al último registrado (${kmActual} km).`);
+    }
+    // ==========================================================
+
     
-    // 2. Obtener el SKU de la OC para saber qué evento registrar
+    // 2. Obtener el SKU de la OC (sin cambios)
     const detalleQuery = await client.query(
       `SELECT m.sku 
        FROM ordenes_compra_detalle od
@@ -340,40 +361,27 @@ const cerrarOcVehicular = async (req, res) => {
        LIMIT 1`,
       [ordenCompraId]
     );
-    if (detalleQuery.rowCount === 0) {
-      throw new Error('No se encontraron detalles en la OC.');
-    }
+    if (detalleQuery.rowCount === 0) throw new Error('No se encontraron detalles en la OC.');
     
     const sku = detalleQuery.rows[0].sku;
     const eventoCodigo = SKU_EVENTO_MAP[sku];
-    if (!eventoCodigo) {
-      throw new Error(`SKU no reconocido para bitácora vehicular: ${sku}`);
-    }
+    if (!eventoCodigo) throw new Error(`SKU no reconocido para bitácora vehicular: ${sku}`);
 
-    const eventoQuery = await client.query(
-      `SELECT id FROM unidades_evento_tipos WHERE codigo = $1`, 
-      [eventoCodigo]
-    );
+    const eventoQuery = await client.query(`SELECT id FROM unidades_evento_tipos WHERE codigo = $1`, [eventoCodigo]);
     const eventoTipoId = eventoQuery.rows[0]?.id;
-    if (!eventoTipoId) {
-      throw new Error(`Código de evento no encontrado en la BD: ${eventoCodigo}`);
-    }
+    if (!eventoTipoId) throw new Error(`Código de evento no encontrado en la BD: ${eventoCodigo}`);
 
-    // 3. Actualizar la OC a ENTREGADA
+    // 3. Actualizar la OC a ENTREGADA (sin cambios)
     await client.query(
       `UPDATE ordenes_compra SET status = 'ENTREGADA', actualizado_en = NOW() WHERE id = $1`,
       [ordenCompraId]
     );
 
-    // ===============================================
-    // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-    // ===============================================
-    // 3b. Actualizar la Requisición original a ENTREGADA
+    // 3b. Actualizar la Requisición original a ENTREGADA (sin cambios)
     await client.query(
       `UPDATE requisiciones SET status = 'ENTREGADA', actualizado_en = NOW() WHERE id = $1`,
-      [requisicionId] // Usamos el rfq_id de la OC
+      [requisicionId]
     );
-    // ===============================================
 
     // 4. Insertar el registro final en la bitácora
     const descripcionFinal = `Cierre de OC ${oc.numero_oc}. ${comentario_cierre || ''}`;
@@ -382,16 +390,19 @@ const cerrarOcVehicular = async (req, res) => {
        (unidad_id, fecha, kilometraje, evento_tipo_id, descripcion, costo_total, numeros_serie, usuario_id, orden_compra_id)
        VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7, $8)`,
       [
-        unidadId,
+        unidadId, // <<< ¡CORREGIDO! Usamos el ID de la unidad real
         kmNum,
         eventoTipoId,
         descripcionFinal,
-        oc.total, // El costo final es el total de la OC
+        oc.total, 
         numeros_serie || null,
         usuarioId,
         ordenCompraId
       ]
     );
+
+    // 5. Actualizar el KM maestro en la tabla de unidades
+    await client.query('UPDATE unidades SET km = $1 WHERE id = $2', [kmNum, unidadId]); // <-- ¡CORREGIDO!
     
     await client.query('COMMIT');
     res.status(200).json({ mensaje: `Servicio para OC ${oc.numero_oc} cerrado y registrado en bitácora.` });

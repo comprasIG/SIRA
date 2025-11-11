@@ -2,62 +2,76 @@
 const pool = require('../db/pool');
 
 /**
- * @description Obtiene la lista de unidades con KPIs básicos.
- * Filtra por departamento del usuario, a menos que sea Superusuario,
- * Finanzas (FIN) o Compras (SSD).
+ * @description (MODIFICADO) Obtiene la lista de unidades, ahora con filtros avanzados.
+ * Filtra por departamento del usuario (a menos que sea admin).
+ * Acepta filtros por query param: departamentoId, marca, status.
  */
 const getUnidades = async (req, res) => {
-  const { id: usuarioId, departamento_codigo, es_superusuario } = req.usuarioSira;
-  const { departamentoId } = req.query; // Para filtros del dashboard (si aplica)
-
-  // Roles que pueden ver TODAS las unidades
+  const { id: usuarioId, departamento_codigo, es_superusuario, departamento_id } = req.usuarioSira;
+  
+  // --- Lógica de Filtros ---
+  const { departamentoId, marca, status } = req.query;
+  
   const puedeVerTodo = es_superusuario || ['FIN', 'SSD'].includes(departamento_codigo);
   
-  // Determinar qué departamento filtrar
   let filtroDeptoId = null;
   if (!puedeVerTodo) {
-    // Si no puede ver todo, solo ve su departamento
-    filtroDeptoId = req.usuarioSira.departamento_id;
+    // Si no puede ver todo, SÓLO ve su departamento
+    filtroDeptoId = departamento_id;
   } else if (departamentoId) {
     // Si puede ver todo y eligió un filtro, usa ese filtro
     filtroDeptoId = departamentoId;
   }
   
   try {
+    // Usamos un Common Table Expression (CTE) para poder filtrar por el
+    // campo calculado 'requisiciones_abiertas'.
     let query = `
-      SELECT 
-        u.id, u.unidad, u.marca, u.modelo, u.no_eco, u.placas, u.serie, u.km,
-        u.km_proximo_servicio, u.tipo_combustible, u.tipo_bateria, u.medidas_llantas, u.activo,
-        usr.nombre AS responsable_nombre,
-        d.codigo AS departamento_codigo,
-        p.id AS proyecto_id, -- El ID del "proyecto espejo"
-        s.id AS sitio_id, -- El ID del sitio "UNIDADES"
-        (SELECT COUNT(*) FROM requisiciones r WHERE r.proyecto_id = p.id AND r.status NOT IN ('ENTREGADA', 'CANCELADA')) AS requisiciones_abiertas
-      FROM public.unidades u
-      
-      -- ==========================================================
-      -- ¡AQUÍ ESTÁ LA CORRECCIÓN!
-      -- Cambiamos a LEFT JOIN para que las unidades aparezcan
-      -- aunque su responsable o depto. sean nulos o inválidos.
-      -- ==========================================================
-      LEFT JOIN public.usuarios usr ON u.responsable_id = usr.id
-      LEFT JOIN public.departamentos d ON usr.departamento_id = d.id
-      -- ==========================================================
-
-      LEFT JOIN public.proyectos p ON p.nombre = u.unidad -- Ligamos por nombre
-      LEFT JOIN public.sitios s ON p.sitio_id = s.id
-      WHERE s.nombre = 'UNIDADES' -- ¡La clave! Solo traemos las ligadas al sitio UNIDADES
+      WITH base_unidades AS (
+        SELECT 
+          u.id, u.unidad, u.marca, u.modelo, u.no_eco, u.placas, u.serie, u.km,
+          u.km_proximo_servicio, u.tipo_combustible, u.tipo_bateria, u.medidas_llantas, u.activo,
+          usr.nombre AS responsable_nombre,
+          d.id AS departamento_id, -- ID real para el filtro
+          d.nombre AS departamento_nombre,
+          d.codigo AS departamento_codigo,
+          p.id AS proyecto_id, 
+          s.id AS sitio_id, 
+          (SELECT COUNT(*) FROM requisiciones r WHERE r.proyecto_id = p.id AND r.status NOT IN ('ENTREGADA', 'CANCELADA')) AS requisiciones_abiertas
+        FROM public.unidades u
+        LEFT JOIN public.usuarios usr ON u.responsable_id = usr.id
+        LEFT JOIN public.departamentos d ON usr.departamento_id = d.id
+        LEFT JOIN public.proyectos p ON p.nombre = u.unidad 
+        LEFT JOIN public.sitios s ON p.sitio_id = s.id
+        WHERE s.nombre = 'UNIDADES' AND u.activo = true
+      )
+      SELECT * FROM base_unidades
+      WHERE 1 = 1
     `;
     
     const params = [];
 
+    // Filtro 1: Departamento (ID)
     if (filtroDeptoId) {
-      // Usamos 'd.id' para filtrar por depto.
-      query += ` AND d.id = $${params.length + 1}`;
       params.push(filtroDeptoId);
+      query += ` AND departamento_id = $${params.length}`;
     }
 
-    query += ' ORDER BY u.no_eco ASC';
+    // Filtro 2: Marca (String)
+    if (marca) {
+      params.push(marca);
+      query += ` AND marca = $${params.length}`;
+    }
+
+    // Filtro 3: Status (Calculado)
+    if (status === 'DISPONIBLE') {
+      // CAST es necesario porque el COUNT() devuelve un BIGINT (que se lee como string)
+      query += ` AND CAST(requisiciones_abiertas AS INTEGER) = 0`;
+    } else if (status === 'EN_SERVICIO') {
+      query += ` AND CAST(requisiciones_abiertas AS INTEGER) > 0`;
+    }
+
+    query += ' ORDER BY no_eco ASC';
 
     const { rows } = await pool.query(query, params);
     res.json(rows);
@@ -70,9 +84,10 @@ const getUnidades = async (req, res) => {
 
 /**
  * @description Obtiene el historial (bitácora) de una unidad específica.
+ * (Corregido para usar unidad_id real)
  */
 const getHistorialUnidad = async (req, res) => {
-  const { id: unidadId } = req.params;
+  const { id: unidadId } = req.params; // Este es el unidad.id real
 
   try {
     const query = `
@@ -102,75 +117,64 @@ const getHistorialUnidad = async (req, res) => {
 
 /**
  * @description Crea una nueva requisición vehicular.
- * Este es el endpoint que llamará el modal del frontend.
+ * (Corregido para usar unidad_id y proyecto_id)
  */
 const crearRequisicionVehicular = async (req, res) => {
   const { id: usuarioId, departamento_id } = req.usuarioSira;
   const {
-    proyecto_id,      // ID del proyecto (que es el ID de la unidad)
-    sitio_id,         // ID del sitio "UNIDADES"
-    kilometraje,      // El KM actual
-    evento_tipo_id,   // El ID de unidades_evento_tipos (ej. 1 para 'SERVICIO_PREV')
-    material_sku,     // El SKU del material genérico (ej. 'SERV-VEH-PREV')
-    descripcion,      // Notas del usuario
-    fecha_requerida,
+    unidad_id, proyecto_id, sitio_id, kilometraje, 
+    evento_tipo_id, material_sku, descripcion, fecha_requerida,
   } = req.body;
+  
+  const kmNum = parseInt(kilometraje, 10);
 
-  // Validación básica
-  if (!proyecto_id || !sitio_id || !kilometraje || !evento_tipo_id || !material_sku || !fecha_requerida) {
-    return res.status(400).json({ error: 'Faltan campos obligatorios.' });
+  if (!unidad_id || !proyecto_id || !sitio_id || (kmNum !== 0 && !kmNum) || !evento_tipo_id || !material_sku || !fecha_requerida) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios (unidad_id, proyecto_id, etc.).' });
   }
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // 1. Buscar el material_id usando el SKU
-    const matQuery = await client.query(`SELECT id FROM catalogo_materiales WHERE sku = $1`, [material_sku]);
-    if (matQuery.rowCount === 0) {
-      throw new Error(`Material con SKU ${material_sku} no encontrado.`);
+    const kmQuery = await client.query('SELECT km FROM unidades WHERE id = $1 FOR UPDATE', [unidad_id]);
+    const kmActual = kmQuery.rows[0]?.km || 0;
+    if (kmNum < kmActual) {
+      throw new Error(`El kilometraje (${kmNum}) no puede ser menor al último registrado (${kmActual} km).`);
     }
+
+    const matQuery = await client.query(`SELECT id FROM catalogo_materiales WHERE sku = $1`, [material_sku]);
+    if (matQuery.rowCount === 0) throw new Error(`Material con SKU ${material_sku} no encontrado.`);
     const materialId = matQuery.rows[0].id;
 
-    // 2. Crear la Requisición (la clave es que usa el proyecto_id y sitio_id de la unidad)
     const reqQuery = await client.query(
       `INSERT INTO requisiciones 
        (usuario_id, departamento_id, sitio_id, proyecto_id, fecha_requerida, lugar_entrega, comentario)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, numero_requisicion`,
       [
-        usuarioId,
-        departamento_id,
-        sitio_id,
-        proyecto_id,
-        fecha_requerida,
-        sitio_id, // Usamos el mismo sitio_id como lugar de entrega
-        descripcion
+        usuarioId, departamento_id, sitio_id, proyecto_id,
+        fecha_requerida, sitio_id, descripcion
       ]
     );
     const requisicion = reqQuery.rows[0];
 
-    // 3. Insertar el detalle de la requisición
     await client.query(
       `INSERT INTO requisiciones_detalle (requisicion_id, material_id, cantidad, comentario)
        VALUES ($1, $2, $3, $4)`,
       [requisicion.id, materialId, 1, 'Solicitud de servicio vehicular']
     );
     
-    // 4. Insertar el primer registro en la bitácora (el evento de "solicitud")
     await client.query(
       `INSERT INTO unidades_historial 
        (unidad_id, fecha, kilometraje, evento_tipo_id, descripcion, usuario_id, requisicion_id)
        VALUES ($1, NOW(), $2, $3, $4, $5, $6)`,
       [
-        proyecto_id, // Recuerda: el proyecto_id ES el unidad_id en este flujo
-        kilometraje,
-        evento_tipo_id,
-        `Solicitud: ${descripcion || 'N/A'}`,
-        usuarioId,
-        requisicion.id
+        unidad_id, kmNum, evento_tipo_id,
+        `Solicitud: ${descripcion || 'N/A'}`, usuarioId, requisicion.id
       ]
     );
+    
+    await client.query('UPDATE unidades SET km = $1 WHERE id = $2', [kmNum, unidad_id]);
 
     await client.query('COMMIT');
     res.status(201).json({ 
@@ -188,21 +192,16 @@ const crearRequisicionVehicular = async (req, res) => {
 };
 
 /**
- * @description Obtiene los datos necesarios para poblar el modal de "Solicitar Servicio".
- * - Tipos de Evento (para la bitácora)
- * - Materiales/SKU (para la requisición)
+ * @description Obtiene los datos necesarios para poblar los modales de Unidades.
  */
 const getDatosModalServicio = async (req, res) => {
   try {
-    // 1. Obtenemos los tipos de evento que NO son 'INCIDENCIA' o 'OTRO' (esos no generan compra)
     const tiposQuery = `
       SELECT id, codigo, nombre 
       FROM unidades_evento_tipos
-      WHERE codigo NOT IN ('INCIDENCIA', 'OTRO') AND activo = true
+      WHERE activo = true
       ORDER BY nombre;
     `;
-
-    // 2. Obtenemos los materiales genéricos que creamos en el seed
     const materialesQuery = `
       SELECT nombre, sku 
       FROM catalogo_materiales
@@ -215,7 +214,6 @@ const getDatosModalServicio = async (req, res) => {
       pool.query(materialesQuery),
     ]);
 
-    // 3. Mapeamos los materiales a sus SKUs para fácil acceso en el front
     const materialesMap = materialesRes.rows.reduce((acc, m) => {
       acc[m.sku] = m.nombre;
       return acc;
@@ -232,9 +230,112 @@ const getDatosModalServicio = async (req, res) => {
   }
 };
 
+/**
+ * @description Agrega un registro manual a la bitácora sin crear requisición.
+ */
+const agregarRegistroManualHistorial = async (req, res) => {
+  const { id: usuarioId } = req.usuarioSira;
+  const {
+    unidad_id, evento_tipo_id, kilometraje,
+    descripcion, costo_total, numeros_serie
+  } = req.body;
+  
+  const kmNum = parseInt(kilometraje, 10);
+
+  if (!unidad_id || !evento_tipo_id || (kmNum !== 0 && !kmNum)) {
+    return res.status(400).json({ error: 'Unidad, Tipo de Evento y Kilometraje son obligatorios.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    const kmQuery = await client.query('SELECT km FROM unidades WHERE id = $1 FOR UPDATE', [unidad_id]);
+    const kmActual = kmQuery.rows[0]?.km || 0;
+    if (kmNum < kmActual) {
+      throw new Error(`El kilometraje (${kmNum}) no puede ser menor al último registrado (${kmActual} km).`);
+    }
+    
+    await client.query(
+      `INSERT INTO unidades_historial
+       (unidad_id, fecha, kilometraje, evento_tipo_id, descripcion, costo_total, numeros_serie, usuario_id)
+       VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7)`,
+      [
+        unidad_id, kmNum, evento_tipo_id, descripcion,
+        parseFloat(costo_total) || null,
+        numeros_serie || null,
+        usuarioId
+      ]
+    );
+
+    await client.query('UPDATE unidades SET km = $1 WHERE id = $2', [kmNum, unidad_id]);
+
+    await client.query('COMMIT');
+    res.status(201).json({ mensaje: 'Registro agregado a la bitácora.' });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error al agregar registro manual a bitácora:', error);
+    res.status(500).json({ error: 'Error interno del servidor.', detalle: error.message });
+  } finally {
+    client.release();
+  }
+};
+
+// ===============================================
+// --- ¡NUEVA FUNCIÓN! ---
+// ===============================================
+/**
+ * @description Obtiene las listas de Departamentos y Marcas
+ * que SÍ tienen unidades asignadas, para poblar los filtros.
+ */
+const getDatosParaFiltros = async (req, res) => {
+  try {
+    // 1. Obtener Marcas (solo de unidades en el sitio 'UNIDADES')
+    const marcasQuery = `
+      SELECT DISTINCT u.marca 
+      FROM unidades u
+      JOIN proyectos p ON u.unidad = p.nombre
+      JOIN sitios s ON p.sitio_id = s.id
+      WHERE s.nombre = 'UNIDADES' AND u.marca IS NOT NULL
+      ORDER BY u.marca ASC;
+    `;
+    
+    // 2. Obtener Departamentos (solo de usuarios que tienen unidades asignadas)
+    const deptosQuery = `
+      SELECT DISTINCT d.id, d.nombre, d.codigo 
+      FROM departamentos d
+      JOIN usuarios usr ON d.id = usr.departamento_id
+      JOIN unidades u ON usr.id = u.responsable_id
+      JOIN proyectos p ON u.unidad = p.nombre
+      JOIN sitios s ON p.sitio_id = s.id
+      WHERE s.nombre = 'UNIDADES'
+      ORDER BY d.nombre ASC;
+    `;
+
+    const [marcasRes, deptosRes] = await Promise.all([
+      pool.query(marcasQuery),
+      pool.query(deptosQuery)
+    ]);
+    
+    res.json({
+      marcas: marcasRes.rows.map(r => r.marca), // Array de strings
+      departamentos: deptosRes.rows, // Array de objetos {id, nombre, codigo}
+    });
+
+  } catch (error) {
+    console.error('Error al obtener datos para filtros de unidades:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+};
+// ===============================================
+
+
 module.exports = {
   getUnidades,
   getHistorialUnidad,
   crearRequisicionVehicular,
   getDatosModalServicio,
+  agregarRegistroManualHistorial,
+  getDatosParaFiltros, // <<< ¡NUEVA FUNCIÓN EXPORTADA!
 };

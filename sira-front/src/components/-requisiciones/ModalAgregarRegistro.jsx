@@ -1,12 +1,11 @@
-// sira-front/src/components/-requisiciones/ModalSolicitarServicio.jsx
-import React, { useState, useEffect } from 'react';
+// sira-front/src/components/-requisiciones/ModalAgregarRegistro.jsx
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal, Box, Typography, Stack, TextField, Button,
   CircularProgress, Autocomplete, Alert
 } from '@mui/material';
 import { useUnidadServicios } from '../../hooks/useUnidadServicios';
 import { toast } from 'react-toastify';
-import dayjs from 'dayjs';
 
 const styleModal = {
   position: 'absolute',
@@ -21,20 +20,20 @@ const styleModal = {
   borderRadius: 2,
 };
 
-const SKU_MAP = {
-  'SERVICIO_PREV': 'SERV-VEH-PREV',
-  'SERVICIO_CORR': 'SERV-VEH-CORR',
-  'LLANTAS': 'LLANTA-GEN',
-  'COMBUSTIBLE': 'COMBUS-GEN',
-};
+const TIPOS_MANUALES = ['INCIDENCIA', 'OTRO', 'COMBUSTIBLE'];
 
-export default function ModalSolicitarServicio({ open, onClose, unidad, onReqCreada }) {
-  const { datosModal, loadingDatosModal, isSubmitting, crearRequisicion } = useUnidadServicios();
+export default function ModalAgregarRegistro({ open, onClose, unidad, onRegistroCreado }) {
+  const { datosModal, loadingDatosModal, isSubmitting, agregarRegistroManual } = useUnidadServicios();
+
+  const tiposDeEventoManuales = useMemo(() => {
+    return datosModal.tiposDeEvento.filter(tipo => TIPOS_MANUALES.includes(tipo.codigo));
+  }, [datosModal.tiposDeEvento]);
 
   const [eventoTipo, setEventoTipo] = useState(null);
   const [kilometraje, setKilometraje] = useState('');
   const [descripcion, setDescripcion] = useState('');
-  const [fechaRequerida, setFechaRequerida] = useState(dayjs().add(3, 'day').format('YYYY-MM-DD'));
+  const [costoTotal, setCostoTotal] = useState('');
+  const [numerosSerie, setNumerosSerie] = useState('');
 
   useEffect(() => {
     if (unidad) {
@@ -43,7 +42,8 @@ export default function ModalSolicitarServicio({ open, onClose, unidad, onReqCre
       // ======== ¡CORRECCIÓN! Usamos unidad.km (con typeof) para mostrar 0km ========
       setKilometraje((typeof unidad.km === 'number') ? unidad.km : '');
       // =========================================================================
-      setFechaRequerida(dayjs().add(3, 'day').format('YYYY-MM-DD'));
+      setCostoTotal('');
+      setNumerosSerie('');
     }
   }, [unidad, open]);
 
@@ -52,49 +52,39 @@ export default function ModalSolicitarServicio({ open, onClose, unidad, onReqCre
     const kmNum = parseInt(kilometraje, 10);
 
     if (!eventoTipo) {
-      toast.error('Por favor, selecciona un tipo de servicio.');
+      toast.error('Por favor, selecciona un tipo de evento.');
       return;
     }
-    if (!kmNum && kmNum !== 0) { // Permitir 0
+    if (!kmNum && kmNum !== 0) {
       toast.error('El kilometraje es obligatorio.');
       return;
     }
-    // Permite que el KM sea igual, pero no menor
     if (typeof unidad.km === 'number' && kmNum < unidad.km) {
       toast.error(`El kilometraje no puede ser menor al último registrado (${unidad.km} km).`);
       return;
     }
-    if (!fechaRequerida) {
-      toast.error('La fecha requerida es obligatoria.');
-      return;
-    }
-    
-    const materialSku = SKU_MAP[eventoTipo.codigo];
-    if (!materialSku) {
-      toast.error(`Error de configuración: El tipo de evento "${eventoTipo.codigo}" no tiene un material SKU asociado.`);
+    if (!descripcion.trim()) {
+      toast.error('La descripción es obligatoria.');
       return;
     }
 
     // ==========================================================
     // --- ¡AQUÍ ESTÁ LA CORRECCIÓN CLAVE! ---
-    // Ahora enviamos 'unidad_id' (ID real de la unidad, ej: 1)
-    // Y 'proyecto_id' (ID del proyecto espejo, ej: 10)
+    // Enviamos el 'unidad.id' real
     // ==========================================================
     const payload = {
-      unidad_id: unidad.id, // <<< LÍNEA AÑADIDA
-      proyecto_id: unidad.proyecto_id, 
-      sitio_id: unidad.sitio_id,     
-      kilometraje: kmNum,
+      unidad_id: unidad.id, // <<< CORREGIDO
       evento_tipo_id: eventoTipo.id,
-      material_sku: materialSku,
+      kilometraje: kmNum,
       descripcion: descripcion,
-      fecha_requerida: fechaRequerida,
+      costo_total: costoTotal || 0,
+      numeros_serie: numerosSerie || null,
     };
     // ==========================================================
 
-    const exito = await crearRequisicion(payload);
+    const exito = await agregarRegistroManual(payload);
     if (exito) {
-      onReqCreada(); 
+      onRegistroCreado(); 
       onClose();     
     }
   };
@@ -103,7 +93,7 @@ export default function ModalSolicitarServicio({ open, onClose, unidad, onReqCre
     <Modal open={open} onClose={onClose}>
       <Box sx={styleModal}>
         <Typography variant="h6" component="h2">
-          Solicitar Servicio para:
+          Agregar Registro Manual:
         </Typography>
         <Typography variant="h5" fontWeight="bold" color="primary.main" gutterBottom>
           {unidad?.unidad} ({unidad?.no_eco})
@@ -114,7 +104,7 @@ export default function ModalSolicitarServicio({ open, onClose, unidad, onReqCre
             <Stack spacing={2.5} sx={{ mt: 2 }}>
               
               <Autocomplete
-                options={datosModal.tiposDeEvento.filter(t => !TIPOS_MANUALES.includes(t.codigo)) || []} // Filtramos los que SÍ generan req
+                options={tiposDeEventoManuales}
                 getOptionLabel={(option) => option.nombre}
                 value={eventoTipo}
                 onChange={(e, newValue) => setEventoTipo(newValue)}
@@ -134,27 +124,35 @@ export default function ModalSolicitarServicio({ open, onClose, unidad, onReqCre
               />
 
               <TextField
-                label="Fecha Requerida"
-                type="date"
-                required
-                fullWidth
-                value={fechaRequerida}
-                onChange={(e) => setFechaRequerida(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-              />
-
-              <TextField
-                label="Descripción / Comentarios"
+                label="Descripción del Evento"
                 multiline
                 rows={3}
                 fullWidth
+                required
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
-                placeholder="Describe la falla, el servicio necesario o detalles adicionales..."
+                placeholder="Describe la incidencia, carga de gasolina, o el registro manual..."
+              />
+              
+              <TextField
+                label="Costo Total (Opcional)"
+                type="number"
+                fullWidth
+                value={costoTotal}
+                onChange={(e) => setCostoTotal(e.target.value)}
+                helperText="Si el evento tuvo un costo (ej. gasolina), ingrésalo aquí."
+              />
+              
+              <TextField
+                label="Números de Serie (Opcional)"
+                fullWidth
+                value={numerosSerie}
+                onChange={(e) => setNumerosSerie(e.target.value)}
+                helperText="Para llantas, baterías, etc."
               />
 
-              <Alert severity="info" variant="outlined" sx={{ fontSize: '0.85rem' }}>
-                Esto creará una requisición que pasará al flujo de aprobación (`VB_REQ`) y cotización (`G_RFQ`).
+              <Alert severity="warning" variant="outlined" sx={{ fontSize: '0.85rem' }}>
+                Esto agregará un registro directo a la bitácora. **No generará una requisición** ni un proceso de compra.
               </Alert>
 
               <Stack direction="row" spacing={2} justifyContent="flex-end" sx={{ pt: 2 }}>
@@ -165,7 +163,7 @@ export default function ModalSolicitarServicio({ open, onClose, unidad, onReqCre
                   disabled={isSubmitting}
                   startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : null}
                 >
-                  {isSubmitting ? 'Creando...' : 'Crear Requisición'}
+                  {isSubmitting ? 'Guardando...' : 'Guardar Registro'}
                 </Button>
               </Stack>
 
@@ -176,6 +174,3 @@ export default function ModalSolicitarServicio({ open, onClose, unidad, onReqCre
     </Modal>
   );
 }
-
-// Re-definimos los tipos manuales aquí para el filtro del Autocomplete
-const TIPOS_MANUALES = ['INCIDENCIA', 'OTRO', 'COMBUSTIBLE'];
