@@ -5,6 +5,10 @@ const pool = require('../db/pool');
  * GET /api/retiro/datos-filtros
  * Obtiene las opciones para los filtros de retiro (Sitios/Proyectos con asignaciones, Materiales en stock).
  */
+/**
+ * GET /api/retiro/datos-filtros
+ * Obtiene las opciones para los filtros de retiro (Sitios/Proyectos con asignaciones, Materiales en stock).
+ */
 const getDatosFiltrosRetiro = async (req, res) => {
     try {
         // Sitios con material asignado
@@ -19,14 +23,23 @@ const getDatosFiltrosRetiro = async (req, res) => {
             JOIN inventario_asignado ia ON p.id = ia.proyecto_id
             WHERE ia.cantidad > 0 ORDER BY p.nombre ASC;
         `;
-        // Materiales disponibles en stock general (stock_actual > 0)
+        
+        // --- CORRECCIÓN AQUÍ: Añadir SUM(ia.stock_actual) AS stock_total ---
         const materialesStockQuery = `
-            SELECT DISTINCT cm.id, cm.nombre, cu.simbolo AS unidad_simbolo
+            SELECT
+                cm.id,
+                cm.nombre,
+                cu.simbolo AS unidad_simbolo,
+                SUM(ia.stock_actual) AS stock_total -- <<< CAMBIO: Calcular el stock total
             FROM catalogo_materiales cm
             JOIN inventario_actual ia ON cm.id = ia.material_id
             JOIN catalogo_unidades cu ON cm.unidad_de_compra = cu.id
-            WHERE ia.stock_actual > 0 ORDER BY cm.nombre ASC;
+            WHERE ia.stock_actual > 0
+            GROUP BY cm.id, cm.nombre, cu.simbolo -- Agrupar por material
+            ORDER BY cm.nombre ASC;
         `;
+        // --- FIN CORRECCIÓN ---
+
          // Todos los Proyectos y Sitios para el destino del retiro de stock
         const todosProyectosQuery = `SELECT id, nombre, sitio_id FROM proyectos ORDER BY nombre ASC`;
         const todosSitiosQuery = `SELECT id, nombre FROM sitios ORDER BY nombre ASC`;
@@ -35,7 +48,7 @@ const getDatosFiltrosRetiro = async (req, res) => {
         const [sitiosRes, proyectosRes, materialesStockRes, todosProyectosRes, todosSitiosRes] = await Promise.all([
             pool.query(sitiosQuery),
             pool.query(proyectosQuery),
-            pool.query(materialesStockQuery),
+            pool.query(materialesStockQuery), // <<< Se ejecuta la query corregida
             pool.query(todosProyectosQuery),
             pool.query(todosSitiosQuery),
         ]);
@@ -43,7 +56,7 @@ const getDatosFiltrosRetiro = async (req, res) => {
         res.json({
             sitiosAsignados: sitiosRes.rows,
             proyectosAsignados: proyectosRes.rows,
-            materialesEnStock: materialesStockRes.rows,
+            materialesEnStock: materialesStockRes.rows, // <<< Ahora esta lista incluye stock_total
             todosProyectos: todosProyectosRes.rows, // Para selector de destino
             todosSitios: todosSitiosRes.rows,       // Para selector de destino
         });
@@ -53,7 +66,6 @@ const getDatosFiltrosRetiro = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error.' });
     }
 };
-
 /**
  * GET /api/retiro/asignado/:sitioId/:proyectoId
  * Obtiene la lista de materiales asignados a un proyecto/sitio específico.
