@@ -28,7 +28,7 @@ const RequisicionRow = ({ req, onApprove, onReject, onViewDetails, onEdit, isPro
         <TableCell>{req.sitio}</TableCell>
         <TableCell>{req.proyecto}</TableCell>
         <TableCell><Tooltip title={req.comentario || 'Sin comentario'} placement="top"><span>{truncateText(req.comentario)}</span></Tooltip></TableCell>
-        <TableCell>{new Date(req.fecha_requerida).toLocaleDateString()}</TableCell>
+        <TableCell>{req.fecha_creacion ? new Date(req.fecha_creacion).toLocaleDateString() : 'N/A'}</TableCell>
         <TableCell><Chip label={req.status} color={req.status === 'ABIERTA' ? 'warning' : 'default'} size="small" /></TableCell>
         <TableCell align="right">
             {/* The buttons are now disabled if this specific row is being processed */}
@@ -247,7 +247,7 @@ export default function VB_REQ_List({ onEdit }) {
                                 <TableCell>Sitio</TableCell>
                                 <TableCell>Proyecto</TableCell>
                                 <TableCell>Comentario</TableCell>
-                                <TableCell>Fecha Req.</TableCell>
+                                <TableCell>Fecha Creación</TableCell>
                                 <TableCell>Estatus</TableCell>
                                 <TableCell align="right">Acciones</TableCell>
                             </TableRow>
