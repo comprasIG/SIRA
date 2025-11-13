@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+// --- Importamos 'useCallback' ---
+import { useEffect, useState, useCallback } from "react"; 
 import axios from "axios";
 import EditarProductoModal from "../components/EditarProductoModal"; 
 import EditIcon from "@mui/icons-material/Edit";
@@ -7,17 +8,16 @@ import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import SearchIcon from '@mui/icons-material/Search';
 
+// Usamos tu variable de entorno
+const API_BASE_URL = import.meta.env.VITE_API_URL;
+
 const ListaProductos = () => {
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(true);
-
+  const [unidadesMap, setUnidadesMap] = useState({});
   const [productoEditando, setProductoEditando] = useState(null);
   const [mostrarModal, setMostrarModal] = useState(false);
-
-  // 🔎 Barra de búsqueda
   const [busqueda, setBusqueda] = useState("");
-
-  // 📄 Paginación
   const [paginaActual, setPaginaActual] = useState(1);
   const [productosPorPagina, setProductosPorPagina] = useState(10);
 
@@ -31,61 +31,64 @@ const ListaProductos = () => {
     setMostrarModal(false);
   };
 
-  const fetchProductos = async () => {
+  // --- Definimos 'cargarDatos' FUERA del useEffect y con 'useCallback' ---
+  const cargarDatos = useCallback(async () => {
     try {
-      const res = await axios.get("http://localhost:3001/api/catalogo_materiales");
-      setProductos(res.data);
+      setLoading(true);
+
+      const peticionProductos = axios.get(`${API_BASE_URL}/api/catalogo_materiales`);
+      const peticionUnidades = axios.get(`${API_BASE_URL}/api/catalogo_unidades`);
+
+      const [respuestaProductos, respuestaUnidades] = await Promise.all([
+        peticionProductos,
+        peticionUnidades,
+      ]);
+
+      setProductos(respuestaProductos.data);
+
+      const nuevoMapa = {};
+      for (const u of respuestaUnidades.data) {
+        nuevoMapa[u.id] = `${u.unidad} (${u.simbolo})`;
+      }
+      setUnidadesMap(nuevoMapa);
+
     } catch (error) {
-      console.error("Error al cargar productos:", error);
+      console.error("Error al cargar datos:", error);
+      // Aquí puedes poner un toast de error
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // El array vacío de 'useCallback' dice que esta función nunca cambia
 
+  // --- El useEffect ahora solo llama a 'cargarDatos' ---
   useEffect(() => {
-    fetchProductos();
-  }, []);
+    cargarDatos();
+  }, [cargarDatos]); // Depende de 'cargarDatos' (que es estable gracias a useCallback)
 
   const handleEliminar = async (id) => {
     if (!confirm("¿Estás seguro de que deseas eliminar este producto?")) return;
     try {
-      await axios.delete(`http://localhost:3001/api/catalogo_materiales/${id}`);
-      setProductos(productos.filter((p) => p.id !== id));
+      await axios.delete(`${API_BASE_URL}/api/catalogo_materiales/${id}`);
+      // Después de eliminar, volvemos a cargar los datos para refrescar la lista
+      cargarDatos(); 
     } catch (error) {
       console.error("Error al eliminar producto:", error);
     }
   };
 
-  // Mapeo unidades
-  const unidadesMap = {
-    1: "Pieza (PZ)",
-    2: "Kilogramo (KG)",
-    3: "Litro (L)",
-    4: "Galón (GAL)",
-    5: "Kit (KIT)",
-    6: "Metro (M)",
-    7: "Centímetro (CM)",
-    8: "Milímetro (MM)",
-    9: "Pulgada (IN)",
-    10: "Tonelada (T)",
-    91: "Par (PAR)",
-    92: "Tramo (TM)",
-  };
-
-  // 🔎 Filtrado por búsqueda
+  // Filtrado (sin cambios)
   const productosFiltrados = productos.filter(
     (p) =>
       p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
       p.sku.toLowerCase().includes(busqueda.toLowerCase())
   );
 
-  // 📄 Paginación
+  // Paginación (sin cambios)
   const totalPaginas = Math.ceil(productosFiltrados.length / productosPorPagina);
   const indexInicio = (paginaActual - 1) * productosPorPagina;
   const indexFin = indexInicio + productosPorPagina;
   const productosPagina = productosFiltrados.slice(indexInicio, indexFin);
 
-  // 🔢 Generar números de páginas
   const paginas = [];
   for (let i = 1; i <= totalPaginas; i++) {
     paginas.push(i);
@@ -93,40 +96,35 @@ const ListaProductos = () => {
 
   return (
     <div className="p-6 bg-white rounded-2xl shadow-md">
+      {/* Título (sin cambios) */}
       <h2 className="text-2xl font-bold text-left text-gray-800 mb-4 border-b-2 border-gray-200 pb-3">
         Catálogo de Productos
       </h2>
 
-      {/* 🔎 Barra de búsqueda y selector */}
+      {/* Barra de búsqueda y selector (sin cambios) */}
       <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-      {/* Input con icono */}
-      <div className="relative w-full sm:w-1/2">
-      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
-      {/* Usando material-icons clásico */}
-      <span className="material-icons"><SearchIcon/></span>
-      {/* O si prefieres con @mui/icons-material */}
-      {/* <SearchIcon fontSize="small" /> */}
-    </span>
-
-    <input
-      type="text"
-      placeholder="Buscar por SKU o Nombre..."
-      value={busqueda}
-      onChange={(e) => {
-        setBusqueda(e.target.value);
-        setPaginaActual(1); // reiniciar a la página 1 al buscar
-      }}
-      className="w-full pl-10 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-    />
-  </div>
-
+        <div className="relative w-full sm:w-1/2">
+          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
+            <SearchIcon fontSize="small" />
+          </span>
+          <input
+            type="text"
+            placeholder="Buscar por SKU o Nombre..."
+            value={busqueda}
+            onChange={(e) => {
+              setBusqueda(e.target.value);
+              setPaginaActual(1);
+            }}
+            className="w-full pl-10 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          />
+        </div>
         <div className="flex items-center space-x-2 text-sm">
           <span>Mostrar:</span>
           <select
             value={productosPorPagina}
             onChange={(e) => {
               setProductosPorPagina(Number(e.target.value));
-              setPaginaActual(1); // reinicia al cambiar cantidad
+              setPaginaActual(1);
             }}
             className="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
           >
@@ -138,6 +136,7 @@ const ListaProductos = () => {
         </div>
       </div>
 
+      {/* Tabla (sin cambios) */}
       {loading ? (
         <p className="text-gray-500">Cargando productos...</p>
       ) : (
@@ -161,7 +160,7 @@ const ListaProductos = () => {
                   <td className="p-3 text-gray-900 font-medium">{p.sku}</td>
                   <td className="p-3 text-gray-700">{p.nombre}</td>
                   <td className="p-3 text-gray-700">
-                    {unidadesMap[p.unidad_de_compra]}
+                    {unidadesMap[p.unidad_de_compra] || `ID: ${p.unidad_de_compra}`}
                   </td>
                   <td className="p-3">
                     <span
@@ -195,7 +194,7 @@ const ListaProductos = () => {
         </div>
       )}
 
-      {/* 📄 Controles de paginación */}
+      {/* Paginación (sin cambios) */}
       <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-3">
         <p className="text-sm text-gray-600">
           Página {paginaActual} de {totalPaginas || 1} —{" "}
@@ -210,7 +209,6 @@ const ListaProductos = () => {
             <NavigateBeforeIcon/>
             Anterior
           </button>
-
           {paginas.map((num) => (
             <button
               key={num}
@@ -224,7 +222,6 @@ const ListaProductos = () => {
               {num}
             </button>
           ))}
-
           <button
             onClick={() =>
               setPaginaActual((prev) => Math.min(prev + 1, totalPaginas))
@@ -238,11 +235,15 @@ const ListaProductos = () => {
         </div>
       </div>
 
+      {/* --- 'onUpdate' ahora es mucho más simple --- */}
       {mostrarModal && (
         <EditarProductoModal
           producto={productoEditando}
           onClose={cerrarModal}
-          onUpdate={fetchProductos}
+          onUpdate={() => {
+            cerrarModal(); // Cierra el modal
+            cargarDatos(); // Vuelve a cargar los datos (¡Ahora sí funciona!)
+          }}
         />
       )}
     </div>
