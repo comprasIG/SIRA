@@ -1,4 +1,4 @@
-// C:\\SIRA\\backend\\services\\googleDrive.js
+// C:\SIRA\backend\services\googleDrive.js
 /**
  * =================================================================================================
  * SERVICIO: Google Drive (Versión 6.0 - Carpeta Única por Requisición)
@@ -364,7 +364,10 @@ const uploadFile = async (multerFile) => {
 
 const downloadFileBuffer = async (fileId) => {
   try {
-    const response = await drive().files.get({ fileId, alt: 'media' }, { responseType: 'arraybuffer' });
+    const response = await drive().files.get(
+      { fileId, alt: 'media' },
+      { responseType: 'arraybuffer' }
+    );
     return Buffer.from(response.data);
   } catch (error) {
     console.error(`Error al descargar el archivo ${fileId} de Drive:`, error);
