@@ -1,6 +1,7 @@
 // sira-front/src/components/ING_OC/FiltrosIngresoOC.jsx
 import React, { useMemo } from 'react';
-import { Paper, Box, TextField, Autocomplete, Button } from '@mui/material';
+import { Paper, Box, TextField, Autocomplete, Button, Typography, Stack } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 
 export default function FiltrosIngresoOC({ filterOptions, filters, onFilterChange, onReset }) {
@@ -36,18 +37,51 @@ export default function FiltrosIngresoOC({ filterOptions, filters, onFilterChang
     };
 
     return (
-        <Paper elevation={2} sx={{ p: 2, mb: 3, overflow: 'hidden' }}>
+        <Paper
+            elevation={0}
+            sx={{
+                p: { xs: 2, md: 3 },
+                mb: 4,
+                overflow: 'hidden',
+                borderRadius: 4,
+                border: (theme) => `1px solid ${alpha(theme.palette.primary.main, 0.08)}`,
+                backgroundImage: (theme) => `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${theme.palette.background.paper} 60%)`,
+                boxShadow: (theme) => `0 12px 26px ${alpha(theme.palette.primary.main, 0.08)}`,
+            }}
+        >
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} sx={{ mb: 3 }}>
+                <Box>
+                    <Typography variant="h6" fontWeight={600} gutterBottom>
+                        Filtros avanzados
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Refina la búsqueda por proveedor, ubicación o proyecto para encontrar rápidamente la orden correcta.
+                    </Typography>
+                </Box>
+                <Button
+                    variant="outlined"
+                    startIcon={<RestartAltIcon />}
+                    onClick={onReset}
+                    sx={{
+                        mt: { xs: 1, md: 0 },
+                        textTransform: 'none',
+                        borderRadius: 2,
+                        fontWeight: 600,
+                    }}
+                >
+                    Limpiar filtros
+                </Button>
+            </Stack>
             {/* Usamos Box con display: grid similar a REC_OC */}
             <Box
                 sx={{
                     display: 'grid',
-                    gap: 2, // Espaciado entre elementos
+                    gap: 2,
                     alignItems: 'center',
-                    // Definimos 6 columnas para md y superiores
                     gridTemplateColumns: {
-                        xs: '1fr',              // 1 columna en móvil
-                        sm: '1fr 1fr',          // 2 columnas en sm
-                        md: 'repeat(6, 1fr)'    // 6 columnas iguales en md+
+                        xs: '1fr',
+                        sm: '1fr 1fr',
+                        md: 'repeat(6, 1fr)'
                     },
                     ...uniformHeightsSx,
                 }}
@@ -102,12 +136,7 @@ export default function FiltrosIngresoOC({ filterOptions, filters, onFilterChang
                     />
                 </Box>
                 {/* Reset */}
-                <Box>
-                    <Button fullWidth variant="outlined"
-                        startIcon={<RestartAltIcon />} onClick={onReset}>
-                        Limpiar
-                    </Button>
-                </Box>
+                <Box sx={{ display: { xs: 'none', md: 'block' } }} />
             </Box>
         </Paper>
     );

@@ -1,44 +1,47 @@
 // sira-front/src/components/ING_OC/IngresoOCModal.jsx
 import React, { useState, useEffect } from 'react';
-import { Modal, Box, Typography, Button, Stack, CircularProgress, TextField, IconButton, Collapse, Autocomplete, Alert, Tooltip, Paper } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import { Modal, Box, Typography, Button, Stack, CircularProgress, TextField, IconButton, Collapse, Autocomplete, Tooltip, Paper, Divider, Chip } from '@mui/material';
+import { alpha, styled } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 
-const ModalBox = styled(Box)(({ theme }) => ({
+const ModalContainer = styled(Paper)(({ theme }) => ({
     position: 'absolute',
     top: '50%',
     left: '50%',
     transform: 'translate(-50%, -50%)',
-    width: '90%',
-    maxWidth: '800px',
+    width: 'clamp(320px, 92vw, 920px)',
     maxHeight: '90vh',
-    backgroundColor: theme.palette.background.paper, // Fondo sólido
-    boxShadow: 24,
-    p: 4,
-    borderRadius: 2,
     display: 'flex',
     flexDirection: 'column',
+    borderRadius: 4,
+    overflow: 'hidden',
+    boxShadow: `0 32px 80px ${alpha(theme.palette.primary.main, 0.25)}`,
+    backgroundColor: theme.palette.background.paper,
 }));
 
-const ContentBox = styled(Box)({
+const ContentBox = styled(Box)(({ theme }) => ({
     overflowY: 'auto',
     flexGrow: 1,
-    marginTop: 2,
-    marginBottom: 2,
-});
+    padding: theme.spacing(3),
+    backgroundImage: `linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.03)} 0%, transparent 18%)`,
+}));
 
 const ItemRow = styled(Box, {
     shouldForwardProp: (prop) => prop !== 'hasIssue' // Filtra prop 'hasIssue'
 })(({ theme, hasIssue }) => ({
     display: 'grid',
-    gridTemplateColumns: '1fr auto auto auto auto',
-    gap: theme.spacing(1),
+    gridTemplateColumns: '2.4fr repeat(3, minmax(90px, 1fr)) 120px',
+    gap: theme.spacing(2),
     alignItems: 'center',
-    padding: theme.spacing(1, 0),
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    backgroundColor: hasIssue ? theme.palette.error.lighter : 'transparent',
+    padding: theme.spacing(1.5, 0),
+    borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.08)}`,
+    backgroundColor: hasIssue ? alpha(theme.palette.error.main, 0.08) : 'transparent',
+    borderRadius: hasIssue ? theme.shape.borderRadius : 0,
+    paddingLeft: theme.spacing(1),
+    paddingRight: theme.spacing(1),
+    transition: 'background-color 0.2s ease',
 }));
 
 
@@ -145,94 +148,150 @@ export default function IngresoOCModal({ open, onClose, oc, detalles, loadingDet
 
     return (
         <Modal open={open} onClose={onClose}>
-            <ModalBox>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                    <Typography variant="h6">Ingreso OC: {oc?.numero_oc}</Typography>
-                    <IconButton onClick={onClose}><CloseIcon /></IconButton>
-                </Stack>
-                <Typography variant="body2" color="text.secondary">Proveedor: {oc?.proveedor_marca}</Typography>
-                <Typography variant="body2" color="text.secondary">Proyecto: {oc?.proyecto_nombre} {isStock && '(Ingreso a STOCK)'}</Typography>
-
+            <ModalContainer>
+                <Box
+                    sx={{
+                        px: 4,
+                        py: 3,
+                        backgroundImage: (theme) => `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.16)} 0%, ${alpha(theme.palette.primary.main, 0.06)} 60%, ${theme.palette.background.paper} 100%)`,
+                    }}
+                >
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={3}>
+                        <Box>
+                            <Typography variant="overline" sx={{ letterSpacing: 1.2 }} color="primary">
+                                Ingreso de OC
+                            </Typography>
+                            <Typography variant="h5" fontWeight={700} color="text.primary">
+                                {oc?.numero_oc}
+                            </Typography>
+                            <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
+                                <Chip size="small" label={oc?.proveedor_marca} sx={{ backgroundColor: alpha('#000', 0.04) }} />
+                                <Chip size="small" label={oc?.proyecto_nombre} variant="outlined" />
+                                {isStock && <Chip size="small" color="primary" variant="outlined" label="Ingreso a STOCK" />}
+                            </Stack>
+                        </Box>
+                        <IconButton onClick={onClose}>
+                            <CloseIcon />
+                        </IconButton>
+                    </Stack>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                        Sitio: {oc?.sitio_nombre}
+                    </Typography>
+                </Box>
+                <Divider sx={{ borderColor: (theme) => alpha(theme.palette.primary.main, 0.12) }} />
                 <ContentBox>
-                    {loadingDetalles ? <CircularProgress sx={{ display: 'block', margin: 'auto' }} /> : (
+                    {loadingDetalles ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+                            <CircularProgress />
+                        </Box>
+                    ) : (
                         <>
                             {isStock && (
-                                <Autocomplete sx={{ mb: 2 }}
+                                <Autocomplete
+                                    sx={{ mb: 3 }}
                                     options={ubicaciones}
                                     getOptionLabel={(o) => `${o.codigo} - ${o.nombre}` || ''}
                                     value={ubicaciones.find(u => u.id === selectedUbicacion) || null}
                                     onChange={(_, v) => setSelectedUbicacion(v?.id || '')}
-                                    renderInput={(params) => <TextField {...params} label="Ubicación Destino en Almacén" required />}
+                                    renderInput={(params) => <TextField {...params} label="Ubicación destino en almacén" required />}
                                 />
                             )}
-                             <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
-                                <Button size="small" onClick={handleIngresarTodo}>Ingresar Todo lo Faltante</Button>
-                            </Box>
-
-                            {/* Encabezados */}
-                             <ItemRow sx={{ borderBottom: '2px solid black', fontWeight: 'bold' }}>
+                            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={2} sx={{ mb: 2 }}>
+                                <Typography variant="subtitle1" fontWeight={600}>
+                                    Detalle de materiales
+                                </Typography>
+                                <Button variant="outlined" size="small" onClick={handleIngresarTodo}>
+                                    Ingresar todo lo faltante
+                                </Button>
+                            </Stack>
+                            <ItemRow sx={{ fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 0.4, borderBottom: (theme) => `1px solid ${alpha(theme.palette.primary.main, 0.2)}` }}>
                                 <Typography variant="caption">Material</Typography>
                                 <Typography variant="caption" align="right">Pedido</Typography>
                                 <Typography variant="caption" align="right">Recibido</Typography>
-                                <Typography variant="caption" align="right">Ingresar Ahora</Typography>
+                                <Typography variant="caption" align="right">Ingresar</Typography>
                                 <Typography variant="caption" align="center">Incidencia</Typography>
-                             </ItemRow>
+                            </ItemRow>
 
-                            {/* Items */}
                             {itemsState.map(item => (
                                 <Box key={item.detalle_id}>
                                     <ItemRow hasIssue={!!item.incidencia?.tipo_id}>
-                                        <Stack>
-                                             <Typography variant="body2">{item.material_nombre}</Typography>
-                                             <Typography variant="caption" color="text.secondary">
-                                                 {`Faltan: ${Math.max(0, parseFloat(item.cantidad_pedida) - parseFloat(item.cantidad_recibida))} ${item.unidad_simbolo}`}
-                                             </Typography>
+                                        <Stack spacing={0.5}>
+                                            <Typography variant="body2" fontWeight={500}>{item.material_nombre}</Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {`Faltan ${Math.max(0, parseFloat(item.cantidad_pedida) - parseFloat(item.cantidad_recibida))} ${item.unidad_simbolo}`}
+                                            </Typography>
                                         </Stack>
                                         <Typography variant="body2" align="right">{item.cantidad_pedida} {item.unidad_simbolo}</Typography>
                                         <Typography variant="body2" align="right">{item.cantidad_recibida} {item.unidad_simbolo}</Typography>
                                         <TextField
-                                            size="small" type="number"
+                                            size="small"
+                                            type="number"
                                             value={item.cantidad_a_ingresar}
                                             onChange={(e) => handleItemChange(item.detalle_id, 'cantidad_a_ingresar', e.target.value)}
-                                            sx={{ maxWidth: '80px', textAlign: 'right' }}
+                                            sx={{ maxWidth: 100, justifySelf: 'end' }}
                                             inputProps={{ min: 0, step: 'any', style: { textAlign: 'right' } }}
                                             disabled={!!item.incidencia?.tipo_id}
                                         />
-                                        <Tooltip title="Reportar Incidencia">
-                                            <Box sx={{ display: 'flex', justifyContent: 'center'}}>
+                                        <Tooltip title="Reportar incidencia" arrow>
+                                            <Box sx={{ display: 'flex', justifyContent: 'center' }}>
                                                 <IconButton size="small" onClick={() => toggleIncidenciaForm(item.detalle_id)} color={item.incidencia?.tipo_id ? 'error' : 'default'}>
                                                     <ReportProblemOutlinedIcon />
                                                 </IconButton>
                                             </Box>
                                         </Tooltip>
                                     </ItemRow>
-                                    {/* Formulario de Incidencia Colapsable */}
                                     <Collapse in={item.showIncidenciaForm}>
-                                        <Paper sx={{ p: 2, my: 1, bgcolor: 'error.lighter', borderLeft: '4px solid', borderColor: 'error.main' }}>
-                                            <Typography variant="subtitle2" color="error.dark" gutterBottom>Reportar Incidencia para: {item.material_nombre}</Typography>
-                                            <Stack spacing={1}>
-                                                <Autocomplete size="small"
+                                        <Paper
+                                            sx={{
+                                                p: 2,
+                                                my: 1.5,
+                                                backgroundColor: alpha('#F44336', 0.08),
+                                                borderLeft: (theme) => `4px solid ${theme.palette.error.main}`,
+                                            }}
+                                        >
+                                            <Typography variant="subtitle2" color="error.dark" gutterBottom>
+                                                Reportar incidencia para: {item.material_nombre}
+                                            </Typography>
+                                            <Stack spacing={1.5}>
+                                                <Autocomplete
+                                                    size="small"
                                                     options={tiposIncidencia}
                                                     getOptionLabel={(o) => o.descripcion || ''}
                                                     value={tiposIncidencia.find(t => t.id === item.incidencia.tipo_id) || null}
                                                     onChange={(_, v) => handleIncidenciaChange(item.detalle_id, 'tipo_id', v?.id || '')}
-                                                    renderInput={(params) => <TextField {...params} label="Tipo de Incidencia" required />}
+                                                    renderInput={(params) => <TextField {...params} label="Tipo de incidencia" required />}
                                                 />
-                                                 <TextField size="small" label="Cantidad Afectada (Opcional)" type="number"
+                                                <TextField
+                                                    size="small"
+                                                    label="Cantidad afectada (opcional)"
+                                                    type="number"
                                                     value={item.incidencia.cantidad_afectada}
                                                     onChange={(e) => handleIncidenciaChange(item.detalle_id, 'cantidad_afectada', e.target.value)}
                                                     inputProps={{ min: 0, step: 'any' }}
                                                 />
-                                                 <TextField size="small" label="Descripción del Problema" multiline rows={2} required
+                                                <TextField
+                                                    size="small"
+                                                    label="Descripción del problema"
+                                                    multiline
+                                                    rows={2}
+                                                    required
                                                     value={item.incidencia.descripcion}
-                                                     onChange={(e) => handleIncidenciaChange(item.detalle_id, 'descripcion', e.target.value)}
+                                                    onChange={(e) => handleIncidenciaChange(item.detalle_id, 'descripcion', e.target.value)}
                                                 />
-                                                <Button size="small" variant="text" color="inherit" sx={{ alignSelf: 'flex-start'}} onClick={() => {
-                                                    toggleIncidenciaForm(item.detalle_id);
-                                                    handleIncidenciaChange(item.detalle_id, 'tipo_id', '');
-                                                    handleIncidenciaChange(item.detalle_id, 'cantidad_afectada', '');
-                                                    handleIncidenciaChange(item.detalle_id, 'descripcion', '');
-                                                }}>Cancelar Incidencia</Button>
+                                                <Button
+                                                    size="small"
+                                                    variant="text"
+                                                    color="inherit"
+                                                    sx={{ alignSelf: 'flex-start' }}
+                                                    onClick={() => {
+                                                        toggleIncidenciaForm(item.detalle_id);
+                                                        handleIncidenciaChange(item.detalle_id, 'tipo_id', '');
+                                                        handleIncidenciaChange(item.detalle_id, 'cantidad_afectada', '');
+                                                        handleIncidenciaChange(item.detalle_id, 'descripcion', '');
+                                                    }}
+                                                >
+                                                    Cancelar incidencia
+                                                </Button>
                                             </Stack>
                                         </Paper>
                                     </Collapse>
@@ -241,20 +300,31 @@ export default function IngresoOCModal({ open, onClose, oc, detalles, loadingDet
                         </>
                     )}
                 </ContentBox>
-
-                {/* Footer de Acciones */}
-                <Stack direction="row" justifyContent="flex-end" spacing={2} sx={{ pt: 2, borderTop: 1, borderColor: 'divider' }}>
-                    <Button onClick={onClose} disabled={isSubmitting}>Cancelar</Button>
+                <Divider sx={{ borderColor: (theme) => alpha(theme.palette.primary.main, 0.12) }} />
+                <Stack direction="row" justifyContent="flex-end" spacing={2} sx={{ px: 4, py: 3 }}>
+                    <Button onClick={onClose} disabled={isSubmitting} variant="text">
+                        Cancelar
+                    </Button>
                     <Button
                         variant="contained"
                         onClick={handleSubmit}
                         disabled={loadingDetalles || isSubmitting || itemsState.length === 0}
-                        startIcon={isSubmitting ? <CircularProgress size={20} color="inherit"/> : <CheckCircleOutlineIcon />}
+                        startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <CheckCircleOutlineIcon />}
+                        sx={{
+                            minWidth: 180,
+                            fontWeight: 600,
+                            textTransform: 'none',
+                            boxShadow: 'none',
+                            backgroundImage: (theme) => `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.92)} 0%, ${theme.palette.success.main} 100%)`,
+                            '&:hover': {
+                                boxShadow: (theme) => `0 12px 28px ${alpha(theme.palette.success.main, 0.32)}`,
+                            },
+                        }}
                     >
-                        {isSubmitting ? 'Registrando...' : 'Registrar Ingreso'}
+                        {isSubmitting ? 'Registrando…' : 'Registrar ingreso'}
                     </Button>
                 </Stack>
-            </ModalBox>
+            </ModalContainer>
         </Modal>
     );
 }
