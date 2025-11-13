@@ -7,6 +7,7 @@ import IngresoOCCard from './IngresoOCCard';
 import IngresoOCModal from './IngresoOCModal';
 import FiltrosIngresoOC from './FiltrosIngresoOC'; // Componente de filtros específico
 import KPICard from '../REC_OC/KPICard'; // Reutilizamos el KPICard de REC_OC
+import OCInfoModal from '../common/OCInfoModal';
 
 // Iconos para KPIs
 import InventoryIcon from '@mui/icons-material/Inventory';
@@ -24,8 +25,8 @@ export default function ING_OCForm() {
 
     const theme = useTheme();
     const [modalOpen, setModalOpen] = useState(false);
-    const [selectedOc, setSelectedOc] = useState(null); // OC completa para el modal
-    const [detallesOc, setDetallesOc] = useState([]); // Detalles para el modal
+    const [selectedOc, setSelectedOc] = useState(null); // OC completa para el modal de ingreso
+    const [detallesOc, setDetallesOc] = useState([]); // Detalles para el modal de ingreso
     const [loadingModal, setLoadingModal] = useState(false);
     const [activeKpi, setActiveKpi] = useState(null);
 
@@ -42,6 +43,21 @@ export default function ING_OCForm() {
         setModalOpen(false);
         setSelectedOc(null);
         setDetallesOc([]);
+    };
+
+    const handleViewOcDetails = async (oc) => {
+        setInfoOc(oc);
+        setInfoModalOpen(true);
+        setInfoLoading(true);
+        const detalles = await getDetallesOC(oc.id);
+        setInfoDetalles(detalles);
+        setInfoLoading(false);
+    };
+
+    const handleCloseInfoModal = () => {
+        setInfoModalOpen(false);
+        setInfoOc(null);
+        setInfoDetalles([]);
     };
 
     const handleRegistrarIngreso = async (ingresoData) => {
@@ -234,6 +250,16 @@ export default function ING_OCForm() {
                     ubicaciones={filterOptions.ubicacionesAlmacen || []}
                     tiposIncidencia={filterOptions.tiposIncidencia || []}
                     onRegistrar={handleRegistrarIngreso}
+                />
+            )}
+            {infoOc && (
+                <OCInfoModal
+                    open={infoModalOpen}
+                    onClose={handleCloseInfoModal}
+                    oc={infoOc}
+                    items={infoItems}
+                    metadata={infoMetadata}
+                    loading={infoLoading}
                 />
             )}
         </Box>

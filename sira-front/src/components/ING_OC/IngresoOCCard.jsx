@@ -11,6 +11,7 @@ import PersonPinIcon from '@mui/icons-material/PersonPin';
 import RuleFolderIcon from '@mui/icons-material/RuleFolder';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import InputIcon from '@mui/icons-material/Input';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 const cardVariants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } };
 
