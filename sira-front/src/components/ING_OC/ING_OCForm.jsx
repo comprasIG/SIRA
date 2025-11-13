@@ -37,13 +37,21 @@ export default function ING_OCForm() {
     const { open: infoModalOpen, oc: infoOc, detalles: infoDetalles, loading: infoLoading } = infoDialog;
     const [activeKpi, setActiveKpi] = useState(null);
 
-    const handleOpenModal = async (oc) => {
+    const handleOpenModal = (oc) => {
         setSelectedOc(oc);
         setLoadingModal(true);
         setModalOpen(true);
-        const detalles = await getDetallesOC(oc.id);
-        setDetallesOc(detalles);
-        setLoadingModal(false);
+
+        getDetallesOC(oc.id)
+            .then((detalles) => {
+                setDetallesOc(detalles);
+            })
+            .catch(() => {
+                setDetallesOc([]);
+            })
+            .finally(() => {
+                setLoadingModal(false);
+            });
     };
 
     const handleCloseModal = () => {
