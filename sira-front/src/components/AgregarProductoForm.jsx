@@ -1,6 +1,7 @@
 //D:\SIRA\SIRA\sira-front\src\components\AgregarProductoForm.jsx
 
-import { useState } from "react";
+// --- MODIFICADO --- Se añaden 'useState' y 'useEffect'
+import { useState, useEffect } from "react";
 import axios from "axios";
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
@@ -9,7 +10,6 @@ import { toast } from "react-toastify";
 // --- LECTURA DE LA VARIABLE DE ENTORNO ---
 const API_BASE_URL = import.meta.env.VITE_API_URL; 
 
-// Valor de respaldo
 if (!import.meta.env.VITE_API_URL) {
   console.warn("ADVERTENCIA: VITE_API_URL no está definida en tu archivo .env. Usando http://localhost:3001 como respaldo.");
 }
@@ -19,39 +19,58 @@ const inputStyle =
   "mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-colors duration-300 read-only:bg-gray-100";
 
 // --- ESTADO INICIAL ---
-// 'ultimo_precio' se elimina de aquí
 const initialState = {
   tipo: "",
   categoria: "",
   detalle: "",
   sku: "",
-  unidad_de_compra: "",
+  unidad_de_compra: "", // Se queda como string vacío
   activo: true,
 };
 
 const AgregarProductoForm = () => {
   const [formData, setFormData] = useState(initialState);
+  
+  // --- NUEVO ESTADO ---
+  // 1. Estado para guardar las unidades que vienen de la API
+  const [unidades, setUnidades] = useState([]);
 
+  // --- NUEVO HOOK ---
+  // 2. useEffect para cargar las unidades cuando el componente se monta
+  useEffect(() => {
+    const cargarUnidades = async () => {
+      try {
+        const url = `${API_BASE_URL}/api/catalogo_unidades`;
+        const respuesta = await axios.get(url);
+        setUnidades(respuesta.data); // Guardamos el array de unidades
+      } catch (error) {
+        console.error("Error al cargar unidades:", error);
+        toast.error("Error: No se pudieron cargar las unidades de medida.");
+      }
+    };
+
+    cargarUnidades();
+  }, []); // El array vacío [] asegura que solo se ejecute una vez
+
+  // --- Generación de nombre (sin cambios) ---
   const nombreGenerado = [formData.tipo, formData.categoria, formData.detalle]
     .filter(Boolean)
     .join(" ");
 
+  // --- MODIFICADO ---
+  // 3. Lógica de 'handleChange' simplificada
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
     let parsedValue;
 
-    if (name === "unidad_de_compra") {
-      parsedValue = parseInt(value, 10);
-      if (isNaN(parsedValue)) {
-        parsedValue = "";
-      }
-    } else if (type === "checkbox") { // Se elimina la lógica de 'ultimo_precio'
+    if (type === "checkbox") {
       parsedValue = checked;
     } else {
-      parsedValue = value.toUpperCase();
+      // El valor del select (unidad_de_compra) no se pasa a mayúsculas
+      parsedValue = (name === 'unidad_de_compra') ? value : value.toUpperCase();
     }
-
+    
     setFormData({
       ...formData,
       [name]: parsedValue,
@@ -61,11 +80,14 @@ const AgregarProductoForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // --- *** LA SOLUCIÓN ESTÁ AQUÍ *** ---
+      
+      // --- MODIFICADO ---
+      // 4. Aseguramos que 'unidad_de_compra' se envíe como NÚMERO
       const payload = {
         ...formData,
         nombre: nombreGenerado,
-        ultimo_precio: 0, // Se envía '0' directamente al backend
+        ultimo_precio: 0,
+        unidad_de_compra: parseInt(formData.unidad_de_compra, 10)
       };
 
       const url = `${API_BASE_URL}/api/catalogo_materiales`;
@@ -173,7 +195,8 @@ const AgregarProductoForm = () => {
             />
           </div>
 
-          {/* Unidad de Medida */}
+          {/* --- SECCIÓN MODIFICADA --- */}
+          {/* 5. Unidad de Medida (Dinámico desde la API) */}
           <div>
             <label htmlFor="unidad_de_compra" className="block text-sm font-medium text-gray-700">
               Unidad De Medida
@@ -186,21 +209,20 @@ const AgregarProductoForm = () => {
               required
               className={inputStyle}
             >
+              {/* Opción default */}
               <option value="">Selecciona una unidad...</option>
-              <option value="1">Pieza (PZ)</option>
-              <option value="2">Kilogramo (KG)</option>
-              <option value="3">Litro (L)</option>
-              <option value="4">Galon (GAL)</option>
-              <option value="5">Kit (KIT)</option>
-              <option value="6">Metro (M)</option>
-              <option value="7">Centimetro (CM)</option>
-              <option value="8">Milimetro (MM)</option>
-              <option value="9">Pulgada (IN)</option>
-              <option value="10">T (T)</option>
-              <option value="91">Par (PAR)</option>
-              <option value="92">Tramo (TM)</option>
+              
+              {/* Opciones cargadas desde la API */}
+              {/* Usamos los nombres de columna: id, unidad, simbolo */}
+              {unidades.map((unidad) => (
+                <option key={unidad.id} value={unidad.id}>
+                  {unidad.unidad} ({unidad.simbolo})
+                </option>
+              ))}
             </select>
           </div>
+          {/* --- FIN SECCIÓN MODIFICADA --- */}
+
 
           {/* Nombre (Generado) */}
           <div>
@@ -215,25 +237,6 @@ const AgregarProductoForm = () => {
               className={inputStyle}
             />
           </div>
-
-          {/* Último precio (Oculto) */}
-          {/*
-          <div>
-            <label htmlFor="ultimo_precio" className="block text-sm font-medium text-gray-700">
-              Último precio
-            </label>
-            <input
-              id="ultimo_precio"
-              name="ultimo_precio"
-              type="number"
-              step="0.01"
-              value={formData.ultimo_precio}
-              onChange={handleChange}
-              className={inputStyle}
-              placeholder="0.00"
-            />
-          </div>
-          */}
 
           {/* Activo */}
           <div className="flex items-center mt-6">
@@ -252,7 +255,7 @@ const AgregarProductoForm = () => {
         </div>
       </div>
 
-      {/* --- SECCIÓN DE ACCIONES --- */}
+      {/* --- SECCIÓN DE ACCIONES (sin cambios) --- */}
       <div className="flex flex-col md:flex-row items-center justify-end gap-4 pt-4 border-t-2 border-gray-200">
         <button
           type="button"
