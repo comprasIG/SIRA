@@ -9,4 +9,4 @@ const AgregarProducto = () => {
   );
 };
 
-export default AgregarProducto;
+export default AgregarProducto; //ñññññññ
