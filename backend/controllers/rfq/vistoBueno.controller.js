@@ -223,8 +223,9 @@ const generarOcsDesdeRfq = async (req, res) => {
             const driveFile = await uploadOcPdfBuffer(
                 pdfBuffer,
                 pdfFileName, // Nombre Corregido
-                'ORDENES_DE_COMPRA_PDF',
-                rfqData.rfq_code
+                rfqData.depto_codigo,
+                rfqData.numero_requisicion,
+                nuevoNumeroOc
             );
 
             if (!driveFile || !driveFile.webViewLink) {
