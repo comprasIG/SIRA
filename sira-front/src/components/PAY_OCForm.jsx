@@ -7,7 +7,7 @@ import { ConfirmacionCreditoDialog } from './finanzas/pay_oc/ConfirmacionCredito
 import SubirComprobanteDialog from './finanzas/pay_oc/SubirComprobanteDialog';
 import RechazoOCDialog from './finanzas/pay_oc/RechazoOCDialog';
 import HoldOCDialog from './finanzas/pay_oc/HoldOCDialog';
-import PreviewOCDialog from './finanzas/pay_oc/PreviewOCDialog';
+import OCInfoModal from './common/OCInfoModal';
 
 import {
   Box, Typography, Container, Paper, Button, TextField, MenuItem,
@@ -73,54 +73,66 @@ export default function PAY_OCForm() {
 
   // ===== Filtros persistentes por TAB =====
   // POR AUTORIZAR
-  const [paFilters, setPaFilters] = useState({ numero: '', sitio: 'ALL', proyecto: 'ALL' });
+  const [paFilters, setPaFilters] = useState({ numero: '', sitio: 'ALL', proyecto: 'ALL', proveedor: 'ALL' });
   const paSitios = useMemo(() => Array.from(new Set(ocsPorAutorizar.map(o => o.sitio_nombre).filter(Boolean))), [ocsPorAutorizar]);
   const paProyectos = useMemo(() => Array.from(new Set(ocsPorAutorizar.map(o => o.proyecto_nombre).filter(Boolean))), [ocsPorAutorizar]);
+  const paProveedores = useMemo(() => Array.from(new Set(ocsPorAutorizar.map(o => (o.proveedor_razon_social || o.proveedor_nombre)).filter(Boolean))), [ocsPorAutorizar]);
   const ocsPorAutorizarFiltradas = useMemo(() => {
     return ocsPorAutorizar.filter(oc => {
       const okNum = matchesOcNumber(oc.numero_oc, paFilters.numero);
       const okSitio = paFilters.sitio === 'ALL' || oc.sitio_nombre === paFilters.sitio;
       const okProyecto = paFilters.proyecto === 'ALL' || oc.proyecto_nombre === paFilters.proyecto;
-      return okNum && okSitio && okProyecto;
+      const proveedorNombre = oc.proveedor_razon_social || oc.proveedor_nombre;
+      const okProveedor = paFilters.proveedor === 'ALL' || proveedorNombre === paFilters.proveedor;
+      return okNum && okSitio && okProyecto && okProveedor;
     });
   }, [ocsPorAutorizar, paFilters]);
 
   // SPEI POR CONFIRMAR
-  const [scFilters, setScFilters] = useState({ numero: '', sitio: 'ALL', proyecto: 'ALL' });
+  const [scFilters, setScFilters] = useState({ numero: '', sitio: 'ALL', proyecto: 'ALL', proveedor: 'ALL' });
   const scSitios = useMemo(() => Array.from(new Set(speiPorConfirmar.map(o => o.sitio_nombre).filter(Boolean))), [speiPorConfirmar]);
   const scProyectos = useMemo(() => Array.from(new Set(speiPorConfirmar.map(o => o.proyecto_nombre).filter(Boolean))), [speiPorConfirmar]);
+  const scProveedores = useMemo(() => Array.from(new Set(speiPorConfirmar.map(o => (o.proveedor_razon_social || o.proveedor_nombre)).filter(Boolean))), [speiPorConfirmar]);
   const speiPorConfirmarFiltradas = useMemo(() => {
     return speiPorConfirmar.filter(oc => {
       const okNum = matchesOcNumber(oc.numero_oc, scFilters.numero);
       const okSitio = scFilters.sitio === 'ALL' || oc.sitio_nombre === scFilters.sitio;
       const okProyecto = scFilters.proyecto === 'ALL' || oc.proyecto_nombre === scFilters.proyecto;
-      return okNum && okSitio && okProyecto;
+      const proveedorNombre = oc.proveedor_razon_social || oc.proveedor_nombre;
+      const okProveedor = scFilters.proveedor === 'ALL' || proveedorNombre === scFilters.proveedor;
+      return okNum && okSitio && okProyecto && okProveedor;
     });
   }, [speiPorConfirmar, scFilters]);
 
   // POR LIQUIDAR
-  const [plFilters, setPlFilters] = useState({ numero: '', sitio: 'ALL', proyecto: 'ALL' });
+  const [plFilters, setPlFilters] = useState({ numero: '', sitio: 'ALL', proyecto: 'ALL', proveedor: 'ALL' });
   const plSitios = useMemo(() => Array.from(new Set(porLiquidar.map(o => o.sitio_nombre).filter(Boolean))), [porLiquidar]);
   const plProyectos = useMemo(() => Array.from(new Set(porLiquidar.map(o => o.proyecto_nombre).filter(Boolean))), [porLiquidar]);
+  const plProveedores = useMemo(() => Array.from(new Set(porLiquidar.map(o => (o.proveedor_razon_social || o.proveedor_nombre)).filter(Boolean))), [porLiquidar]);
   const porLiquidarFiltradas = useMemo(() => {
     return porLiquidar.filter(oc => {
       const okNum = matchesOcNumber(oc.numero_oc, plFilters.numero);
       const okSitio = plFilters.sitio === 'ALL' || oc.sitio_nombre === plFilters.sitio;
       const okProyecto = plFilters.proyecto === 'ALL' || oc.proyecto_nombre === plFilters.proyecto;
-      return okNum && okSitio && okProyecto;
+      const proveedorNombre = oc.proveedor_razon_social || oc.proveedor_nombre;
+      const okProveedor = plFilters.proveedor === 'ALL' || proveedorNombre === plFilters.proveedor;
+      return okNum && okSitio && okProyecto && okProveedor;
     });
   }, [porLiquidar, plFilters]);
 
   // EN HOLD
-  const [ehFilters, setEhFilters] = useState({ numero: '', sitio: 'ALL', proyecto: 'ALL' });
+  const [ehFilters, setEhFilters] = useState({ numero: '', sitio: 'ALL', proyecto: 'ALL', proveedor: 'ALL' });
   const ehSitios = useMemo(() => Array.from(new Set(enHold.map(o => o.sitio_nombre).filter(Boolean))), [enHold]);
   const ehProyectos = useMemo(() => Array.from(new Set(enHold.map(o => o.proyecto_nombre).filter(Boolean))), [enHold]);
+  const ehProveedores = useMemo(() => Array.from(new Set(enHold.map(o => (o.proveedor_razon_social || o.proveedor_nombre)).filter(Boolean))), [enHold]);
   const enHoldFiltradas = useMemo(() => {
     return enHold.filter(oc => {
       const okNum = matchesOcNumber(oc.numero_oc, ehFilters.numero);
       const okSitio = ehFilters.sitio === 'ALL' || oc.sitio_nombre === ehFilters.sitio;
       const okProyecto = ehFilters.proyecto === 'ALL' || oc.proyecto_nombre === ehFilters.proyecto;
-      return okNum && okSitio && okProyecto;
+      const proveedorNombre = oc.proveedor_razon_social || oc.proveedor_nombre;
+      const okProveedor = ehFilters.proveedor === 'ALL' || proveedorNombre === ehFilters.proveedor;
+      return okNum && okSitio && okProyecto && okProveedor;
     });
   }, [enHold, ehFilters]);
 
@@ -144,6 +156,68 @@ export default function PAY_OCForm() {
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewData, setPreviewData] = useState(null);
+  const [previewOc, setPreviewOc] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const formatDate = (value) => {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? value
+      : date.toLocaleDateString('es-MX', { dateStyle: 'medium' });
+  };
+
+  const previewOcMerged = useMemo(() => {
+    if (!previewOc && !previewData?.encabezado) return null;
+    return {
+      ...(previewData?.encabezado || {}),
+      ...(previewOc || {}),
+    };
+  }, [previewOc, previewData]);
+
+  const previewMetadata = useMemo(() => {
+    const enc = previewData?.encabezado || {};
+    const merged = previewOcMerged || {};
+    return [
+      { label: 'Proyecto', value: enc.proyecto_nombre || merged.proyecto_nombre },
+      { label: 'Sitio', value: enc.sitio_nombre || merged.sitio_nombre },
+      { label: 'Método de pago', value: enc.metodo_pago || merged.metodo_pago },
+      { label: 'Status', value: enc.status || merged.status },
+      { label: 'Fecha compromiso', value: formatDate(enc.fecha_compromiso || merged.fecha_compromiso) },
+    ].filter(entry => entry.value);
+  }, [previewData, previewOcMerged]);
+
+  const previewItems = useMemo(() => {
+    const parseOrNull = (value) => {
+      if (value === '' || value === null || value === undefined) return null;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const detalle = previewData?.detalle || [];
+    return detalle.map((row) => {
+      const quantity = parseOrNull(row.cantidad ?? row.cantidad_pedida);
+      const received = parseOrNull(row.cantidad_recibida ?? row.cantidad_facturada);
+      const pending = row.cantidad_pendiente != null
+        ? parseOrNull(row.cantidad_pendiente)
+        : (quantity != null && received != null ? Math.max(0, quantity - received) : null);
+      const price = parseOrNull(row.precio_unitario ?? row.precio);
+      const total = parseOrNull(row.total_linea ?? row.total ?? ((price != null && quantity != null) ? price * quantity : null));
+
+      return {
+        id: row.id ?? row.detalle_id,
+        description: row.material_nombre || row.descripcion || '-',
+        quantity,
+        unit: row.unidad || row.unidad_medida || row.unidad_simbolo || '',
+        received,
+        pending,
+        price,
+        currency: row.moneda || previewData?.encabezado?.moneda || previewOc?.moneda || 'MXN',
+        total,
+        note: row.comentario || row.observaciones || '',
+      };
+    });
+  }, [previewData, previewOc]);
 
   if (loading) {
     return (
@@ -180,7 +254,10 @@ export default function PAY_OCForm() {
               <TextField select size="small" label="Proyecto" value={paFilters.proyecto} onChange={e => setPaFilters(f => ({ ...f, proyecto: e.target.value }))} sx={{ minWidth: 220 }}>
                 <MenuItem value="ALL">Todos</MenuItem>{paProyectos.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
               </TextField>
-              <Button onClick={() => setPaFilters({ numero: '', sitio: 'ALL', proyecto: 'ALL' })} variant="outlined">Reset filtros</Button>
+              <TextField select size="small" label="Proveedor" value={paFilters.proveedor} onChange={e => setPaFilters(f => ({ ...f, proveedor: e.target.value }))} sx={{ minWidth: 220 }}>
+                <MenuItem value="ALL">Todos</MenuItem>{paProveedores.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+              </TextField>
+              <Button onClick={() => setPaFilters({ numero: '', sitio: 'ALL', proyecto: 'ALL', proveedor: 'ALL' })} variant="outlined">Reset filtros</Button>
             </Stack>
             <Divider />
           </Paper>
@@ -197,9 +274,14 @@ export default function PAY_OCForm() {
                     onPreautorizarSpei={preautorizarSpei}
                     onRechazar={(o) => { setOcRechazo(o); setRechazoOpen(true); }}
                     onHold={(o) => { setOcHold(o); setHoldOpen(true); }}
-                    onPreview={async (ocId) => {
-                      const data = await getOcPreview(ocId);
-                      if (data) { setPreviewData(data); setPreviewOpen(true); }
+                    onPreview={async (ocSeleccionada) => {
+                      setPreviewOc(ocSeleccionada);
+                      setPreviewData(null);
+                      setPreviewLoading(true);
+                      setPreviewOpen(true);
+                      const data = await getOcPreview(ocSeleccionada.id);
+                      if (data) setPreviewData(data);
+                      setPreviewLoading(false);
                     }}
                   />
                 ))}
@@ -227,7 +309,10 @@ export default function PAY_OCForm() {
                 <TextField select size="small" label="Proyecto" value={scFilters.proyecto} onChange={e => setScFilters(f => ({ ...f, proyecto: e.target.value }))} sx={{ minWidth: 220 }}>
                   <MenuItem value="ALL">Todos</MenuItem>{scProyectos.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                 </TextField>
-                <Button onClick={() => setScFilters({ numero: '', sitio: 'ALL', proyecto: 'ALL' })} variant="outlined">Reset filtros</Button>
+                <TextField select size="small" label="Proveedor" value={scFilters.proveedor} onChange={e => setScFilters(f => ({ ...f, proveedor: e.target.value }))} sx={{ minWidth: 220 }}>
+                  <MenuItem value="ALL">Todos</MenuItem>{scProveedores.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                </TextField>
+                <Button onClick={() => setScFilters({ numero: '', sitio: 'ALL', proyecto: 'ALL', proveedor: 'ALL' })} variant="outlined">Reset filtros</Button>
               </>
             )}
             {tab === TAB_KEYS.POR_LIQUIDAR && (
@@ -239,7 +324,10 @@ export default function PAY_OCForm() {
                 <TextField select size="small" label="Proyecto" value={plFilters.proyecto} onChange={e => setPlFilters(f => ({ ...f, proyecto: e.target.value }))} sx={{ minWidth: 220 }}>
                   <MenuItem value="ALL">Todos</MenuItem>{plProyectos.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                 </TextField>
-                <Button onClick={() => setPlFilters({ numero: '', sitio: 'ALL', proyecto: 'ALL' })} variant="outlined">Reset filtros</Button>
+                <TextField select size="small" label="Proveedor" value={plFilters.proveedor} onChange={e => setPlFilters(f => ({ ...f, proveedor: e.target.value }))} sx={{ minWidth: 220 }}>
+                  <MenuItem value="ALL">Todos</MenuItem>{plProveedores.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                </TextField>
+                <Button onClick={() => setPlFilters({ numero: '', sitio: 'ALL', proyecto: 'ALL', proveedor: 'ALL' })} variant="outlined">Reset filtros</Button>
               </>
             )}
             {tab === TAB_KEYS.EN_HOLD && (
@@ -251,7 +339,10 @@ export default function PAY_OCForm() {
                 <TextField select size="small" label="Proyecto" value={ehFilters.proyecto} onChange={e => setEhFilters(f => ({ ...f, proyecto: e.target.value }))} sx={{ minWidth: 220 }}>
                   <MenuItem value="ALL">Todos</MenuItem>{ehProyectos.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                 </TextField>
-                <Button onClick={() => setEhFilters({ numero: '', sitio: 'ALL', proyecto: 'ALL' })} variant="outlined">Reset filtros</Button>
+                <TextField select size="small" label="Proveedor" value={ehFilters.proveedor} onChange={e => setEhFilters(f => ({ ...f, proveedor: e.target.value }))} sx={{ minWidth: 220 }}>
+                  <MenuItem value="ALL">Todos</MenuItem>{ehProveedores.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                </TextField>
+                <Button onClick={() => setEhFilters({ numero: '', sitio: 'ALL', proyecto: 'ALL', proveedor: 'ALL' })} variant="outlined">Reset filtros</Button>
               </>
             )}
           </Stack>
@@ -270,9 +361,14 @@ export default function PAY_OCForm() {
                     onCancelarSpei={cancelarSpei}
                     onReanudar={(ocId) => reanudarOC(ocId)}
                     onRechazar={(o) => { setOcRechazo(o); setRechazoOpen(true); }}
-                    onPreview={async (ocId) => {
-                      const data = await getOcPreview(ocId);
-                      if (data) { setPreviewData(data); setPreviewOpen(true); }
+                    onPreview={async (ocSeleccionada) => {
+                      setPreviewOc(ocSeleccionada);
+                      setPreviewData(null);
+                      setPreviewLoading(true);
+                      setPreviewOpen(true);
+                      const data = await getOcPreview(ocSeleccionada.id);
+                      if (data) setPreviewData(data);
+                      setPreviewLoading(false);
                     }}
                   />
                 ))}
@@ -305,7 +401,16 @@ export default function PAY_OCForm() {
         onConfirm={async (fecha) => { await holdOC(ocHold.id, fecha); setHoldOpen(false); setOcHold(null); }}
       />
 
-      <PreviewOCDialog open={previewOpen} onClose={() => { setPreviewOpen(false); setPreviewData(null); }} preview={previewData} />
+      {previewOcMerged && (
+        <OCInfoModal
+          open={previewOpen}
+          onClose={() => { setPreviewOpen(false); setPreviewData(null); setPreviewOc(null); setPreviewLoading(false); }}
+          oc={previewOcMerged}
+          items={previewItems}
+          metadata={previewMetadata}
+          loading={previewLoading}
+        />
+      )}
     </Container>
   );
 }

@@ -2,6 +2,7 @@
 import React from 'react';
 import { Paper, Typography, Box, Button, Divider, Chip, Stack, Tooltip } from '@mui/material';
 import { motion } from 'framer-motion';
+import { alpha, useTheme } from '@mui/material/styles';
 import PlaceIcon from '@mui/icons-material/Place';
 import WorkspacesIcon from '@mui/icons-material/Workspaces';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
@@ -10,10 +11,12 @@ import PersonPinIcon from '@mui/icons-material/PersonPin';
 import RuleFolderIcon from '@mui/icons-material/RuleFolder';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import InputIcon from '@mui/icons-material/Input';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 const cardVariants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } };
 
-export default function IngresoOCCard({ oc, onGestionarIngreso }) {
+export default function IngresoOCCard({ oc, onGestionarIngreso, onViewDetails }) {
+    const theme = useTheme();
 
     // Determina el icono y texto del método de entrega
     let metodoEntregaIcon = null;
@@ -30,44 +33,150 @@ export default function IngresoOCCard({ oc, onGestionarIngreso }) {
         metodoEntregaIcon = <LocalShippingIcon fontSize="small" />;
         metodoEntregaTexto = 'Paquetería';
     }
+    const subtleBorder = alpha(theme.palette.primary.main, 0.12);
+    const badgeBg = alpha(theme.palette.primary.main, 0.08);
 
     return (
         <motion.div variants={cardVariants}>
-            <Paper elevation={3} sx={{ borderRadius: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <Paper
+                elevation={0}
+                sx={{
+                    borderRadius: 4,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%',
+                    overflow: 'hidden',
+                    border: `1px solid ${subtleBorder}`,
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: `0 16px 36px ${alpha(theme.palette.primary.main, 0.08)}`,
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    '&:hover': {
+                        transform: 'translateY(-6px)',
+                        boxShadow: `0 22px 48px ${alpha(theme.palette.primary.main, 0.15)}`,
+                    },
+                }}
+            >
                 {/* Encabezado */}
-                <Box sx={{ p: 2 }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                <Box
+                    sx={{
+                        p: 3,
+                        backgroundImage: `linear-gradient(140deg, ${alpha(theme.palette.primary.main, 0.12)} 0%, ${alpha(theme.palette.primary.main, 0.04)} 60%, ${theme.palette.background.paper} 100%)`,
+                    }}
+                >
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
                         <Box>
-                            <Typography variant="caption" color="text.secondary">{oc.numero_oc}</Typography>
-                            <Typography variant="h6" fontWeight="bold" lineHeight={1.2}>{oc.proveedor_marca}</Typography>
-                            <Typography variant="body2" color="text.secondary">{oc.proveedor_razon_social}</Typography>
+                            <Chip
+                                size="small"
+                                label={oc.numero_oc}
+                                sx={{
+                                    mb: 1,
+                                    fontWeight: 600,
+                                    letterSpacing: 0.4,
+                                    backgroundColor: badgeBg,
+                                    borderRadius: 1.5,
+                                }}
+                            />
+                            <Typography variant="h6" fontWeight={700} lineHeight={1.2} color="text.primary">
+                                {oc.proveedor_marca}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                {oc.proveedor_razon_social}
+                            </Typography>
                         </Box>
                         {/* Indicadores de estado */}
-                        <Stack direction="column" spacing={0.5} alignItems="flex-end">
+                        <Stack direction="column" spacing={0.75} alignItems="flex-end">
                             {oc.entrega_parcial && (
-                                <Tooltip title="Entrega Parcial pendiente"><Chip icon={<RuleFolderIcon />} size="small" color="warning" label="Parcial" /></Tooltip>
+                                <Tooltip title="Entrega parcial pendiente" arrow>
+                                    <Chip
+                                        icon={<RuleFolderIcon fontSize="small" />}
+                                        size="small"
+                                        label="Parcial"
+                                        sx={{ backgroundColor: alpha(theme.palette.warning.main, 0.12), color: theme.palette.warning.dark }}
+                                    />
+                                </Tooltip>
                             )}
-                             {oc.con_incidencia && (
-                                <Tooltip title="Incidencia Reportada"><Chip icon={<ReportProblemIcon />} size="small" color="error" label="Incidencia" /></Tooltip>
+                            {oc.con_incidencia && (
+                                <Tooltip title="Incidencia reportada" arrow>
+                                    <Chip
+                                        icon={<ReportProblemIcon fontSize="small" />}
+                                        size="small"
+                                        label="Incidencia"
+                                        sx={{ backgroundColor: alpha(theme.palette.error.main, 0.12), color: theme.palette.error.dark }}
+                                    />
+                                </Tooltip>
                             )}
                         </Stack>
                     </Stack>
-                    <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
-                         <Chip size="small" icon={metodoEntregaIcon} label={metodoEntregaTexto} variant="outlined" />
-                         <Chip size="small" icon={<WorkspacesIcon />} label={oc.proyecto_nombre} color="primary" />
-                         <Chip size="small" icon={<PlaceIcon />} label={oc.sitio_nombre} />
+                    <Stack direction="row" spacing={1} sx={{ mt: 2 }} flexWrap="wrap" useFlexGap>
+                        <Chip
+                            size="small"
+                            icon={metodoEntregaIcon}
+                            label={metodoEntregaTexto}
+                            sx={{
+                                backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                                color: theme.palette.primary.darker ?? theme.palette.primary.main,
+                            }}
+                        />
+                        <Chip
+                            size="small"
+                            icon={<WorkspacesIcon fontSize="small" />}
+                            label={oc.proyecto_nombre}
+                            color="primary"
+                            variant="outlined"
+                        />
+                        <Chip
+                            size="small"
+                            icon={<PlaceIcon fontSize="small" />}
+                            label={oc.sitio_nombre}
+                            variant="outlined"
+                        />
                     </Stack>
                 </Box>
-                <Divider />
+                <Divider sx={{ borderColor: alpha(theme.palette.primary.main, 0.08) }} />
                 {/* Footer con acción */}
-                <Box sx={{ p: 2, mt: 'auto', textAlign: 'right' }}>
-                    <Button
-                        variant="contained"
-                        startIcon={<InputIcon />}
-                        onClick={onGestionarIngreso}
-                    >
-                        Gestionar Ingreso
-                    </Button>
+                <Box sx={{ p: 3, mt: 'auto' }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                        <Button
+                            fullWidth
+                            variant="outlined"
+                            startIcon={<InfoOutlinedIcon />}
+                            onClick={onViewDetails}
+                            sx={{
+                                py: 1.1,
+                                borderRadius: 2,
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                borderColor: alpha(theme.palette.primary.main, 0.4),
+                                color: theme.palette.primary.main,
+                                '&:hover': {
+                                    borderColor: theme.palette.primary.main,
+                                    backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                                },
+                            }}
+                        >
+                            Ver detalle
+                        </Button>
+                        <Button
+                            fullWidth
+                            variant="contained"
+                            startIcon={<InputIcon />}
+                            onClick={onGestionarIngreso}
+                            sx={{
+                                py: 1.2,
+                                borderRadius: 2,
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                boxShadow: 'none',
+                                backgroundImage: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.9)} 0%, ${theme.palette.primary.main} 100%)`,
+                                '&:hover': {
+                                    boxShadow: `0 14px 30px ${alpha(theme.palette.primary.main, 0.28)}`,
+                                    backgroundImage: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.dark || theme.palette.primary.main, 0.95)} 100%)`,
+                                },
+                            }}
+                        >
+                            Gestionar Ingreso
+                        </Button>
+                    </Stack>
                 </Box>
             </Paper>
         </motion.div>
