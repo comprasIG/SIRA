@@ -4,7 +4,7 @@ const path = require('path');
 const pool = require('../../db/pool');
 const { sendEmailWithAttachments } = require('../../services/emailService');
 const {
-  uploadMulterFileToOcFolder,
+  uploadOcPaymentReceipt,
   getOcFolderWebLink
 } = require('../../services/googleDrive');
 
@@ -24,9 +24,12 @@ const getNotificationEmails = async (groupCode, clientOrPool = pool) => {
 const getOcInfo = async (ocId, client, forUpdate = false) => {
   const q = `
     SELECT oc.id, oc.numero_oc, oc.metodo_pago, oc.status, oc.total, oc.monto_pagado,
-           oc.fecha_vencimiento_pago, oc.proveedor_id, p.razon_social AS proveedor_nombre
+           oc.fecha_vencimiento_pago, oc.proveedor_id, p.razon_social AS proveedor_nombre,
+           r.numero_requisicion, d.codigo AS depto_codigo
     FROM ordenes_compra oc
     JOIN proveedores p ON oc.proveedor_id = p.id
+    JOIN requisiciones r ON oc.rfq_id = r.id
+    JOIN departamentos d ON r.departamento_id = d.id
     WHERE oc.id = $1 ${forUpdate ? 'FOR UPDATE' : ''}
   `;
   const res = await client.query(q, [ocId]);
@@ -125,7 +128,7 @@ const registrarPago = async (req, res) => {
       const safeMonto = Number(montoAplicar).toFixed(2).replace('.', '_');
       const fileName = `COMPROBANTE_PAGO_${numero_oc}_${ts}_${safeMonto}${ext}`;
 
-      const driveFile = await uploadMulterFileToOcFolder(archivo, numero_oc, fileName);
+      const driveFile = await uploadOcPaymentReceipt(archivo, ocBefore.depto_codigo, ocBefore.numero_requisicion, numero_oc, fileName);
       if (!driveFile || !driveFile.webViewLink) throw new Error('Falló la subida del comprobante a Drive.');
 
       // Registrar el pago
@@ -198,7 +201,7 @@ const registrarPago = async (req, res) => {
       if (metodo_pago === 'SPEI' && ocAfter.status === 'APROBADA') {
         let folderLink;
         try {
-          const info = await getOcFolderWebLink(numero_oc);
+          const info = await getOcFolderWebLink(ocBefore.depto_codigo, ocBefore.numero_requisicion, numero_oc);
           folderLink = info?.webViewLink || null;
         } catch { folderLink = null; }
         if (!folderLink) folderLink = driveFile.webViewLink;
