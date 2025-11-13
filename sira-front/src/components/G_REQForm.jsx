@@ -1,7 +1,6 @@
 // C:\SIRA\sira-front\src\components\G_REQForm.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
-import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import api from "../api/api";
 import { useAuth } from "../context/authContext";
@@ -20,23 +19,87 @@ import { useFormValidation } from "./G_REQForm/hooks/useFormValidation";
 
 // Constantes
 const ALMACEN_ID = "21";
+const DEFAULT_URGENCY_MESSAGE = "FAVOR DE INDICAR EL MOTIVO DE LA URGENCIA";
+
+const startOfDay = (date) => {
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+};
+
+const addDays = (date, days) => {
+  const newDate = new Date(date);
+  newDate.setDate(newDate.getDate() + days);
+  return newDate;
+};
+
+const toInputDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const parseInputDate = (value) => {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+};
 
 function G_REQForm({ requisicionId, onFinish }) {
   // --- Contexto / Navegación ---
   const { usuario } = useAuth();
-  const navigate = useNavigate();
   const isEditMode = !!requisicionId;
 
   // --- Estado local ---
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const defaultFechaRequerida = useMemo(() => {
+    if (isEditMode) return "";
+    const today = new Date();
+    const nextWeek = addDays(today, 7);
+    return toInputDate(nextWeek);
+  }, [isEditMode]);
+
+  const getDefaultValues = useMemo(() => ({
+    items: [{ material: null, cantidad: '', comentario: '', unidad: '' }],
+    proyecto_id: '', sitio_id: '', fecha_requerida: defaultFechaRequerida,
+    lugar_entrega: ALMACEN_ID, comentario: '',
+  }), [defaultFechaRequerida]);
+
   // --- React Hook Form ---
   const { register, handleSubmit, setValue, watch, control, formState: { errors }, reset } = useForm({
-    defaultValues: {
-      items: [{ material: null, cantidad: '', comentario: '', unidad: '' }],
-      proyecto_id: '', sitio_id: '', fecha_requerida: '', lugar_entrega: ALMACEN_ID, comentario: '',
-    }
+    defaultValues: getDefaultValues
   });
+
+  const fechaRequerida = watch("fecha_requerida");
+  const comentarioActual = watch("comentario");
+
+  const isUrgent = useMemo(() => {
+    if (!fechaRequerida) return false;
+    const selectedDate = parseInputDate(fechaRequerida);
+    if (!selectedDate) return false;
+
+    const today = startOfDay(new Date());
+    const requiredDate = startOfDay(selectedDate);
+    const diffInMs = requiredDate.getTime() - today.getTime();
+    const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
+    return diffInDays >= 0 && diffInDays <= 1;
+  }, [fechaRequerida]);
+
+  useEffect(() => {
+    if (!isUrgent) {
+      if (comentarioActual === DEFAULT_URGENCY_MESSAGE) {
+        setValue("comentario", "", { shouldDirty: false, shouldValidate: true });
+      }
+      return;
+    }
+
+    if (!comentarioActual || comentarioActual.trim() === "") {
+      setValue("comentario", DEFAULT_URGENCY_MESSAGE, { shouldDirty: false, shouldValidate: true });
+    }
+  }, [comentarioActual, isUrgent, setValue]);
 
   // --- Adjuntos (debe ir antes de autosave e initialData para exponer setters) ---
   const {
@@ -104,10 +167,7 @@ function G_REQForm({ requisicionId, onFinish }) {
   };
 
   const onClean = () => {
-    reset({
-      items: [{ material: null, cantidad: '', comentario: '', unidad: '' }],
-      proyecto_id: '', sitio_id: '', fecha_requerida: '', lugar_entrega: ALMACEN_ID, comentario: '',
-    });
+    reset(getDefaultValues);
     setArchivosAdjuntos([]);
     setArchivosExistentes([]);
   };
@@ -183,7 +243,7 @@ function G_REQForm({ requisicionId, onFinish }) {
           handleProyectoChange={handleProyectoChange} archivosAdjuntos={archivosAdjuntos}
           archivosExistentes={archivosExistentes} handleFileChange={handleFileChange}
           handleRemoveFile={handleRemoveFile} handleRemoveExistingFile={handleRemoveExistingFile}
-          isEditMode={isEditMode}
+          isUrgent={isUrgent} urgencyMessage={DEFAULT_URGENCY_MESSAGE}
         />
         <SeccionMateriales
           control={control} register={register} errors={errors} watch={watch}
