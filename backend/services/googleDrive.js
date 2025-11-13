@@ -347,19 +347,89 @@ const getOcFolderWebLink = async (deptoCode, reqNum, ocNumber) => {
     getOcSegment(ocNumber)
   );
 
-  return getFolderInfoByPath(folderPath);
+/**
+ * @description Sube un archivo de Cotización (Usado por G-RFQ). (Sin cambios)
+ */
+const uploadQuoteFile = async (fileBuffer, fileName, mimeType, reqNum, deptoCode, provId) => {
+  try {
+    const folderPath = [deptoCode, reqNum, 'COTIZACIONES'];
+    const finalFileName = `[${provId}]_${fileName}`;
+
+    return await uploadFileToPath(
+      fileBuffer,
+      finalFileName,
+      mimeType,
+      folderPath
+    );
+
+  } catch (error) {
+    console.error(`Error durante la subida de archivo de cotización para ${reqNum}:`, error);
+    throw error;
+  }
 };
 
-// Ruta genérica de pruebas (mantener compatibilidad)
-const uploadFile = async (multerFile) => {
-  const folderPath = [STRUCTURE.misc.genericUploads];
-  return uploadMulterFileToPath(multerFile, folderPath);
+const ensureFolder = async (folderName, parentId) => {
+  let folderId = await findFolder(folderName, parentId);
+  if (!folderId) {
+    console.log(`[Drive] Creando sub-carpeta: ${folderName} en ${parentId}`);
+    folderId = await createFolder(folderName, parentId);
+  }
+  return folderId;
 };
 
-// ============================================================
-// --- UTILIDADES GENERALES (DESCARGA / BORRADO) ---
-// ============================================================
+const uploadMulterFileToOcFolder = async (multerFile, ocCode, fileName, subFolder = null) => {
+  if (!multerFile || !multerFile.buffer) {
+    throw new Error('Archivo inválido para subir a Drive.');
+  }
 
+  const envRootId = await getEnvironmentRootFolderId();
+  const ocFolderId = await ensureFolder(ocCode, envRootId);
+  const targetFolderId = subFolder ? await ensureFolder(subFolder, ocFolderId) : ocFolderId;
+
+  const bufferStream = new stream.PassThrough();
+  bufferStream.end(multerFile.buffer);
+
+  const media = {
+    mimeType: multerFile.mimetype || 'application/octet-stream',
+    body: bufferStream,
+  };
+
+  const fileMetadata = {
+    name: fileName || multerFile.originalname || 'archivo_sin_nombre',
+    parents: [targetFolderId],
+  };
+
+  const file = await drive().files.create({
+    resource: fileMetadata,
+    media,
+    fields: 'id, name, webViewLink, webContentLink',
+  });
+
+  console.log(`[Drive] Archivo de OC subido: ${file.data.name} (ID: ${file.data.id})`);
+  return file.data;
+};
+
+const getOcFolderWebLink = async (ocCode) => {
+  try {
+    const envRootId = await getEnvironmentRootFolderId();
+    const folderId = await findFolder(ocCode, envRootId);
+    if (!folderId) return null;
+
+    const res = await drive().files.get({
+      fileId: folderId,
+      fields: 'id, name, webViewLink',
+    });
+
+    return res.data;
+  } catch (error) {
+    console.error(`[Drive] Error obteniendo link de carpeta de OC (${ocCode}):`, error.message);
+    return null;
+  }
+};
+
+/**
+ * @description Descarga un archivo (Usado por G-RFQ Visto Bueno) (Sin cambios)
+ */
 const downloadFileBuffer = async (fileId) => {
   try {
     const response = await drive().files.get({ fileId, alt: 'media' }, { responseType: 'arraybuffer' });
@@ -393,18 +463,18 @@ module.exports = {
   getEnvironmentRootFolderId,
   findFolder,
   createFolder,
+  
+  // Funciones de lógica de negocio (Refactorizadas)
+  uploadRequisitionFiles,   // <-- ¡NUEVA! Para generacion.controller.js
+  uploadRequisitionPdf,     // <-- ¡NUEVA! Para vistoBueno.controller.js
 
-  // Flujos de negocio
-  uploadRequisitionFiles,
-  uploadRequisitionPdf,
-  uploadQuoteToReqFolder,
-  uploadOcPdfBuffer,
-  uploadOcEvidenceFile,
-  uploadOcPaymentReceipt,
+  uploadOcPdfBuffer,        // <-- Renombrada (antes uploadPdfBuffer)
+  uploadQuoteFile,
+
+  uploadMulterFileToOcFolder,
   getOcFolderWebLink,
-  uploadFile,
-
-  // Utilidades
+  
+  // Funciones de utilidad
   downloadFileBuffer,
   deleteFile,
 };
