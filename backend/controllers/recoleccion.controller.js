@@ -1,6 +1,6 @@
 // backend/controllers/recoleccion.controller.js
 const pool = require('../db/pool');
-const { uploadMulterFileToOcFolder } = require('../services/googleDrive');
+const { uploadOcEvidenceFile } = require('../services/googleDrive');
 const { sendWhatsAppMessage } = require('../services/whatsappService');
 
 const SKU_EVENTO_MAP = {
@@ -89,7 +89,13 @@ const procesarOcParaRecoleccion = async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        const ocQuery = await client.query(`SELECT * FROM ordenes_compra WHERE id = $1 FOR UPDATE`, [ordenCompraId]);
+        const ocQuery = await client.query(`
+            SELECT oc.*, r.numero_requisicion, d.codigo AS depto_codigo
+            FROM ordenes_compra oc
+            JOIN requisiciones r ON oc.rfq_id = r.id
+            JOIN departamentos d ON r.departamento_id = d.id
+            WHERE oc.id = $1 FOR UPDATE
+        `, [ordenCompraId]);
         if (ocQuery.rowCount === 0) return res.status(404).json({ error: 'OC no encontrada.' });
 
         const oc = ocQuery.rows[0];
@@ -101,7 +107,7 @@ const procesarOcParaRecoleccion = async (req, res) => {
         if (req.files && req.files.length > 0) {
             for (const file of req.files) {
                 const fileName = `EVIDENCIA_${oc.numero_oc}_${Date.now()}_${file.originalname}`;
-                const driveFile = await uploadMulterFileToOcFolder(file, oc.numero_oc, fileName);
+                const driveFile = await uploadOcEvidenceFile(file, oc.depto_codigo, oc.numero_requisicion, oc.numero_oc, fileName);
                 const insertRes = await client.query(
                     `INSERT INTO archivos_recoleccion_oc (orden_compra_id, archivo_link, tipo) VALUES ($1, $2, $3) RETURNING *`,
                     [ordenCompraId, driveFile.webViewLink, 'EVIDENCIA_EMBARQUE']

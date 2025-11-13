@@ -13,7 +13,7 @@
 
 const pool = require('../db/pool');
 const { generatePurchaseOrderPdf } = require('./purchaseOrderPdfService');
-const { uploadOcToReqFolder, downloadFileBuffer } = require('./googleDrive');
+const { uploadOcPdfBuffer, downloadFileBuffer } = require('./googleDrive');
 const { sendEmailWithAttachments } = require('./emailService');
 
 /**
@@ -157,11 +157,12 @@ const createAndAuthorizeOC = async ({ rfqId, usuarioId, opcionIds, rfqData }) =>
     const fileName = `OC-${nuevaOc.numero_oc}_${pdfNameSafeMarca}.pdf`;
 
     // 6) Subir a Drive
-    const driveFile = await uploadOcToReqFolder(
+    const driveFile = await uploadOcPdfBuffer(
       pdfBuffer,
       fileName,
       rfqData.depto_codigo,
-      rfqData.numero_requisicion
+      rfqData.numero_requisicion,
+      `OC-${nuevaOc.numero_oc}`
     );
     if (!driveFile || !driveFile.fileLink) {
       throw new Error('Falló la subida del PDF a Drive o no se recibió el link de vuelta.');
