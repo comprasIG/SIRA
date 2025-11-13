@@ -12,6 +12,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import EditIcon from '@mui/icons-material/Edit';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { useAuth } from '../context/authContext';
+import FullScreenLoader from './ui/FullScreenLoader';
 
 // --- Helper Component ---
 const truncateText = (text, maxLength = 30) => {
@@ -105,6 +106,7 @@ export default function VB_REQ_List({ onEdit }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     // CHANGE: New state to track the ID of the requisition being processed.
     const [processingId, setProcessingId] = useState(null);
+    const [isProcessingAction, setIsProcessingAction] = useState(false);
     const { usuario } = useAuth();
 
     // --- Data Fetching ---
@@ -142,7 +144,8 @@ export default function VB_REQ_List({ onEdit }) {
         if (!window.confirm(`¿Estás seguro de APROBAR la requisición ${req.numero_requisicion}? El PDF se descargará y se enviará una notificación.`)) return;
         if (!usuario) return toast.error("No se pudo identificar al usuario. Por favor, recarga la página.");
         
-        setProcessingId(id); 
+        setProcessingId(id);
+        setIsProcessingAction(true);
         try {
             toast.info('Procesando aprobación, por favor espera...');
             const response = await api.post(
@@ -193,6 +196,7 @@ export default function VB_REQ_List({ onEdit }) {
             }
         } finally {
             setProcessingId(null);
+            setIsProcessingAction(false);
         }
     };
 
@@ -237,6 +241,10 @@ export default function VB_REQ_List({ onEdit }) {
 
     return (
         <>
+            <FullScreenLoader
+                isOpen={isProcessingAction}
+                message="Procesando, por favor espera..."
+            />
             <Paper elevation={3} sx={{ overflow: 'hidden' }}>
                 <TableContainer sx={{ maxHeight: 'calc(100vh - 200px)' }}>
                     <Table stickyHeader>
@@ -263,7 +271,7 @@ export default function VB_REQ_List({ onEdit }) {
                                         onViewDetails={handleViewDetails}
                                         onEdit={onEdit}
                                         // Pass the boolean to the row
-                                        isProcessing={processingId === req.id}
+                                        isProcessing={processingId === req.id || isProcessingAction}
                                     />
                                 ))
                             ) : (
