@@ -15,7 +15,6 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 const cardVariants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } };
 
-export default function IngresoOCCard({ oc, onGestionarIngreso, onViewDetails }) {
 export default function IngresoOCCard({ oc, onGestionarIngreso }) {
     const theme = useTheme();
 

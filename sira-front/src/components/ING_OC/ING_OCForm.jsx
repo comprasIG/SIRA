@@ -34,7 +34,12 @@ export default function ING_OCForm() {
         detalles: [],
         loading: false,
     });
-    const { open: infoModalOpen, oc: infoOc, detalles: infoDetalles, loading: infoLoading } = infoDialog;
+    const {
+        open: infoModalOpen,
+        oc: infoOc,
+        detalles: infoDetalles,
+        loading: infoLoading,
+    } = infoDialog;
     const [activeKpi, setActiveKpi] = useState(null);
 
     const handleOpenModal = (oc) => {
@@ -80,20 +85,14 @@ export default function ING_OCForm() {
         }
     };
 
+    // 🔧 Corrección: una sola función para cerrar el modal de info
     const handleCloseInfoModal = () => {
-        setInfoDialog({ open: false, oc: null, detalles: [], loading: false });
-        setInfoOc(oc);
-        setInfoModalOpen(true);
-        setInfoLoading(true);
-        const detalles = await getDetallesOC(oc.id);
-        setInfoDetalles(detalles);
-        setInfoLoading(false);
-    };
-
-    const handleCloseInfoModal = () => {
-        setInfoModalOpen(false);
-        setInfoOc(null);
-        setInfoDetalles([]);
+        setInfoDialog({
+            open: false,
+            oc: null,
+            detalles: [],
+            loading: false,
+        });
     };
 
     const handleRegistrarIngreso = async (ingresoData) => {
@@ -232,11 +231,13 @@ export default function ING_OCForm() {
     }, [infoOc]);
 
     return (
-        <Box sx={{
-            p: { xs: 1.5, sm: 3 },
-            background: alpha(theme.palette.primary.main, 0.02),
-            minHeight: '100%',
-        }}>
+        <Box
+            sx={{
+                p: { xs: 1.5, sm: 3 },
+                background: alpha(theme.palette.primary.main, 0.02),
+                minHeight: '100%',
+            }}
+        >
             <Paper
                 elevation={0}
                 sx={{
@@ -297,7 +298,12 @@ export default function ING_OCForm() {
                     {ocsEnProceso.length > 0 ? (
                         ocsEnProceso.map((oc) => (
                             <Grid item xs={12} md={6} lg={4} key={oc.id}>
-                                <IngresoOCCard oc={oc} onGestionarIngreso={() => handleOpenModal(oc)} />
+                                <IngresoOCCard
+                                    oc={oc}
+                                    onGestionarIngreso={() => handleOpenModal(oc)}
+                                    // Si tu tarjeta soporta ver detalles, aquí podrías pasar:
+                                    // onVerDetalles={() => handleViewOcDetails(oc)}
+                                />
                             </Grid>
                         ))
                     ) : (
@@ -337,6 +343,8 @@ export default function ING_OCForm() {
                     onRegistrar={handleRegistrarIngreso}
                 />
             )}
+
+            {/* Modal de Información de OC */}
             {infoOc && (
                 <OCInfoModal
                     open={infoModalOpen}

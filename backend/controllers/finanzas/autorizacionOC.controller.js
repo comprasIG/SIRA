@@ -408,10 +408,16 @@ const getOcPreview = async (req, res) => {
   const { id: ordenCompraId } = req.params;
   try {
     const encQ = await pool.query(`
-      SELECT oc.id, oc.numero_oc, oc.total, oc.status, oc.metodo_pago, oc.fecha_creacion,
-             p.razon_social AS proveedor_nombre,
-             pr.nombre AS proyecto_nombre,
-             s.nombre AS sitio_nombre
+      SELECT 
+        oc.id,
+        oc.numero_oc,
+        oc.total,
+        oc.status,
+        oc.metodo_pago,
+        oc.fecha_creacion,
+        p.razon_social AS proveedor_nombre,
+        pr.nombre       AS proyecto_nombre,
+        s.nombre        AS sitio_nombre
       FROM ordenes_compra oc
       JOIN proveedores p ON p.id = oc.proveedor_id
       JOIN proyectos  pr ON pr.id = oc.proyecto_id
@@ -419,19 +425,29 @@ const getOcPreview = async (req, res) => {
       WHERE oc.id = $1
     `, [ordenCompraId]);
 
-    if (encQ.rowCount === 0) return res.status(404).json({ error: 'OC no encontrada.' });
+    if (encQ.rowCount === 0) {
+      return res.status(404).json({ error: 'OC no encontrada.' });
+    }
 
     const detQ = await pool.query(`
-      SELECT d.id, d.material_id, d.descripcion, d.cantidad, d.precio_unitario, d.moneda,
-             (d.cantidad * d.precio_unitario) AS total_linea,
-             cm.nombre AS material_nombre
+      SELECT 
+        d.id,
+        d.material_id,
+        d.cantidad,
+        d.precio_unitario,
+        d.moneda,
+        (d.cantidad * d.precio_unitario) AS total_linea,
+        cm.nombre AS material_nombre
       FROM ordenes_compra_detalle d
       LEFT JOIN catalogo_materiales cm ON cm.id = d.material_id
       WHERE d.orden_compra_id = $1
       ORDER BY d.id ASC
     `, [ordenCompraId]);
 
-    res.json({ encabezado: encQ.rows[0], detalle: detQ.rows });
+    res.json({
+      encabezado: encQ.rows[0],
+      detalle: detQ.rows,
+    });
   } catch (error) {
     console.error('Error al obtener preview OC:', error);
     res.status(500).json({ error: 'Error interno del servidor.' });
