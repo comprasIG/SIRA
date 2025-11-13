@@ -15,7 +15,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 const cardVariants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } };
 
-export default function IngresoOCCard({ oc, onGestionarIngreso, onViewDetails }) {
+export default function IngresoOCCard({ oc, onGestionarIngreso }) {
     const theme = useTheme();
 
     // Determina el icono y texto del método de entrega
@@ -135,48 +135,26 @@ export default function IngresoOCCard({ oc, onGestionarIngreso, onViewDetails })
                 <Divider sx={{ borderColor: alpha(theme.palette.primary.main, 0.08) }} />
                 {/* Footer con acción */}
                 <Box sx={{ p: 3, mt: 'auto' }}>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-                        <Button
-                            fullWidth
-                            variant="outlined"
-                            startIcon={<InfoOutlinedIcon />}
-                            onClick={onViewDetails}
-                            sx={{
-                                py: 1.1,
-                                borderRadius: 2,
-                                textTransform: 'none',
-                                fontWeight: 600,
-                                borderColor: alpha(theme.palette.primary.main, 0.4),
-                                color: theme.palette.primary.main,
-                                '&:hover': {
-                                    borderColor: theme.palette.primary.main,
-                                    backgroundColor: alpha(theme.palette.primary.main, 0.08),
-                                },
-                            }}
-                        >
-                            Ver detalle
-                        </Button>
-                        <Button
-                            fullWidth
-                            variant="contained"
-                            startIcon={<InputIcon />}
-                            onClick={onGestionarIngreso}
-                            sx={{
-                                py: 1.2,
-                                borderRadius: 2,
-                                textTransform: 'none',
-                                fontWeight: 600,
-                                boxShadow: 'none',
-                                backgroundImage: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.9)} 0%, ${theme.palette.primary.main} 100%)`,
-                                '&:hover': {
-                                    boxShadow: `0 14px 30px ${alpha(theme.palette.primary.main, 0.28)}`,
-                                    backgroundImage: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.dark || theme.palette.primary.main, 0.95)} 100%)`,
-                                },
-                            }}
-                        >
-                            Gestionar Ingreso
-                        </Button>
-                    </Stack>
+                    <Button
+                        fullWidth
+                        variant="contained"
+                        startIcon={<InputIcon />}
+                        onClick={onGestionarIngreso}
+                        sx={{
+                            py: 1.2,
+                            borderRadius: 2,
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            boxShadow: 'none',
+                            backgroundImage: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.9)} 0%, ${theme.palette.primary.main} 100%)`,
+                            '&:hover': {
+                                boxShadow: `0 14px 30px ${alpha(theme.palette.primary.main, 0.28)}`,
+                                backgroundImage: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.dark || theme.palette.primary.main, 0.95)} 100%)`,
+                            },
+                        }}
+                    >
+                        Gestionar Ingreso
+                    </Button>
                 </Box>
             </Paper>
         </motion.div>

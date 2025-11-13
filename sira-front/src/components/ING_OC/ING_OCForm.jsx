@@ -28,10 +28,6 @@ export default function ING_OCForm() {
     const [selectedOc, setSelectedOc] = useState(null); // OC completa para el modal de ingreso
     const [detallesOc, setDetallesOc] = useState([]); // Detalles para el modal de ingreso
     const [loadingModal, setLoadingModal] = useState(false);
-    const [infoModalOpen, setInfoModalOpen] = useState(false);
-    const [infoOc, setInfoOc] = useState(null);
-    const [infoDetalles, setInfoDetalles] = useState([]);
-    const [infoLoading, setInfoLoading] = useState(false);
     const [activeKpi, setActiveKpi] = useState(null);
 
     const handleOpenModal = async (oc) => {
@@ -150,55 +146,6 @@ export default function ING_OCForm() {
         },
     ]), [kpis]);
 
-    const infoItems = useMemo(() => {
-        const parseOrNull = (value) => {
-            if (value === '' || value === null || value === undefined) return null;
-            const parsed = Number(value);
-            return Number.isFinite(parsed) ? parsed : null;
-        };
-
-        return infoDetalles.map((item) => {
-            const quantity = parseOrNull(item?.cantidad_pedida ?? item?.cantidad);
-            const received = parseOrNull(item?.cantidad_recibida ?? item?.cantidad_ingresada ?? item?.cantidad_entregada);
-            const pending = item?.cantidad_pendiente != null
-                ? parseOrNull(item.cantidad_pendiente)
-                : (quantity != null && received != null
-                    ? Math.max(0, quantity - received)
-                    : null);
-
-            const total = parseOrNull(item?.total_linea ?? item?.total);
-            const price = parseOrNull(item?.precio_unitario ?? item?.precio);
-
-            return {
-                id: item.detalle_id || item.id,
-                description: item.material_nombre || item.descripcion || item.material || '-',
-                quantity,
-                unit: item.unidad_simbolo || item.unidad || '',
-                received,
-                pending,
-                price,
-                currency: item.moneda || item.moneda_codigo || infoOc?.moneda || 'MXN',
-                total,
-                note: item.nota || item.comentario || '',
-            };
-        });
-    }, [infoDetalles, infoOc?.moneda]);
-
-    const infoMetadata = useMemo(() => {
-        if (!infoOc) return [];
-        const formatEntrega = infoOc.entrega_responsable
-            ? infoOc.entrega_responsable.replace(/_/g, ' ').toLowerCase()
-            : null;
-        const capitalize = (text) => text.replace(/(^|\s)\w/g, (c) => c.toUpperCase());
-        return [
-            { label: 'Proyecto', value: infoOc.proyecto_nombre },
-            { label: 'Sitio', value: infoOc.sitio_nombre },
-            { label: 'Método de recolección', value: infoOc.metodo_recoleccion_nombre },
-            { label: 'Responsable de entrega', value: formatEntrega ? capitalize(formatEntrega) : null },
-            { label: 'Marca proveedor', value: infoOc.proveedor_marca },
-        ];
-    }, [infoOc]);
-
     return (
         <Box sx={{
             p: { xs: 1.5, sm: 3 },
@@ -265,11 +212,7 @@ export default function ING_OCForm() {
                     {ocsEnProceso.length > 0 ? (
                         ocsEnProceso.map((oc) => (
                             <Grid item xs={12} md={6} lg={4} key={oc.id}>
-                                <IngresoOCCard
-                                    oc={oc}
-                                    onGestionarIngreso={() => handleOpenModal(oc)}
-                                    onViewDetails={() => handleViewOcDetails(oc)}
-                                />
+                                <IngresoOCCard oc={oc} onGestionarIngreso={() => handleOpenModal(oc)} />
                             </Grid>
                         ))
                     ) : (
