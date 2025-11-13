@@ -31,6 +31,61 @@ const drive = () => google.drive({ version: 'v3', auth: oauth2Client });
 // ============================================================
 
 let environmentRootFolderId = null;
+let environmentRootFolderValidationTs = 0;
+const ENV_ROOT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+
+const isNotFoundError = (error) => {
+  if (!error) return false;
+
+  const code = error.code || error?.response?.status || error?.response?.data?.error?.code;
+  if (code === 404) return true;
+
+  const reasons = [];
+  if (Array.isArray(error.errors)) {
+    reasons.push(...error.errors.map((err) => err.reason));
+  }
+  const responseErrors = error?.response?.data?.error?.errors;
+  if (Array.isArray(responseErrors)) {
+    reasons.push(...responseErrors.map((err) => err.reason));
+  }
+
+  return reasons.some((reason) => reason === 'notFound' || reason === 'parentFolderNotFound');
+};
+
+const clearEnvironmentRootCache = (reason = null) => {
+  if (reason) {
+    console.warn(`[Drive] Reiniciando caché de carpeta de ambiente: ${reason}`);
+  }
+  environmentRootFolderId = null;
+  environmentRootFolderValidationTs = 0;
+};
+
+const validateEnvironmentRootExists = async () => {
+  if (!environmentRootFolderId) return false;
+
+  try {
+    const res = await drive().files.get({
+      fileId: environmentRootFolderId,
+      fields: 'id, trashed',
+    });
+
+    if (res?.data?.trashed) {
+      clearEnvironmentRootCache('la carpeta cacheada está en la papelera.');
+      return false;
+    }
+
+    environmentRootFolderValidationTs = Date.now();
+    return true;
+  } catch (error) {
+    if (isNotFoundError(error)) {
+      clearEnvironmentRootCache('la carpeta cacheada ya no existe.');
+      return false;
+    }
+
+    console.error('[Drive] Error validando carpeta raíz del ambiente:', error.message || error);
+    throw error;
+  }
+};
 
 const sanitizeSegment = (segment, fallback = 'SIN_NOMBRE') => {
   const raw = (segment ?? '').toString().trim();
@@ -75,7 +130,17 @@ const STRUCTURE = {
  * Encuentra o crea la carpeta raíz del AMBIENTE (PRODUCCION, STAGING o LOCAL)
  */
 const getEnvironmentRootFolderId = async () => {
-  if (environmentRootFolderId) return environmentRootFolderId;
+  const now = Date.now();
+  if (environmentRootFolderId && now - environmentRootFolderValidationTs <= ENV_ROOT_CACHE_TTL_MS) {
+    return environmentRootFolderId;
+  }
+
+  if (environmentRootFolderId) {
+    const stillExists = await validateEnvironmentRootExists();
+    if (stillExists) {
+      return environmentRootFolderId;
+    }
+  }
 
   const env = process.env.NODE_ENV || 'development';
   let rootFolderName;
@@ -95,6 +160,7 @@ const getEnvironmentRootFolderId = async () => {
       folderId = await createFolder(rootFolderName, SUPER_ROOT_FOLDER_ID);
     }
     environmentRootFolderId = folderId;
+    environmentRootFolderValidationTs = Date.now();
     return folderId;
   } catch (error) {
     console.error(`Error crítico al obtener la carpeta raíz del ambiente (${rootFolderName}):`, error);
@@ -136,11 +202,14 @@ const createFolder = async (folderName, parentId) => {
     return file.data.id;
   } catch (error) {
     console.error(`[Drive] Error creando carpeta '${folderName}':`, error.message);
+    if (isNotFoundError(error) && parentId === environmentRootFolderId) {
+      clearEnvironmentRootCache('el folder padre desapareció durante la creación.');
+    }
     throw error;
   }
 };
 
-const resolveFolderPath = async (folderPath, createMissing = true) => {
+const resolveFolderPath = async (folderPath, createMissing = true, allowRetry = true) => {
   const sanitizedSegments = folderPath.map(segment => sanitizeSegment(segment)).filter(Boolean);
   let currentParentId = await getEnvironmentRootFolderId();
 
@@ -151,7 +220,15 @@ const resolveFolderPath = async (folderPath, createMissing = true) => {
         return null;
       }
       console.log(`[Drive] Creando sub-carpeta: ${segment} en ${currentParentId}`);
-      folderId = await createFolder(segment, currentParentId);
+      try {
+        folderId = await createFolder(segment, currentParentId);
+      } catch (error) {
+        if (allowRetry && isNotFoundError(error)) {
+          clearEnvironmentRootCache('se detectó inconsistencia al crear subcarpetas.');
+          return resolveFolderPath(folderPath, createMissing, false);
+        }
+        throw error;
+      }
     }
     currentParentId = folderId;
   }
