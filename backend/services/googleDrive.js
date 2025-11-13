@@ -281,10 +281,69 @@ const uploadQuoteFile = async (fileBuffer, fileName, mimeType, reqNum, deptoCode
       mimeType,
       folderPath
     );
-    
+
   } catch (error) {
     console.error(`Error durante la subida de archivo de cotización para ${reqNum}:`, error);
     throw error;
+  }
+};
+
+const ensureFolder = async (folderName, parentId) => {
+  let folderId = await findFolder(folderName, parentId);
+  if (!folderId) {
+    console.log(`[Drive] Creando sub-carpeta: ${folderName} en ${parentId}`);
+    folderId = await createFolder(folderName, parentId);
+  }
+  return folderId;
+};
+
+const uploadMulterFileToOcFolder = async (multerFile, ocCode, fileName, subFolder = null) => {
+  if (!multerFile || !multerFile.buffer) {
+    throw new Error('Archivo inválido para subir a Drive.');
+  }
+
+  const envRootId = await getEnvironmentRootFolderId();
+  const ocFolderId = await ensureFolder(ocCode, envRootId);
+  const targetFolderId = subFolder ? await ensureFolder(subFolder, ocFolderId) : ocFolderId;
+
+  const bufferStream = new stream.PassThrough();
+  bufferStream.end(multerFile.buffer);
+
+  const media = {
+    mimeType: multerFile.mimetype || 'application/octet-stream',
+    body: bufferStream,
+  };
+
+  const fileMetadata = {
+    name: fileName || multerFile.originalname || 'archivo_sin_nombre',
+    parents: [targetFolderId],
+  };
+
+  const file = await drive().files.create({
+    resource: fileMetadata,
+    media,
+    fields: 'id, name, webViewLink, webContentLink',
+  });
+
+  console.log(`[Drive] Archivo de OC subido: ${file.data.name} (ID: ${file.data.id})`);
+  return file.data;
+};
+
+const getOcFolderWebLink = async (ocCode) => {
+  try {
+    const envRootId = await getEnvironmentRootFolderId();
+    const folderId = await findFolder(ocCode, envRootId);
+    if (!folderId) return null;
+
+    const res = await drive().files.get({
+      fileId: folderId,
+      fields: 'id, name, webViewLink',
+    });
+
+    return res.data;
+  } catch (error) {
+    console.error(`[Drive] Error obteniendo link de carpeta de OC (${ocCode}):`, error.message);
+    return null;
   }
 };
 
@@ -332,9 +391,12 @@ module.exports = {
   // Funciones de lógica de negocio (Refactorizadas)
   uploadRequisitionFiles,   // <-- ¡NUEVA! Para generacion.controller.js
   uploadRequisitionPdf,     // <-- ¡NUEVA! Para vistoBueno.controller.js
-  
+
   uploadOcPdfBuffer,        // <-- Renombrada (antes uploadPdfBuffer)
   uploadQuoteFile,
+
+  uploadMulterFileToOcFolder,
+  getOcFolderWebLink,
   
   // Funciones de utilidad
   downloadFileBuffer,

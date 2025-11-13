@@ -6,10 +6,10 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 const inputStyle = "mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-colors duration-300";
 const ALMACEN_ID = "21";
 
-export default function DatosGenerales({ 
-    register, errors, watch, sitios, proyectosFiltrados, handleSitioChange, handleProyectoChange, 
-    archivosAdjuntos, handleFileChange, handleRemoveFile, isEditMode, 
-    archivosExistentes, handleRemoveExistingFile 
+export default function DatosGenerales({
+    register, errors, watch, sitios, proyectosFiltrados, handleSitioChange, handleProyectoChange,
+    archivosAdjuntos, handleFileChange, handleRemoveFile,
+    archivosExistentes, handleRemoveExistingFile, isUrgent, urgencyMessage
 }) {
   
   const selectedSitioId = watch("sitio_id");
@@ -64,8 +64,27 @@ export default function DatosGenerales({
         </div>
         {/* Comentario General */}
         <div className="md:col-span-2">
-          <label htmlFor="comentario" className="block text-sm font-medium text-gray-700">Comentario General (Opcional)</label>
-          <input id="comentario" placeholder="Instrucciones especiales de la requisición..." {...register("comentario")} className={inputStyle} autoComplete="off" />
+          <label htmlFor="comentario" className="block text-sm font-medium text-gray-700">
+            Comentario General {isUrgent ? "(Obligatorio)" : "(Opcional)"}
+          </label>
+          <input
+            id="comentario"
+            placeholder="Instrucciones especiales de la requisición..."
+            {...register("comentario", {
+              validate: (value) => {
+                if (isUrgent && (!value || value.trim() === "")) {
+                  return urgencyMessage;
+                }
+                return true;
+              }
+            })}
+            className={inputStyle}
+            autoComplete="off"
+            required={isUrgent}
+          />
+          {errors.comentario && (
+            <span className="text-red-600 text-xs mt-1 block">{errors.comentario.message}</span>
+          )}
         </div>
         {/* Adjuntar Archivos */}
         <div className="md:col-span-2">
