@@ -60,38 +60,47 @@ export default function ING_OCForm() {
         setDetallesOc([]);
     };
 
-    const handleViewOcDetails = (oc) => {
+    const handleViewOcDetails = async (oc) => {
         setInfoDialog({ open: true, oc, detalles: [], loading: true });
-
-        getDetallesOC(oc.id)
-            .then((detalles) => {
-                setInfoDialog((prev) => {
-                    if (prev.oc?.id !== oc.id) {
-                        return prev;
-                    }
-                    return { ...prev, detalles, loading: false };
-                });
-            })
-            .catch(() => {
-                setInfoDialog((prev) => {
-                    if (prev.oc?.id !== oc.id) {
-                        return prev;
-                    }
-                    return { ...prev, loading: false };
-                });
+        try {
+            const detalles = await getDetallesOC(oc.id);
+            setInfoDialog((prev) => {
+                if (prev.oc?.id !== oc.id) {
+                    return prev;
+                }
+                return { ...prev, detalles, loading: false };
             });
+        } catch (error) {
+            setInfoDialog((prev) => {
+                if (prev.oc?.id !== oc.id) {
+                    return prev;
+                }
+                return { ...prev, loading: false };
+            });
+        }
     };
 
     const handleCloseInfoModal = () => {
         setInfoDialog({ open: false, oc: null, detalles: [], loading: false });
+        setInfoOc(oc);
+        setInfoModalOpen(true);
+        setInfoLoading(true);
+        const detalles = await getDetallesOC(oc.id);
+        setInfoDetalles(detalles);
+        setInfoLoading(false);
     };
 
-    const handleRegistrarIngreso = (ingresoData) => (
-        registrarIngreso(ingresoData)
-            .then(() => {
-                handleCloseModal(); // Cierra el modal si el registro fue exitoso
-            })
-    );
+    const handleCloseInfoModal = () => {
+        setInfoModalOpen(false);
+        setInfoOc(null);
+        setInfoDetalles([]);
+    };
+
+    const handleRegistrarIngreso = async (ingresoData) => {
+        await registrarIngreso(ingresoData);
+        handleCloseModal(); // Cierra el modal si el registro fue exitoso
+        // refreshData(); // Ya se llama dentro de registrarIngreso si tiene éxito
+    };
 
     const handleKpiClick = (filterCriteria, key) => {
         if (activeKpi === key) {
@@ -288,11 +297,7 @@ export default function ING_OCForm() {
                     {ocsEnProceso.length > 0 ? (
                         ocsEnProceso.map((oc) => (
                             <Grid item xs={12} md={6} lg={4} key={oc.id}>
-                                <IngresoOCCard
-                                    oc={oc}
-                                    onGestionarIngreso={() => handleOpenModal(oc)}
-                                    onViewDetails={() => handleViewOcDetails(oc)}
-                                />
+                                <IngresoOCCard oc={oc} onGestionarIngreso={() => handleOpenModal(oc)} />
                             </Grid>
                         ))
                     ) : (
