@@ -5,7 +5,7 @@
  * =================================================================================================
  * - Expone endpoints para cargar catálogos, crear y consultar OCs extraordinarias en fase de captura.
  * - Los datos se almacenan en la tabla `ordenes_compra_extraordinarias` con estructura JSON para
- *   preservar toda la información capturada en el frontend.
+ * preservar toda la información capturada en el frontend.
  */
 
 const pool = require('../../db/pool');
@@ -31,8 +31,10 @@ const getCatalogosExtraOc = async (_req, res) => {
       const [sitios, proyectos, proveedores, unidades] = await Promise.all([
         client.query('SELECT id, nombre FROM sitios ORDER BY nombre ASC'),
         client.query(`SELECT id, nombre, sitio_id FROM proyectos WHERE activo = true ORDER BY nombre ASC`),
-        client.query(`SELECT id, razon_social AS nombre FROM proveedores WHERE activo = true ORDER BY razon_social ASC`),
-        client.query(`SELECT id, nombre, simbolo FROM catalogo_unidades ORDER BY nombre ASC`),
+        // FIX 1: Se quitó "WHERE activo = true" porque la tabla proveedores no lo tiene
+        client.query(`SELECT id, razon_social AS nombre FROM proveedores ORDER BY razon_social ASC`), 
+        // FIX 2: Se cambió "nombre" por "unidad AS nombre" y se ordenó por "unidad"
+        client.query(`SELECT id, unidad AS nombre, simbolo FROM catalogo_unidades ORDER BY unidad ASC`), 
       ]);
 
       res.json({

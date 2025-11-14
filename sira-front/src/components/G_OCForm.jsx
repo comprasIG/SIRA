@@ -1,4 +1,8 @@
 // C:\SIRA\sira-front\src\components\G_OCForm.jsx
+
+// ==============================================================
+// SECCIÓN 1: Importaciones
+// ==============================================================
 import React, { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
@@ -13,6 +17,10 @@ import ResumenExtra from './G_OCForm/Resumen';
 import AccionesExtra from './G_OCForm/Acciones';
 import { useCatalogosExtraOc } from './G_OCForm/hooks/useCatalogos';
 import { buildTotals, mapPayload } from './G_OCForm/utils';
+
+// ==============================================================
+// SECCIÓN 2: Valores por Defecto y Configuraciones
+// ==============================================================
 
 const buildDefaultMaterial = () => ({
   material: null,
@@ -34,23 +42,32 @@ const defaultConfiguracion = {
   moneda: 'MXN',
 };
 
+// ==============================================================
+// SECCIÓN 3: Componente Principal
+// ==============================================================
+
 export default function G_OCForm() {
+  // ==============================================================
+  // SECCIÓN 4: Hooks (Autenticación, Catálogos, Estado y Formulario)
+  // ==============================================================
   const { usuario } = useAuth();
   const { catalogos, loading: loadingCatalogos, error: errorCatalogos } = useCatalogosExtraOc();
   const [submitting, setSubmitting] = useState(false);
 
+  // Calcula la fecha requerida por defecto (7 días desde hoy)
   const defaultFecha = useMemo(() => {
     const date = new Date();
     date.setDate(date.getDate() + 7);
     return date.toISOString().split('T')[0];
   }, []);
 
+  // Configuración principal de React Hook Form
   const {
     control,
     register,
     handleSubmit,
     setValue,
-    watch,
+    watch, // <-- Importante: 'watch' nos permite leer valores del form
     formState: { errors },
     reset,
   } = useForm({
@@ -67,7 +84,17 @@ export default function G_OCForm() {
     },
   });
 
+  // ==============================================================
+  // SECCIÓN 5: Lógica de Guardado (Borrador y Envío)
+  // ==============================================================
+
+  /**
+   * Función unificada para guardar o enviar la OC.
+   * @param {'BORRADOR' | 'EN_REVISION'} status - El estado al que se guardará la OC.
+   * @param {object} values - Los valores actuales del formulario.
+   */
   const guardarOc = async (status, values) => {
+    // Validaciones previas
     if (!usuario) {
       toast.error('No hay usuario autenticado.');
       return;
@@ -83,6 +110,7 @@ export default function G_OCForm() {
       return;
     }
 
+    // Mapeo y cálculo de totales
     const { materiales: materialesPayload, datosGenerales } = mapPayload(values, usuario);
     const totales = buildTotals(values.materiales, values.configuracion || {});
 
@@ -95,10 +123,13 @@ export default function G_OCForm() {
       status,
     };
 
+    // Petición a la API
     try {
       setSubmitting(true);
       const response = await api.post('/api/oc-extra', payload);
       toast.success(status === 'EN_REVISION' ? 'OC extraordinaria enviada a revisión.' : 'OC extraordinaria guardada.');
+      
+      // Si se guarda como borrador, resetea el formulario
       if (status === 'BORRADOR') {
         reset({
           sitioSeleccionado: null,
@@ -122,8 +153,13 @@ export default function G_OCForm() {
     }
   };
 
+  // Manejadores (handlers) para los botones, usando el validador de RHF
   const handleGuardar = handleSubmit((values) => guardarOc('BORRADOR', values));
   const handleEnviar = handleSubmit((values) => guardarOc('EN_REVISION', values));
+
+  // ==============================================================
+  // SECCIÓN 6: Manejo de Carga de Catálogos y Error
+  // ==============================================================
 
   if (loadingCatalogos) {
     return (
@@ -137,8 +173,20 @@ export default function G_OCForm() {
     return <div className="text-red-600">{errorCatalogos}</div>;
   }
 
+  // ==============================================================
+  // SECCIÓN 7: Renderizado del Formulario (JSX)
+  // ==============================================================
+
+  // <-- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  // <-- ¡LA CORRECCIÓN ESTÁ AQUÍ!
+  // <-- Leemos la variable 'materiales' del estado del formulario usando watch()
+  // <-- para poder usarla en el JSX de "Vista previa".
+  // <-- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  const materiales = watch('materiales') || [];
+
   return (
     <div className="space-y-6">
+      {/* Componente para los datos de cabecera */}
       <DatosGeneralesExtra
         register={register}
         watch={watch}
@@ -147,6 +195,7 @@ export default function G_OCForm() {
         catalogos={catalogos}
         loadingCatalogos={loadingCatalogos}
       />
+      {/* Componente para la sección de líneas de materiales (Field Array) */}
       <MaterialesSection
         control={control}
         register={register}
@@ -155,10 +204,13 @@ export default function G_OCForm() {
         catalogos={catalogos}
         errors={errors}
       />
+      
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Vista Previa (Aquí ocurría el error) */}
         <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Vista previa</h2>
           <div className="space-y-3 max-h-64 overflow-auto">
+            {/* Ahora 'materiales' sí está definida gracias a la corrección */}
             {materiales.map((mat, index) => (
               <div key={index} className="border border-gray-200 rounded-md p-3">
                 <div className="flex justify-between text-sm text-gray-600">
@@ -173,8 +225,12 @@ export default function G_OCForm() {
             ))}
           </div>
         </div>
+        
+        {/* Componente para el resumen de totales e impuestos */}
         <ResumenExtra watch={watch} setValue={setValue} />
       </div>
+
+      {/* Componente para los botones de acción */}
       <AccionesExtra onGuardar={handleGuardar} onEnviar={handleEnviar} loading={submitting} />
     </div>
   );
