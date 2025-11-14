@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+// --- Importamos 'useCallback' ---
+import { useEffect, useState, useCallback } from "react"; 
 import axios from "axios";
 import EditarProductoModal from "../components/EditarProductoModal"; 
 import EditIcon from "@mui/icons-material/Edit";
@@ -6,18 +7,18 @@ import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import SearchIcon from '@mui/icons-material/Search';
+import RefreshIcon from '@mui/icons-material/Refresh';
+
+// Usamos tu variable de entorno
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 const ListaProductos = () => {
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(true);
-
+  const [unidadesMap, setUnidadesMap] = useState({});
   const [productoEditando, setProductoEditando] = useState(null);
   const [mostrarModal, setMostrarModal] = useState(false);
-
-  // 🔎 Barra de búsqueda
   const [busqueda, setBusqueda] = useState("");
-
-  // 📄 Paginación
   const [paginaActual, setPaginaActual] = useState(1);
   const [productosPorPagina, setProductosPorPagina] = useState(10);
 
@@ -31,218 +32,308 @@ const ListaProductos = () => {
     setMostrarModal(false);
   };
 
-  const fetchProductos = async () => {
+  // --- Definimos 'cargarDatos' FUERA del useEffect y con 'useCallback' ---
+  const cargarDatos = useCallback(async () => {
     try {
-      const res = await axios.get("http://localhost:3001/api/catalogo_materiales");
-      setProductos(res.data);
+      setLoading(true);
+
+      const peticionProductos = axios.get(`${API_BASE_URL}/api/catalogo_materiales`);
+      const peticionUnidades = axios.get(`${API_BASE_URL}/api/catalogo_unidades`);
+
+      const [respuestaProductos, respuestaUnidades] = await Promise.all([
+        peticionProductos,
+        peticionUnidades,
+      ]);
+
+      setProductos(respuestaProductos.data);
+
+      const nuevoMapa = {};
+      for (const u of respuestaUnidades.data) {
+        nuevoMapa[u.id] = `${u.unidad} (${u.simbolo})`;
+      }
+      setUnidadesMap(nuevoMapa);
+
     } catch (error) {
-      console.error("Error al cargar productos:", error);
+      console.error("Error al cargar datos:", error);
+      // Aquí puedes poner un toast de error
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // El array vacío de 'useCallback' dice que esta función nunca cambia
 
+  // --- El useEffect ahora solo llama a 'cargarDatos' ---
   useEffect(() => {
-    fetchProductos();
-  }, []);
+    cargarDatos();
+  }, [cargarDatos]); // Depende de 'cargarDatos' (que es estable gracias a useCallback)
 
   const handleEliminar = async (id) => {
     if (!confirm("¿Estás seguro de que deseas eliminar este producto?")) return;
     try {
-      await axios.delete(`http://localhost:3001/api/catalogo_materiales/${id}`);
-      setProductos(productos.filter((p) => p.id !== id));
+      await axios.delete(`${API_BASE_URL}/api/catalogo_materiales/${id}`);
+      // Después de eliminar, volvemos a cargar los datos para refrescar la lista
+      cargarDatos(); 
     } catch (error) {
       console.error("Error al eliminar producto:", error);
     }
   };
 
-  // Mapeo unidades
-  const unidadesMap = {
-    1: "Pieza (PZ)",
-    2: "Kilogramo (KG)",
-    3: "Litro (L)",
-    4: "Galón (GAL)",
-    5: "Kit (KIT)",
-    6: "Metro (M)",
-    7: "Centímetro (CM)",
-    8: "Milímetro (MM)",
-    9: "Pulgada (IN)",
-    10: "Tonelada (T)",
-    91: "Par (PAR)",
-    92: "Tramo (TM)",
-  };
-
-  // 🔎 Filtrado por búsqueda
+  // Filtrado (sin cambios)
   const productosFiltrados = productos.filter(
     (p) =>
       p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
       p.sku.toLowerCase().includes(busqueda.toLowerCase())
   );
 
-  // 📄 Paginación
+  // Paginación (sin cambios)
   const totalPaginas = Math.ceil(productosFiltrados.length / productosPorPagina);
   const indexInicio = (paginaActual - 1) * productosPorPagina;
   const indexFin = indexInicio + productosPorPagina;
   const productosPagina = productosFiltrados.slice(indexInicio, indexFin);
 
-  // 🔢 Generar números de páginas
   const paginas = [];
-  for (let i = 1; i <= totalPaginas; i++) {
+  const paginasAMostrar = 5; // Número máximo de páginas a mostrar en la paginación
+  let inicioPaginas = Math.max(1, paginaActual - Math.floor(paginasAMostrar / 2));
+  let finPaginas = Math.min(totalPaginas, inicioPaginas + paginasAMostrar - 1);
+  
+  // Ajustar si estamos cerca del inicio o final
+  if (finPaginas - inicioPaginas + 1 < paginasAMostrar) {
+    inicioPaginas = Math.max(1, finPaginas - paginasAMostrar + 1);
+  }
+  
+  for (let i = inicioPaginas; i <= finPaginas; i++) {
     paginas.push(i);
   }
 
   return (
-    <div className="p-6 bg-white rounded-2xl shadow-md">
-      <h2 className="text-2xl font-bold text-left text-gray-800 mb-4 border-b-2 border-gray-200 pb-3">
-        Catálogo de Productos
-      </h2>
+    <div className="p-6 bg-white rounded-2xl shadow-lg border border-gray-100">
+      {/* Header Mejorado */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 pb-4 border-b-2 border-gray-200">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800">Catálogo de Productos</h2>
+          <p className="text-gray-600 text-sm mt-1">
+            Gestiona todos los productos de tu inventario
+          </p>
+        </div>
+        <button
+          onClick={cargarDatos}
+          className="mt-3 lg:mt-0 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2 shadow-md"
+        >
+          <RefreshIcon fontSize="small" />
+          Actualizar
+        </button>
+      </div>
 
-      {/* 🔎 Barra de búsqueda y selector */}
-      <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-      {/* Input con icono */}
-      <div className="relative w-full sm:w-1/2">
-      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
-      {/* Usando material-icons clásico */}
-      <span className="material-icons"><SearchIcon/></span>
-      {/* O si prefieres con @mui/icons-material */}
-      {/* <SearchIcon fontSize="small" /> */}
-    </span>
-
-    <input
-      type="text"
-      placeholder="Buscar por SKU o Nombre..."
-      value={busqueda}
-      onChange={(e) => {
-        setBusqueda(e.target.value);
-        setPaginaActual(1); // reiniciar a la página 1 al buscar
-      }}
-      className="w-full pl-10 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-    />
-  </div>
-
-        <div className="flex items-center space-x-2 text-sm">
-          <span>Mostrar:</span>
-          <select
-            value={productosPorPagina}
-            onChange={(e) => {
-              setProductosPorPagina(Number(e.target.value));
-              setPaginaActual(1); // reinicia al cambiar cantidad
-            }}
-            className="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          >
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-          </select>
-          <span>por página</span>
+      {/* Barra de búsqueda y controles mejorada */}
+      <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+          <div className="relative w-full lg:w-auto flex-1">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+              <SearchIcon fontSize="small" />
+            </span>
+            <input
+              type="text"
+              placeholder="Buscar por SKU o Nombre..."
+              value={busqueda}
+              onChange={(e) => {
+                setBusqueda(e.target.value);
+                setPaginaActual(1);
+              }}
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm transition-all"
+            />
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+            <div className="flex items-center space-x-2 text-sm bg-white px-3 py-2 rounded-lg border border-gray-300">
+              <span className="text-gray-700 whitespace-nowrap">Mostrar:</span>
+              <select
+                value={productosPorPagina}
+                onChange={(e) => {
+                  setProductosPorPagina(Number(e.target.value));
+                  setPaginaActual(1);
+                }}
+                className="p-1 border-0 focus:outline-none focus:ring-0 bg-transparent"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
+      {/* Estadísticas rápidas */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+          <div className="text-blue-600 text-sm font-medium">Total Productos</div>
+          <div className="text-2xl font-bold text-blue-700">{productos.length}</div>
+        </div>
+        <div className="bg-green-50 p-4 rounded-xl border border-green-200">
+          <div className="text-green-600 text-sm font-medium">Activos</div>
+          <div className="text-2xl font-bold text-green-700">
+            {productos.filter(p => p.activo).length}
+          </div>
+        </div>
+        <div className="bg-purple-50 p-4 rounded-xl border border-purple-200">
+          <div className="text-purple-600 text-sm font-medium">Mostrando</div>
+          <div className="text-2xl font-bold text-purple-700">
+            {productosPagina.length} de {productosFiltrados.length}
+          </div>
+        </div>
+      </div>
+
+      {/* Tabla mejorada */}
       {loading ? (
-        <p className="text-gray-500">Cargando productos...</p>
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        </div>
       ) : (
-        <div className="overflow-x-auto -mx-4 sm:mx-0">
-          <table className="min-w-full border border-gray-200 rounded-lg overflow-hidden text-sm sm:text-base">
-            <thead>
-              <tr className="bg-gray-200 text-gray-800 text-left text-sm uppercase tracking-wide">
-                <th className="p-3 font-semibold">SKU</th>
-                <th className="p-3 font-semibold">Nombre</th>
-                <th className="p-3 font-semibold">Unidad</th>
-                <th className="p-3 font-semibold">Activo</th>
-                <th className="p-3 font-semibold text-center">Acciones</th>
+        <div className="overflow-hidden rounded-xl border border-gray-200 shadow-sm">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  SKU
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Nombre
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Unidad
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Estado
+                </th>
+                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Acciones
+                </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="bg-white divide-y divide-gray-200">
               {productosPagina.map((p) => (
                 <tr
                   key={p.id}
-                  className="hover:bg-gray-50 transition-colors border-b border-gray-200"
+                  className="hover:bg-gray-50 transition-colors duration-150"
                 >
-                  <td className="p-3 text-gray-900 font-medium">{p.sku}</td>
-                  <td className="p-3 text-gray-700">{p.nombre}</td>
-                  <td className="p-3 text-gray-700">
-                    {unidadesMap[p.unidad_de_compra]}
-                  </td>
-                  <td className="p-3">
-                    <span
-                      className={`px-2 py-1 text-xs font-medium rounded-full ${
-                        p.activo
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {p.activo ? "Sí" : "No"}
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {p.sku}
                     </span>
                   </td>
-                  <td className="p-3 text-center space-x-2">
-                    <button
-                      onClick={() => abrirModalEdicion(p)}
-                      className="p-2 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition"
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-medium text-gray-900">{p.nombre}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    {unidadesMap[p.unidad_de_compra] || `ID: ${p.unidad_de_compra}`}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                        p.activo
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
                     >
-                      <EditIcon />
-                    </button>
-                    <button
-                      onClick={() => handleEliminar(p.id)}
-                      className="p-2 rounded-md bg-red-100 text-red-600 hover:bg-red-200 transition"
-                    >
-                      <DeleteForeverIcon />
-                    </button>
+                      <span
+                        className={`w-2 h-2 rounded-full mr-2 ${
+                          p.activo ? "bg-green-400" : "bg-red-400"
+                        }`}
+                      ></span>
+                      {p.activo ? "Activo" : "Inactivo"}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    <div className="flex justify-center space-x-2">
+                      <button
+                        onClick={() => abrirModalEdicion(p)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200 border border-blue-200 hover:border-blue-300"
+                        title="Editar producto"
+                      >
+                        <EditIcon fontSize="small" />
+                      </button>
+                      <button
+                        onClick={() => handleEliminar(p.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200 border border-red-200 hover:border-red-300"
+                        title="Eliminar producto"
+                      >
+                        <DeleteForeverIcon fontSize="small" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          
+          {productosPagina.length === 0 && (
+            <div className="text-center py-12 bg-gray-50">
+              <SearchIcon className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No se encontraron productos</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                {busqueda ? "Intenta con otros términos de búsqueda." : "No hay productos en el catálogo."}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* 📄 Controles de paginación */}
-      <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-3">
+      {/* Paginación mejorada */}
+      <div className="flex flex-col lg:flex-row justify-between items-center mt-6 pt-4 border-t border-gray-200 gap-4">
         <p className="text-sm text-gray-600">
-          Página {paginaActual} de {totalPaginas || 1} —{" "}
-          Mostrando {productosPagina.length} de {productosFiltrados.length} productos
+          Mostrando <span className="font-medium">{productosPagina.length}</span> de{" "}
+          <span className="font-medium">{productosFiltrados.length}</span> productos • Página{" "}
+          <span className="font-medium">{paginaActual}</span> de{" "}
+          <span className="font-medium">{totalPaginas || 1}</span>
         </p>
-        <div className="flex flex-wrap items-center gap-2">
+        
+        <div className="flex items-center space-x-2">
           <button
             onClick={() => setPaginaActual((prev) => Math.max(prev - 1, 1))}
             disabled={paginaActual === 1}
-            className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
           >
-            <NavigateBeforeIcon/>
+            <NavigateBeforeIcon fontSize="small" />
             Anterior
           </button>
-
-          {paginas.map((num) => (
-            <button
-              key={num}
-              onClick={() => setPaginaActual(num)}
-              className={`px-3 py-1 rounded ${
-                paginaActual === num
-                  ? "bg-indigo-500 text-white"
-                  : "bg-gray-200 hover:bg-gray-300"
-              }`}
-            >
-              {num}
-            </button>
-          ))}
-
+          
+          <div className="flex space-x-1">
+            {paginas.map((num) => (
+              <button
+                key={num}
+                onClick={() => setPaginaActual(num)}
+                className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  paginaActual === num
+                    ? "bg-blue-500 text-white shadow-md"
+                    : "text-gray-700 bg-white border border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                {num}
+              </button>
+            ))}
+          </div>
+          
           <button
             onClick={() =>
               setPaginaActual((prev) => Math.min(prev + 1, totalPaginas))
             }
             disabled={paginaActual === totalPaginas || totalPaginas === 0}
-            className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
           >
             Siguiente
-            <NavigateNextIcon/>
+            <NavigateNextIcon fontSize="small" />
           </button>
         </div>
       </div>
 
+      {/* Modal */}
       {mostrarModal && (
         <EditarProductoModal
           producto={productoEditando}
           onClose={cerrarModal}
-          onUpdate={fetchProductos}
+          onUpdate={() => {
+            cerrarModal();
+            cargarDatos();
+          }}
         />
       )}
     </div>

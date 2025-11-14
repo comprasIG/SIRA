@@ -98,6 +98,9 @@ app.use('/api/auth', authRoutes);
 const catalogoMaterialesRoutes = require('./routes/catalogo_materiales.routes');
 app.use('/api/catalogo_materiales', catalogoMaterialesRoutes);
 
+const catalogoUnidadesRoutes = require('./routes/catalogo_unidades.routes.js');
+app.use('/api', catalogoUnidadesRoutes);
+
 const ordenCompraRoutes = require('./routes/ordenCompra.routes');
 app.use('/api/ocs', ordenCompraRoutes);
 
