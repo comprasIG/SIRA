@@ -101,6 +101,9 @@ app.use('/api/catalogo_materiales', catalogoMaterialesRoutes);
 const ordenCompraRoutes = require('./routes/ordenCompra.routes');
 app.use('/api/ocs', ordenCompraRoutes);
 
+const ocExtraRoutes = require('./routes/ocExtra.routes');
+app.use('/api/oc-extra', ocExtraRoutes);
+
 const monedaRoutes = require('./routes/moneda.routes');
 app.use('/api/monedas', monedaRoutes);
 
