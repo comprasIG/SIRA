@@ -1,6 +1,6 @@
 // src/pages/BioTimeRegistrosPage.jsx
 import React from 'react';
-import BioTimeRegistros from '../components/-r.-h./BioTimeRegistros';
+import BioTimeRegistros from '../components/rh/BioTimeRegistros';
 
 export default function BioTimeRegistrosPage() {
   return (
