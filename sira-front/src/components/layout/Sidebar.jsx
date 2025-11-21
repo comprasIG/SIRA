@@ -21,7 +21,8 @@ import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import Warehouse from '@mui/icons-material/Warehouse';
 import HelpOutline from '@mui/icons-material/HelpOutline'; 
-import DirectionsCarIcon from '@mui/icons-material/DirectionsCar'; // <-- Asegúrate de que este esté (para Unidades)
+import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
+import HowToRegIcon from '@mui/icons-material/HowToReg'; // <-- Asegúrate de que este esté (para Unidades)
 
 // Mapa de íconos: Convierte el string de la BD al componente de React.
 const iconMap = {
@@ -40,7 +41,8 @@ const iconMap = {
   AdminPanelSettingsIcon: <AdminPanelSettingsIcon sx={{ fontSize: 20 }} />,
   Warehouse: <Warehouse sx={{ fontSize: 20 }} />, 
   HelpOutline: <HelpOutline sx={{ fontSize: 20, color: '#fdd835' }} />, 
-  DirectionsCarIcon: <DirectionsCarIcon sx={{ fontSize: 20 }} />, // <-- Asegúrate de que este esté (para Unidades)
+  DirectionsCarIcon: <DirectionsCarIcon sx={{ fontSize: 20 }} />,
+  HowToRegIcon: <HowToRegIcon sx={{fontSize: 20}} /> // <-- Asegúrate de que este esté (para Unidades)
 };
 
 export default function Sidebar({ isOpen, toggleSidebar }) {
