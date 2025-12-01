@@ -10,7 +10,7 @@ console.log('🚀 Iniciando migración...');
 try {
   // Ejecutamos el comando node-pg-migrate de forma programática
   // Pasamos las variables de entorno que ya cargó dotenv
-  const output = execSync(`node-pg-migrate ${command}`, {
+ const output = execSync(`node-pg-migrate ${command} --no-check-order`, {
     env: {
       ...process.env, // Hereda todas las variables (incluidas las de .env)
       // Mapeamos nuestras variables DB_* a las que espera la herramienta (PG*)
