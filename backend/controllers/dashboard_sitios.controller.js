@@ -1,4 +1,4 @@
-//C:\SIRA\backend\controllers\dashboard_sitios.controller.js
+// backend/controllers/dashboard_sitios.controller.js
 const pool = require('../db/pool');
 
 // 1. Obtener KPIs Generales
@@ -18,7 +18,7 @@ const getKpis = async (req, res) => {
 };
 
 // 2. Obtener Listado Completo para el Dashboard
-// Une tablas para mostrar nombre de cliente, recuento de proyectos y gasto total
+// Corrección: Se usa LEFT JOIN y se agregan columnas al GROUP BY para compatibilidad SQL estricta
 const getDashboardData = async (req, res) => {
   try {
     const query = `
@@ -31,10 +31,10 @@ const getDashboardData = async (req, res) => {
         COUNT(DISTINCT p.id) FILTER (WHERE p.activo = true) as proyectos_activos_count,
         COALESCE(SUM(b.monto_utilizado), 0) as total_gastado
       FROM sitios s
-      JOIN clientes c ON s.cliente = c.id
+      LEFT JOIN clientes c ON s.cliente = c.id
       LEFT JOIN proyectos p ON s.id = p.sitio_id
       LEFT JOIN budget b ON p.id = b.proyecto_id
-      GROUP BY s.id, c.id
+      GROUP BY s.id, s.nombre, s.ubicacion, c.razon_social, s.cliente, c.id
       ORDER BY s.nombre ASC
     `;
     const result = await pool.query(query);
@@ -60,6 +60,7 @@ const getClientesList = async (req, res) => {
 
 // 4. Crear Nuevo Sitio
 const createSitio = async (req, res) => {
+  // Nota: Esperamos 'cliente_id' (snake_case) desde el frontend
   const { nombre, cliente_id, ubicacion } = req.body;
   
   if (!nombre || !cliente_id || !ubicacion) {
@@ -110,4 +111,4 @@ module.exports = {
   getClientesList,
   createSitio,
   createCliente
-};
+}; 
