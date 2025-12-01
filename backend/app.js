@@ -128,12 +128,12 @@ app.use('/api/retiro', retiroRoutes);
 const inventarioRoutes = require('./routes/inventario.routes');
 app.use('/api/inventario', inventarioRoutes);
 
-// --- ¡NUESTRA RUTA (AHORA CORRECTA)! ---
 const unidadesRoutes = require('./routes/unidades.routes');
 app.use('/api/unidades', unidadesRoutes);
-// ===============================================
-// --- FIN DE LA CORRECCIÓN 2 ---
-// ===============================================
+
+const dashboardSitiosRoutes = require('./routes/dashboard_sitios.routes');
+app.use('/api/sitios-dashboard', dashboardSitiosRoutes);
+
 
 // Ruta base de prueba
 app.get('/', (_req, res) => {
