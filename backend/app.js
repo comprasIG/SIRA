@@ -71,6 +71,9 @@ app.use('/api/proyectos', proyectosRoutes);
 const sitiosRoutes = require('./routes/sitios.routes');
 app.use('/api/sitios', sitiosRoutes);
 
+const dashboardSitiosRoutes = require('./routes/dashboard_sitios.routes'); 
+app.use('/api/sitios-dashboard', dashboardSitiosRoutes); 
+
 const materialesRoutes = require('./routes/materiales.routes');
 app.use('/api/materiales', materialesRoutes);
 
