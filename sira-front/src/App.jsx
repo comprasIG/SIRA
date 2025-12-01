@@ -1,4 +1,5 @@
 import SitiosPage from "./pages/SitiosPage";
+import VerEmpleadosPage from "./pages/VerEmpleadosPage";
 import BioTimeRegistrosPage from "./pages/BioTimeRegistrosPage";
 import NuevoProyectoPage from "./pages/NuevoProyectoPage";
 import RolesYPermisosPage from "./pages/RolesYPermisosPage";
@@ -85,6 +86,7 @@ console.log(import.meta.env.VITE_API_URL); // Verifica que la variable de entorn
                     <Route path="/G_PROJ" element={<RutaProtegida permiso="G_PROJ"><MainLayout><NuevoProyectoPage /></MainLayout></RutaProtegida>}/>
                     <Route path="/biotime_reg" element={<RutaProtegida permiso="biotime_reg"><MainLayout><BioTimeRegistrosPage /></MainLayout></RutaProtegida>}/>
                     <Route path="/sitios" element={<RutaProtegida permiso="sitios"><MainLayout><SitiosPage /></MainLayout></RutaProtegida>}/>
+                    <Route path="/empleados" element={<RutaProtegida permiso="empleados"><MainLayout><VerEmpleadosPage /></MainLayout></RutaProtegida>}/>
           {/* --- AÑADIR NUEVAS RUTAS AUTOMÁTICAMENTE AQUÍ --- */}
          
           {/* Redirección y página no encontrada */}
