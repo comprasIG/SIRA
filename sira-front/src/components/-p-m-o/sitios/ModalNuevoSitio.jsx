@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Close, Save, LocationOn, Business } from '@mui/icons-material';
 // Usamos ruta absoluta para evitar problemas
-import { api } from '/src/api/api.js';
+import api from '../../../api/api';
 
 export default function ModalNuevoSitio({ isOpen, onClose, onSave, sitioEditar = null }) {
   const [nombre, setNombre] = useState('');

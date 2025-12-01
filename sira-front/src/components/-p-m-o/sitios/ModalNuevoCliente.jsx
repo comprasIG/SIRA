@@ -1,7 +1,7 @@
 //C:\SIRA\sira-front\src\components\-p-m-o\sitios\ModalNuevoCliente.jsx
 import React, { useState } from 'react';
 import { Close, Save, Business, Description } from '@mui/icons-material';
-import { api } from '/src/api/api.js';
+import api from '../../../api/api';
 
 export default function ModalNuevoCliente({ isOpen, onClose, onSave }) {
   const [razonSocial, setRazonSocial] = useState('');

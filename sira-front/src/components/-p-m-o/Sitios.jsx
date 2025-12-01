@@ -7,7 +7,7 @@ import ModalNuevoSitio from './sitios/ModalNuevoSitio';
 import ModalNuevoCliente from './sitios/ModalNuevoCliente';
 
 
-import api from "../../api";
+import api from '../../api/api';
 
 export default function Sitios() {
   const [loading, setLoading] = useState(true);
@@ -25,8 +25,8 @@ export default function Sitios() {
     try {
       // Promise.all para cargar todo junto
       const [kpisRes, sitiosRes] = await Promise.all([
-        api.get('/sitios/kpis'),
-        api.get('/sitios')
+        api.get('/sitios-dashboard/kpis'),
+        api.get('/sitios-dashboard')
       ]);
       setKpiData(kpisRes.data);
       setSitios(sitiosRes.data);
@@ -51,7 +51,7 @@ export default function Sitios() {
   // Handlers
   const handleGuardarSitio = async (datosSitio) => {
     try {
-      await api.post('/sitios', datosSitio);
+      await api.post('/sitios-dashboard', datosSitio);
       setModalSitioOpen(false);
       fetchData(); // Recargar datos
     } catch (error) {
@@ -61,7 +61,7 @@ export default function Sitios() {
 
   const handleGuardarCliente = async (datosCliente) => {
     try {
-      await api.post('/sitios/cliente', datosCliente);
+      await api.post('/sitios-dashboard/cliente', datosCliente);
       setModalClienteOpen(false);
       // Opcional: Mostrar notificación de éxito
       fetchData(); // Recargar KPIs principalmente
