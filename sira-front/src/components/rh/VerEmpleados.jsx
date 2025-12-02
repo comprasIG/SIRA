@@ -13,6 +13,7 @@ import BadgeIcon from '@mui/icons-material/Badge';     // Para RFC/CURP
 import WorkIcon from '@mui/icons-material/Work';       // Para Empresa/Puesto
 import CakeIcon from '@mui/icons-material/Cake';       // Para Cumpleaños/Edad
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday'; // Para Fecha Ingreso
+import AccessTimeIcon from '@mui/icons-material/AccessTime'; // Para Antigüedad
 
 // --- LECTURA DE LA VARIABLE DE ENTORNO ---
 // Nota: Si estás probando esto en un entorno local sin Vite configurado, 
@@ -128,8 +129,38 @@ export default function VerEmpleados() {
     if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
       edad--;
     }
-    
     return edad;
+  };
+
+  // Función para calcular antigüedad (Años y Meses)
+  const calcularAntiguedad = (fechaIngreso) => {
+    if (!fechaIngreso) return 'Sin datos';
+    
+    const inicio = new Date(fechaIngreso);
+    const hoy = new Date();
+    
+    let anios = hoy.getFullYear() - inicio.getFullYear();
+    let meses = hoy.getMonth() - inicio.getMonth();
+
+    // Ajuste si aún no ha pasado el mes/día de aniversario
+    if (meses < 0 || (meses === 0 && hoy.getDate() < inicio.getDate())) {
+      anios--;
+      meses += 12;
+    }
+    
+    // Ajuste fino de meses si el día actual es menor al día de ingreso
+    if (hoy.getDate() < inicio.getDate()) {
+        meses--;
+    }
+
+    // Formateo del texto
+    const textoAnios = anios === 1 ? '1 año' : `${anios} años`;
+    const textoMeses = meses > 0 ? ` y ${meses} ${meses === 1 ? 'mes' : 'meses'}` : '';
+    
+    // Caso especial: menos de un mes
+    if (anios === 0 && meses === 0) return 'Menos de 1 mes';
+
+    return `${textoAnios}${textoMeses}`;
   };
 
   // --- RENDERIZADO ---
@@ -387,6 +418,17 @@ export default function VerEmpleados() {
                             <p className="text-sm font-medium text-gray-800">{formatearFecha(empleadoSeleccionado.fecha_ingreso)}</p>
                         </div>
                     </div>
+
+                    {/* ---ANTIGÜEDAD --- */}
+                        <div className="flex items-start gap-3">
+                            <AccessTimeIcon className="text-blue-500" /> {/* Ícono azul para resaltar */}
+                            <div>
+                                <p className="text-xs text-gray-500">Antigüedad en la empresa</p>
+                                <p className="text-sm font-bold text-blue-700">
+                                    {calcularAntiguedad(empleadoSeleccionado.fecha_ingreso)}
+                                </p>
+                            </div>
+                        </div>
 
                     <div className="flex items-start gap-3">
                         <BadgeIcon className="text-gray-400" />
