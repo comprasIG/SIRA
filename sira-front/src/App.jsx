@@ -37,6 +37,7 @@ import AgregarProducto from "./pages/AgregarProducto";
 import ListaProductos from "./pages/ListaProductos";
 import NotificacionesPage from './pages/NotificacionesPage';
 import PickInPage from "./pages/PickInPage";
+import VerEmpleadosPage from "./pages/VerEmpleadosPage";
 
 
 // Tus importaciones de layout y rutas
@@ -83,6 +84,7 @@ console.log(import.meta.env.VITE_API_URL); // Verifica que la variable de entorn
                     <Route path="/config/roles-y-permisos" element={<RutaProtegida permiso="CONFIG_ROLES"><MainLayout><RolesYPermisosPage /></MainLayout></RutaProtegida>}/>
                     <Route path="/G_PROJ" element={<RutaProtegida permiso="G_PROJ"><MainLayout><NuevoProyectoPage /></MainLayout></RutaProtegida>}/>
                     <Route path="/biotime_reg" element={<RutaProtegida permiso="biotime_reg"><MainLayout><BioTimeRegistrosPage /></MainLayout></RutaProtegida>}/>
+          <Route path="/empleados" element={<RutaProtegida permiso="empleados"><MainLayout><VerEmpleadosPage /></MainLayout></RutaProtegida>}/>
           {/* --- AÑADIR NUEVAS RUTAS AUTOMÁTICAMENTE AQUÍ --- */}
          
           {/* Redirección y página no encontrada */}

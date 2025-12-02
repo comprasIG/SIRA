@@ -128,9 +128,15 @@ app.use('/api/retiro', retiroRoutes);
 const inventarioRoutes = require('./routes/inventario.routes');
 app.use('/api/inventario', inventarioRoutes);
 
+// Desde la raíz (backend), entramos directo a routes
+const empleadosRoutes = require('./routes/empleados/empleados.routes');
+app.use('/api/empleados', empleadosRoutes);
+
 // --- ¡NUESTRA RUTA (AHORA CORRECTA)! ---
 const unidadesRoutes = require('./routes/unidades.routes');
 app.use('/api/unidades', unidadesRoutes);
+
+
 // ===============================================
 // --- FIN DE LA CORRECCIÓN 2 ---
 // ===============================================
