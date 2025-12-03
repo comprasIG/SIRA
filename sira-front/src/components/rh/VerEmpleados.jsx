@@ -16,10 +16,15 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday'; // Para Fecha
 import AccessTimeIcon from '@mui/icons-material/AccessTime'; // Para Antigüedad
 
 // --- LECTURA DE LA VARIABLE DE ENTORNO ---
-// Nota: Si estás probando esto en un entorno local sin Vite configurado, 
-// podrías necesitar cambiar esto a una cadena fija temporalmente.
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'; 
+const API_BASE_URL = import.meta.env.VITE_API_URL; // Esta es la URL base del backend
 
+// Advertencia si la variable no está definida
+if (!import.meta.env.VITE_API_URL) {
+  console.warn("ADVERTENCIA: VITE_API_URL no está definida en tu archivo .env. Usando http://localhost:3001 como respaldo.");
+} 
+// Puedes cambiar el valor de respaldo si tu backend corre en otro puerto
+
+// Componente principal
 export default function VerEmpleados() {
   const [empleados, setEmpleados] = useState([]);
   const [loading, setLoading] = useState(true);
