@@ -2,7 +2,11 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool'); // Ajusta el path si tu pool está en otro lado
 
-// Endpoint para obtener todos los proyectos activos
+const verifyFirebaseToken = require('../middleware/verifyFirebaseToken');
+const loadSiraUser = require('../middleware/loadSiraUser');
+const { crearProyecto } = require('../controllers/proyectos/g_proj.controller');
+
+// GET /api/proyectos  - lista proyectos activos
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query(
@@ -19,7 +23,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// --- ENDPOINT: AUTOCOMPLETE DE PROYECTOS ---
+// GET /api/proyectos/buscar  - autocomplete
 router.get('/buscar', async (req, res) => {
   try {
     const { texto = '', sitio_id } = req.query;
@@ -42,5 +46,17 @@ router.get('/buscar', async (req, res) => {
     res.status(500).json({ error: 'Error buscando proyectos' });
   }
 });
+
+// =========================================
+//          NUEVO ENDPOINT G_PROJ
+// =========================================
+
+// POST /api/proyectos  - crear nuevo proyecto
+router.post(
+  '/',
+  verifyFirebaseToken,
+  loadSiraUser,
+  crearProyecto
+);
 
 module.exports = router;
