@@ -22,12 +22,25 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import Warehouse from '@mui/icons-material/Warehouse';
 import HelpOutline from '@mui/icons-material/HelpOutline'; 
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
-import HowToRegIcon from '@mui/icons-material/HowToReg'; // <-- Asegúrate de que este esté (para Unidades)
+import HowToRegIcon from '@mui/icons-material/HowToReg';
+import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
+
+// Nuevos Iconos importados aquí si es necesario
+import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder'; //Icono Para Nuevo Proyecto
+import LocationOnIcon from '@mui/icons-material/LocationOn'; //Icono Para Sitios
+import CarCrashIcon from '@mui/icons-material/CarCrash'; // Icono Para Unidades de Transporte
+import FingerprintIcon from '@mui/icons-material/Fingerprint'; // Icono Para Control de Acceso
+import TrolleyIcon from '@mui/icons-material/Trolley'; // Icono Para Ingresar Oc almacén
+import ForkliftIcon from '@mui/icons-material/Forklift'; // Icono Para Salidas OC almacén
+import LocalShippingIcon from '@mui/icons-material/LocalShipping'; // Icono Para Recolección de Materiales
+
 
 // Mapa de íconos: Convierte el string de la BD al componente de React.
+// Aqui es donde se hace el mapeo de los iconos para manejarlos desde la base de datos
+// Para cambiarlo en la base de datos, en la columna 'icono', coloca el nombre ejemplo: 'DashboardIcon'
 const iconMap = {
-  DashboardIcon: <DashboardIcon sx={{ fontSize: 20 }} />,
-  DescriptionIcon: <DescriptionIcon sx={{ fontSize: 20 }} />,
+  DashboardIcon: <DashboardIcon sx={{ fontSize: 20 }} />, // Icono Dashboard
+  DescriptionIcon: <DescriptionIcon sx={{ fontSize: 20 }} />, 
   CheckCircleOutlineIcon: <CheckCircleOutlineIcon sx={{ fontSize: 20 }} />,
   ShoppingCartIcon: <ShoppingCartIcon sx={{ fontSize: 20 }} />,
   PlaylistAddCheckIcon: <PlaylistAddCheckIcon sx={{ fontSize: 20 }} />,
@@ -42,7 +55,16 @@ const iconMap = {
   Warehouse: <Warehouse sx={{ fontSize: 20 }} />, 
   HelpOutline: <HelpOutline sx={{ fontSize: 20, color: '#fdd835' }} />, 
   DirectionsCarIcon: <DirectionsCarIcon sx={{ fontSize: 20 }} />,
-  HowToRegIcon: <HowToRegIcon sx={{fontSize: 20}} /> // <-- Asegúrate de que este esté (para Unidades)
+  HowToRegIcon: <HowToRegIcon sx={{fontSize: 20}} />,
+  AssignmentIndIcon: <AssignmentIndIcon sx={{fontSize:20}} />
+  // Nuevos iconos mapeados aquí si es necesario
+  ,CreateNewFolderIcon: <CreateNewFolderIcon sx={{ fontSize: 20 }} />, // Icono Para Nuevo Proyecto
+  LocationOnIcon: <LocationOnIcon sx={{ fontSize: 20 }} />, // Icono Para Sitios
+  CarCrashIcon: <CarCrashIcon sx={{ fontSize: 20 }} />, // Icono Para Unidades de Transporte
+  FingerprintIcon: <FingerprintIcon sx={{ fontSize: 20 }} />, // Icono Para Control de Acceso
+  TrolleyIcon: <TrolleyIcon sx={{ fontSize: 20 }} />, // Icono Para Ingresar Oc almacén
+  ForkliftIcon: <ForkliftIcon sx={{ fontSize: 20 }} />, // Icono Para Salidas OC almacén
+  LocalShippingIcon: <LocalShippingIcon sx={{ fontSize: 20 }} /> // Icono Para Recolección de Materiales
 };
 
 export default function Sidebar({ isOpen, toggleSidebar }) {

@@ -451,7 +451,7 @@ const BioTimeRegistros = () => {
         </Button>
 
         <Typography variant="body2" color="textSecondary" sx={{ ml: 2 }}>
-          🔥 Lógica actual: Entrada= 7:30 AM • Salida= 18:30 PM
+          🔥 Lógica actual: Entrada= 8:00 AM • Salida= 18:30 PM
         </Typography>
       </Box>
 
@@ -795,13 +795,13 @@ const BioTimeRegistros = () => {
           <Grid item xs={12} sm={6} md={3}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
               <Chip label="Entrada" color="secondary" size="small" sx={{ mr: 1 }} />
-              <Typography variant="body2">Entrada (7:30)</Typography>
+              <Typography variant="body2">Entrada (8:00 AM)</Typography>
             </Box>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
               <Chip label="Salida" color="info" size="small" sx={{ mr: 1 }} />
-              <Typography variant="body2"> Salida (18:30)</Typography>
+              <Typography variant="body2"> Salida (18:30 PM)</Typography>
             </Box>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
