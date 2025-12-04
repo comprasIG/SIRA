@@ -140,6 +140,12 @@ app.use('/api/unidades', unidadesRoutes);
 // ===============================================
 // --- FIN DE LA CORRECCIÓN 2 ---
 // ===============================================
+const unidadesRoutes = require('./routes/unidades.routes');
+app.use('/api/unidades', unidadesRoutes);
+
+const dashboardSitiosRoutes = require('./routes/dashboard_sitios.routes');
+app.use('/api/sitios-dashboard', dashboardSitiosRoutes);
+
 
 // Ruta base de prueba
 app.get('/', (_req, res) => {
