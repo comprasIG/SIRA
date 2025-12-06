@@ -1,4 +1,4 @@
-// C:\SIRA\backend\controllers\proyectos\g_proj.controller.js
+//C:\SIRA\backend\controllers\g_proj.controller.js
 /**
  * CONTROLADOR: Generación de Proyectos (G_PROJ)
  * - Crear nuevo proyecto

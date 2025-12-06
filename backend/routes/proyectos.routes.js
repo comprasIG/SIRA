@@ -4,7 +4,7 @@ const pool = require('../db/pool'); // Ajusta el path si tu pool está en otro l
 
 const verifyFirebaseToken = require('../middleware/verifyFirebaseToken');
 const loadSiraUser = require('../middleware/loadSiraUser');
-const { crearProyecto } = require('../controllers/proyectos/g_proj.controller');
+const { crearProyecto } = require('../controllers/g_proj.controller');
 
 // GET /api/proyectos  - lista proyectos activos
 router.get('/', async (req, res) => {
