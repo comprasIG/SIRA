@@ -1,3 +1,4 @@
+//C:\SIRA\backend\routes\proyectos.routes.js
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool'); // Ajusta el path si tu pool está en otro lado

@@ -4,7 +4,7 @@
  * - Crear nuevo proyecto
  */
 
-const pool = require('../../db/pool');
+const pool = require('../db/pool'); 
 
 const crearProyecto = async (req, res) => {
   try {
