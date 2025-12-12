@@ -1,58 +1,115 @@
-//C:\SIRA\sira-front\src\components\-p-m-o\sitios\ModalNuevoSitio.jsx
+// C:\SIRA\sira-front\src\components\-p-m-o\sitios\ModalNuevoSitio.jsx
 
 import React, { useState, useEffect } from 'react';
 import { Close, Save, LocationOn, Business } from '@mui/icons-material';
-// Usamos ruta absoluta para evitar problemas
 import api from '../../../api/api';
 
-export default function ModalNuevoSitio({ isOpen, onClose, onSave, sitioEditar = null }) {
+/**
+ * Modal para crear / editar un Sitio.
+ *
+ * Props:
+ * - isOpen: boolean
+ * - onClose: () => void
+ * - onSave: (payload: { id?, nombre, ubicacion, clienteId }) => Promise | void
+ * - sitioEditar: objeto sitio (opcional) con { id, nombre, ubicacion, cliente_id | cliente }
+ */
+export default function ModalNuevoSitio({
+  isOpen,
+  onClose,
+  onSave,
+  sitioEditar = null,
+}) {
+  // ---------------------------------------------------------------------------
+  // Estado del formulario
+  // ---------------------------------------------------------------------------
   const [nombre, setNombre] = useState('');
   const [ubicacion, setUbicacion] = useState('');
   const [clienteId, setClienteId] = useState('');
-  
+
+  // ---------------------------------------------------------------------------
+  // Estado de catálogos y UI
+  // ---------------------------------------------------------------------------
   const [clientes, setClientes] = useState([]);
   const [loadingClientes, setLoadingClientes] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  // Cargar datos si es edición
+  // ---------------------------------------------------------------------------
+  // Efecto: inicializar formulario al abrir / cambiar sitioEditar
+  // ---------------------------------------------------------------------------
   useEffect(() => {
+    if (!isOpen) return;
+
+    setError('');
+
     if (sitioEditar) {
       setNombre(sitioEditar.nombre || '');
       setUbicacion(sitioEditar.ubicacion || '');
-      setClienteId(sitioEditar.cliente_id || '');
+      // Intentamos distintas claves por seguridad
+      const cid =
+        sitioEditar.cliente_id ||
+        sitioEditar.clienteId ||
+        sitioEditar.cliente ||
+        '';
+      setClienteId(cid ? String(cid) : '');
     } else {
       setNombre('');
       setUbicacion('');
       setClienteId('');
     }
-    setError('');
-  }, [sitioEditar, isOpen]);
+  }, [isOpen, sitioEditar]);
 
-  // Cargar lista de clientes
+  // ---------------------------------------------------------------------------
+  // Efecto: cargar lista de clientes al abrir el modal
+  // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (isOpen) {
-      const fetchClientes = async () => {
-        setLoadingClientes(true);
-        try {
-          const response = await api.get('/sitios-dashboard/clientes-list').catch(() => ({ data: [] }));
-          if (Array.isArray(response.data)) {
-            setClientes(response.data);
-          }
-        } catch (err) {
-          console.error("Error cargando clientes:", err);
-        } finally {
-          setLoadingClientes(false);
+    if (!isOpen) return;
+
+    const fetchClientes = async () => {
+      setLoadingClientes(true);
+      setError('');
+      try {
+        // api.get devuelve el JSON directo (no .data)
+        const resp = await api.get('/api/sitios-dashboard/clientes-list');
+
+        let list = [];
+        if (Array.isArray(resp)) {
+          list = resp;
+        } else if (resp && Array.isArray(resp.clientes)) {
+          list = resp.clientes;
+        } else if (resp && Array.isArray(resp.rows)) {
+          list = resp.rows;
         }
-      };
-      fetchClientes();
-    }
+
+        setClientes(list);
+      } catch (err) {
+        console.error('Error cargando clientes para ModalNuevoSitio:', err);
+        setError(
+          'No se pudo cargar la lista de clientes. Intenta recargar la página.'
+        );
+        setClientes([]);
+      } finally {
+        setLoadingClientes(false);
+      }
+    };
+
+    fetchClientes();
   }, [isOpen]);
+
+  // ---------------------------------------------------------------------------
+  // Handlers
+  // ---------------------------------------------------------------------------
+  const handleClose = () => {
+    if (saving) return; // evitamos cerrar mientras guarda
+    setError('');
+    onClose && onClose();
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
+    // Validaciones básicas
     if (!nombre.trim() || !ubicacion.trim() || !clienteId) {
       setError('Por favor completa todos los campos obligatorios.');
       return;
@@ -60,136 +117,152 @@ export default function ModalNuevoSitio({ isOpen, onClose, onSave, sitioEditar =
 
     setSaving(true);
     try {
-      const dataToSave = {
+      const payload = {
         nombre: nombre.trim(),
         ubicacion: ubicacion.trim(),
-        cliente_id: clienteId
+        clienteId: Number(clienteId),
       };
 
-      if (sitioEditar) {
-        dataToSave.id = sitioEditar.id;
+      if (sitioEditar && sitioEditar.id) {
+        payload.id = sitioEditar.id;
       }
 
-      await onSave(dataToSave);
-      onClose();
+      // Dejamos que el padre maneje la llamada al backend
+      const maybePromise = onSave && onSave(payload);
+      if (maybePromise && typeof maybePromise.then === 'function') {
+        await maybePromise;
+      }
+
+      // Si todo fue bien, limpiamos y cerramos
+      setNombre('');
+      setUbicacion('');
+      setClienteId('');
+      onClose && onClose();
     } catch (err) {
-      console.error("Error al guardar:", err);
-      setError('Ocurrió un error al guardar el sitio. Inténtalo de nuevo.');
+      console.error('Error al guardar sitio desde ModalNuevoSitio:', err);
+      setError(
+        err?.message ||
+          'Ocurrió un error al guardar el sitio. Intenta de nuevo.'
+      );
     } finally {
       setSaving(false);
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // Render: si el modal no está abierto, no pintamos nada
+  // ---------------------------------------------------------------------------
   if (!isOpen) return null;
 
+  const titulo = sitioEditar ? 'Editar Sitio' : 'Nuevo Sitio';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 transition-opacity">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md transform transition-all scale-100">
-        
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4">
         {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b border-gray-100">
-          <h2 className="text-xl font-bold text-gray-800">
-            {sitioEditar ? 'Editar Sitio' : 'Agregar Nuevo Sitio'}
-          </h2>
-          <button 
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-full transition-colors"
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-800">{titulo}</h2>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="p-1 rounded-full hover:bg-gray-100 text-gray-500"
           >
-            <Close style={{ fontSize: 24 }} />
+            <Close fontSize="small" />
           </button>
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          
+        <form onSubmit={handleSubmit} className="px-4 py-4 space-y-4">
+          {/* Mensaje de error */}
           {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-center">
-              <span className="mr-2">⚠️</span> {error}
+            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-md text-sm">
+              {error}
             </div>
           )}
 
-          {/* Campo Nombre */}
+          {/* Cliente */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nombre del Sitio <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <LocationOn className="text-gray-400" style={{ fontSize: 20 }} />
-              </div>
-              <input
-                type="text"
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                placeholder="Ej. Planta Monterrey, Cedis Norte..."
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Campo Cliente */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Cliente Asociado <span className="text-red-500">*</span>
+              Cliente asociado <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Business className="text-gray-400" style={{ fontSize: 20 }} />
               </div>
               <select
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white appearance-none"
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                 value={clienteId}
                 onChange={(e) => setClienteId(e.target.value)}
-                disabled={loadingClientes}
+                disabled={loadingClientes || saving}
               >
-                <option value="">Selecciona un cliente...</option>
-                {clientes.map(cliente => (
-                  <option key={cliente.id} value={cliente.id}>
-                    {cliente.razon_social}
+                <option value="">
+                  {loadingClientes
+                    ? 'Cargando clientes...'
+                    : 'Selecciona un cliente...'}
+                </option>
+                {clientes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.razon_social}
                   </option>
                 ))}
               </select>
-              {loadingClientes && (
-                <div className="absolute right-3 top-2.5">
-                  <div className="animate-spin h-5 w-5 border-2 border-blue-500 rounded-full border-t-transparent"></div>
-                </div>
-              )}
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              El sitio pertenecerá exclusivamente a este cliente.
-            </p>
           </div>
 
-          {/* Campo Ubicación */}
+          {/* Nombre */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Ubicación / Dirección <span className="text-red-500">*</span>
+              Nombre del Sitio <span className="text-red-500">*</span>
             </label>
-            <textarea
-              rows="3"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all resize-none"
-              placeholder="Dirección completa del sitio..."
-              value={ubicacion}
-              onChange={(e) => setUbicacion(e.target.value)}
-            />
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <LocationOn
+                  className="text-gray-400"
+                  style={{ fontSize: 20 }}
+                />
+              </div>
+              <input
+                type="text"
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Ej. Planta Norte, Almacén Central..."
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                disabled={saving}
+              />
+            </div>
           </div>
 
+          {/* Ubicación */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Ubicación <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Ej. Carretera 57 km 123, Querétaro..."
+              value={ubicacion}
+              onChange={(e) => setUbicacion(e.target.value)}
+              disabled={saving}
+            />
+          </div>
         </form>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 p-6 border-t border-gray-100 bg-gray-50 rounded-b-xl">
+        <div className="px-4 py-3 border-t border-gray-200 flex justify-end gap-2">
           <button
             type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+            onClick={handleClose}
+            className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
             disabled={saving}
           >
             Cancelar
           </button>
           <button
+            type="button"
             onClick={handleSubmit}
-            className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={saving}
+            className="px-4 py-2 text-sm rounded-lg text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={saving || loadingClientes}
           >
             {saving ? (
               <>
@@ -198,7 +271,7 @@ export default function ModalNuevoSitio({ isOpen, onClose, onSave, sitioEditar =
               </>
             ) : (
               <>
-                <Save style={{ fontSize: 18, marginRight: '8px' }} />
+                <Save style={{ fontSize: 18 }} />
                 {sitioEditar ? 'Actualizar Sitio' : 'Guardar Sitio'}
               </>
             )}

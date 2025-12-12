@@ -7,17 +7,20 @@ const pool = require("../db/pool");
  */
 const getUsuariosConFunciones = async (req, res) => {
   try {
-    const usuariosResult = await pool.query(`
-      SELECT 
-        u.id,
-        u.nombre AS nombre_completo,
-        u.correo_google,
-        r.nombre AS rol,
-        u.es_superusuario
-      FROM usuarios u
-      JOIN roles r ON u.role_id = r.id
-      ORDER BY u.id;
-    `);
+   const usuariosResult = await pool.query(`
+  SELECT 
+    u.id,
+    u.nombre AS nombre_completo,
+    u.correo_google,
+    r.nombre AS rol,
+    u.es_superusuario,
+    u.departamento_id,
+    d.nombre AS departamento
+  FROM usuarios u
+  JOIN roles r ON u.role_id = r.id
+  LEFT JOIN departamentos d ON u.departamento_id = d.id
+  ORDER BY u.id;
+`);
 
     const funcionesTodasResult = await pool.query(`SELECT codigo FROM funciones ORDER BY codigo`);
     const todasLasFunciones = funcionesTodasResult.rows.map(f => f.codigo);
