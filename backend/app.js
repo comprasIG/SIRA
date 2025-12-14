@@ -16,7 +16,7 @@ app.use(express.json());
 
 // 1. Define tu "lista blanca" de orígenes permitidos
 const whitelist = [
-  'https://stg.sira-ig.com',    // Tu frontend de Staging
+  'https://stg.sira-ig.com',  // Tu frontend de Staging
   'https://www.sira-ig.com',  // Tu frontend de Producción
 ];
 
@@ -55,13 +55,15 @@ app.use((req, res, next) => {
 
 // Endpoint de Health Check
 app.get('/status', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Service is up and running' });
+  res
+    .status(200)
+    .json({ status: 'ok', message: 'Service is up and running' });
 });
 
 // ===============================================
 // --- ¡CORRECCIÓN 2: SINTAXIS DE REQUIRE ORIGINAL! ---
-// (Esto arregla tu error 'MODULE_NOT_FOUND' local)
 // ===============================================
+
 const requisicionesRoutes = require('./routes/requisiciones.routes');
 app.use('/api/requisiciones', requisicionesRoutes);
 
@@ -74,20 +76,20 @@ app.use('/api/sitios', sitiosRoutes);
 const materialesRoutes = require('./routes/materiales.routes');
 app.use('/api/materiales', materialesRoutes);
 
-const usuariosRoutes = require("./routes/usuarios.routes");
-app.use("/api/usuarios", usuariosRoutes);
+const usuariosRoutes = require('./routes/usuarios.routes');
+app.use('/api/usuarios', usuariosRoutes);
 
-const rolesRoutes = require("./routes/roles.routes");
-app.use("/api/roles", rolesRoutes);
+const rolesRoutes = require('./routes/roles.routes');
+app.use('/api/roles', rolesRoutes);
 
-const departamentosRoutes = require("./routes/departamentos.routes");
-app.use("/api/departamentos", departamentosRoutes);
+const departamentosRoutes = require('./routes/departamentos.routes');
+app.use('/api/departamentos', departamentosRoutes);
 
-const rfqRoutes = require("./routes/rfq.routes");
-app.use("/api/rfq", rfqRoutes);
+const rfqRoutes = require('./routes/rfq.routes');
+app.use('/api/rfq', rfqRoutes);
 
-const proveedoresRoutes = require("./routes/proveedores.routes");
-app.use("/api/proveedores", proveedoresRoutes);
+const proveedoresRoutes = require('./routes/proveedores.routes');
+app.use('/api/proveedores', proveedoresRoutes);
 
 const dashboardRoutes = require('./routes/dashboard.routes');
 app.use('/api/dashboard', dashboardRoutes);
@@ -132,14 +134,18 @@ app.use('/api/inventario', inventarioRoutes);
 const empleadosRoutes = require('./routes/empleados/empleados.routes');
 app.use('/api/empleados', empleadosRoutes);
 
-// --- ¡NUESTRA RUTA (AHORA CORRECTA)! ---
+// Nuestra ruta de unidades (solo una vez)
 const unidadesRoutes = require('./routes/unidades.routes');
 app.use('/api/unidades', unidadesRoutes);
 
+// Dashboard de sitios
+const dashboardSitiosRoutes = require('./routes/dashboard_sitios.routes');
+app.use('/api/sitios-dashboard', dashboardSitiosRoutes);
 
 // ===============================================
 // --- FIN DE LA CORRECCIÓN 2 ---
 // ===============================================
+
 
 // Ruta base de prueba
 app.get('/', (_req, res) => {

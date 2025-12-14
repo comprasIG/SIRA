@@ -1,12 +1,21 @@
 // src/components/-p-m-o/NuevoProyecto.jsx
 import React from 'react';
+import NuevoProyectoForm from './proyectos/NuevoProyectoForm';
 
 export default function NuevoProyecto() {
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md">
-      <h2 className="text-xl font-semibold">Componente: Nuevo Proyecto</h2>
-      <p className="mt-2">¡Este es el esqueleto para la nueva funcionalidad!</p>
-      {/* Aquí comienza el desarrollo */}
+    <div className="bg-white p-6 rounded-lg shadow-md max-w-4xl mx-auto">
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">
+          Crear nuevo proyecto
+        </h1>
+        <p className="text-gray-500 mt-2 text-sm">
+          Define el responsable, sitio y datos generales del proyecto.  
+          El cliente se tomará automáticamente del sitio seleccionado.
+        </p>
+      </header>
+
+      <NuevoProyectoForm />
     </div>
   );
 }
