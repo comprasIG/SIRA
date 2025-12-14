@@ -12,6 +12,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import EditIcon from '@mui/icons-material/Edit';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { useAuth } from '../context/authContext';
+import FullScreenLoader from './ui/FullScreenLoader';
 
 // --- Helper Component ---
 const truncateText = (text, maxLength = 30) => {
@@ -28,7 +29,7 @@ const RequisicionRow = ({ req, onApprove, onReject, onViewDetails, onEdit, isPro
         <TableCell>{req.sitio}</TableCell>
         <TableCell>{req.proyecto}</TableCell>
         <TableCell><Tooltip title={req.comentario || 'Sin comentario'} placement="top"><span>{truncateText(req.comentario)}</span></Tooltip></TableCell>
-        <TableCell>{new Date(req.fecha_requerida).toLocaleDateString()}</TableCell>
+        <TableCell>{req.fecha_creacion ? new Date(req.fecha_creacion).toLocaleDateString() : 'N/A'}</TableCell>
         <TableCell><Chip label={req.status} color={req.status === 'ABIERTA' ? 'warning' : 'default'} size="small" /></TableCell>
         <TableCell align="right">
             {/* The buttons are now disabled if this specific row is being processed */}
@@ -105,6 +106,7 @@ export default function VB_REQ_List({ onEdit }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     // CHANGE: New state to track the ID of the requisition being processed.
     const [processingId, setProcessingId] = useState(null);
+    const [isProcessingAction, setIsProcessingAction] = useState(false);
     const { usuario } = useAuth();
 
     // --- Data Fetching ---
@@ -142,7 +144,8 @@ export default function VB_REQ_List({ onEdit }) {
         if (!window.confirm(`¿Estás seguro de APROBAR la requisición ${req.numero_requisicion}? El PDF se descargará y se enviará una notificación.`)) return;
         if (!usuario) return toast.error("No se pudo identificar al usuario. Por favor, recarga la página.");
         
-        setProcessingId(id); 
+        setProcessingId(id);
+        setIsProcessingAction(true);
         try {
             toast.info('Procesando aprobación, por favor espera...');
             const response = await api.post(
@@ -193,6 +196,7 @@ export default function VB_REQ_List({ onEdit }) {
             }
         } finally {
             setProcessingId(null);
+            setIsProcessingAction(false);
         }
     };
 
@@ -237,6 +241,10 @@ export default function VB_REQ_List({ onEdit }) {
 
     return (
         <>
+            <FullScreenLoader
+                isOpen={isProcessingAction}
+                message="Procesando, por favor espera..."
+            />
             <Paper elevation={3} sx={{ overflow: 'hidden' }}>
                 <TableContainer sx={{ maxHeight: 'calc(100vh - 200px)' }}>
                     <Table stickyHeader>
@@ -247,7 +255,7 @@ export default function VB_REQ_List({ onEdit }) {
                                 <TableCell>Sitio</TableCell>
                                 <TableCell>Proyecto</TableCell>
                                 <TableCell>Comentario</TableCell>
-                                <TableCell>Fecha Req.</TableCell>
+                                <TableCell>Fecha Creación</TableCell>
                                 <TableCell>Estatus</TableCell>
                                 <TableCell align="right">Acciones</TableCell>
                             </TableRow>
@@ -263,7 +271,7 @@ export default function VB_REQ_List({ onEdit }) {
                                         onViewDetails={handleViewDetails}
                                         onEdit={onEdit}
                                         // Pass the boolean to the row
-                                        isProcessing={processingId === req.id}
+                                        isProcessing={processingId === req.id || isProcessingAction}
                                     />
                                 ))
                             ) : (

@@ -116,11 +116,32 @@ export const useRecoleccion = () => {
   const resetFilters = () => {
       setFilters(initialFilters);
   };
+// ===============================================
+  // --- ¡NUEVA FUNCIÓN! ---
+  // ===============================================
+  /**
+   * @description Llama al endpoint para cerrar una OC vehicular.
+   */
+  const cerrarOCVehicular = async (ocId, payload) => {
+    try {
+      // Llama al nuevo endpoint que creamos en el backend
+      const data = await api.post(`/api/recoleccion/ocs/${ocId}/cerrar-vehicular`, payload);
+      toast.success(data.mensaje || 'Servicio cerrado y registrado en bitácora.');
+      refreshAll(); // Refresca las listas de KPIs y OCs
+      return true; // Éxito
+    } catch (error) {
+      console.error("Error al cerrar OC vehicular:", error);
+      toast.error(error?.error || 'No se pudo cerrar el servicio.');
+      throw error; // Lanza el error para que el modal sepa que falló
+    }
+  };
+  // ===============================================
 
   return {
     ocsAprobadas, ocsEnProceso,
     loading, kpis, filters, setFilters, filterOptions,
     procesarOC, cancelarOC, fetchOcsEnProcesoList,
     resetFilters,
+    cerrarOCVehicular, // <<< EXPORTAMOS LA NUEVA FUNCIÓN
   };
 };

@@ -1,16 +1,24 @@
+//C:\SIRA\backend\controllers\rfq\vistoBueno.controller.js
 /**
  * ================================================================================================
- * CONTROLADOR: Visto Bueno de Cotizaciones (VB_RFQ) - (Versión 4.1 - Corrección de Query Faltante)
+ * CONTROLADOR: Visto Bueno de Cotizaciones (VB_RFQ) - (Versión 4.2 - Refactor de Drive)
  * ================================================================================================
  * @file vistoBueno.controller.js
  * @description Gerente genera OCs, adjunta PDF y cotizaciones, sube a Drive y notifica por email.
  * --- HISTORIAL DE CAMBIOS ---
- * v4.1: Se re-inserta la consulta 'quoteFilesQuery' que se borró por error.
+ * v4.2: Se actualiza la importación de 'uploadPdfBuffer' a 'uploadOcPdfBuffer'
+ * para coincidir con el refactor del servicio de Google Drive.
+ * v4.1: Se re-inserta la consulta 'quoteFilesQuery'.
  */
 
 const pool = require('../../db/pool');
 const { generatePurchaseOrderPdf } = require('../../services/purchaseOrderPdfService');
-const { uploadPdfBuffer, downloadFileBuffer } = require('../../services/googleDrive'); 
+
+// =================================================================
+// --- ¡CAMBIO AQUÍ! ---
+// Se ha cambiado 'uploadPdfBuffer' por 'uploadOcPdfBuffer'
+// =================================================================
+const { uploadOcPdfBuffer, downloadFileBuffer } = require('../../services/googleDrive'); 
 const { sendEmailWithAttachments } = require('../../services/emailService'); 
 
 /* ================================================================================================
@@ -208,11 +216,16 @@ const generarOcsDesdeRfq = async (req, res) => {
             const pdfFileName = `${nuevoNumeroOc}.pdf`; // Ej: 'OC-286.pdf'
 
             // --- 4D. Subir PDF a Drive ---
-            const driveFile = await uploadPdfBuffer(
+            // =================================================================
+            // --- ¡CAMBIO AQUÍ! ---
+            // Se ha cambiado 'uploadPdfBuffer' por 'uploadOcPdfBuffer'
+            // =================================================================
+            const driveFile = await uploadOcPdfBuffer(
                 pdfBuffer,
                 pdfFileName, // Nombre Corregido
-                'ORDENES_DE_COMPRA_PDF',
-                rfqData.rfq_code
+                rfqData.depto_codigo,
+                rfqData.numero_requisicion,
+                nuevoNumeroOc
             );
 
             if (!driveFile || !driveFile.webViewLink) {
@@ -249,7 +262,7 @@ const generarOcsDesdeRfq = async (req, res) => {
             // --- 4F. Notificar por correo al grupo ---
             const recipients = await _getRecipientEmailsByGroup('OC_GENERADA_NOTIFICAR', client);
             if (recipients.length > 0) {
-                const subject = `OC Generada para Autorización: ${nuevoNumeroOc} (${primerItem.proveedor_razon_social})`;
+                const subject = `OC Generada para Autorización: ${nuevoNumeroOc} (${primerItem.proveedor_razon_solcial})`; // Corregido 'razon_social'
                 const htmlBody = `
                     <p>Se ha generado una nueva Orden de Compra y requiere autorización final.</p>
                     <p>Se adjuntan la Orden de Compra y los respaldos de la cotización.</p>

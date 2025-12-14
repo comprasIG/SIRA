@@ -4,52 +4,108 @@ import fs from 'fs-extra';
 import path from 'path';
 import { execSync } from 'child_process';
 
-// --- Helper Functions ---
-const toPascalCase = (str) => str.replace(/(^\w|-\w)/g, (c) => c.replace('-', '').toUpperCase());
-const toKebabCase = (str) => str.replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2').toLowerCase();
-const escapeSql = (str) => (str ? `'${str.replace(/'/g, "''")}'` : 'NULL');
+/* ============================================================
+   Helper 1: PascalCase
+============================================================ */
+const toPascalCase = (str) =>
+  str.replace(/(^\w|-\w)/g, (c) => c.replace('-', '').toUpperCase());
 
-// --- Main Script ---
+/* ============================================================
+   Helper 2: kebab-case
+============================================================ */
+const toKebabCase = (str) =>
+  str.replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2').toLowerCase();
+
+/* ============================================================
+   Helper 3: escapa strings para SQL
+============================================================ */
+const escapeSql = (str) =>
+  str ? `'${str.replace(/'/g, "''")}'` : 'NULL';
+
+/* ============================================================
+   Helper 4 (NUEVO): obtener el siguiente ID de migración (SINCRONO)
+   - Lee backend/migrations
+   - Toma el número más grande del prefijo
+   - Devuelve max+1 o Date.now(), lo que sea mayor
+============================================================ */
+const getNextMigrationId = () => {
+  const migrationsDir = path.join('backend', 'migrations');
+  let maxId = 0;
+
+  try {
+    const files = fs.readdirSync(migrationsDir);
+
+    for (const file of files) {
+      const match = /^(\d+)_/.exec(file);
+      if (match) {
+        const id = Number(match[1]);
+        if (!Number.isNaN(id) && id > maxId) {
+          maxId = id;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️  No se pudo leer la carpeta de migraciones:', err.message);
+  }
+
+  const now = Date.now();
+  return Math.max(now, maxId + 1);
+};
+
+/* ============================================================
+   MAIN SCRIPT
+============================================================ */
 async function main() {
   console.log('🚀 Asistente para crear nueva funcionalidad...');
 
   const answers = await inquirer.prompt([
-    { type: 'input', name: 'featureName', message: 'Nombre visible de la función (ej. Salida de Almacén):' },
+    {
+      type: 'input',
+      name: 'featureName',
+      message: 'Nombre visible de la función (ej. Salida de Almacén):'
+    },
     { type: 'input', name: 'route', message: 'Ruta URL (ej. /salida-almacen):' },
     { type: 'input', name: 'module', message: 'Módulo o grupo del sidebar (ej. Almacen):' },
     { type: 'input', name: 'code', message: 'Código/Permiso único (ej. ALM_SALIDA):' },
-    { type: 'input', name: 'icon', message: 'Ícono de Material-UI (o presiona Enter para usar el default):', default: 'HelpOutline' },
+    {
+      type: 'input',
+      name: 'icon',
+      message: 'Ícono de Material-UI (o presiona Enter para usar el default):',
+      default: 'HelpOutline'
+    },
   ]);
 
   let { featureName, route, module, icon, code } = answers;
+
   if (!featureName || !route || !module || !code) {
     console.error('❌ Los primeros 4 campos son obligatorios. Abortando.');
     return;
   }
 
-  // =========================================================================================
-  // ¡NUEVA LÍNEA!
-  // Nos aseguramos de que la ruta siempre empiece con una diagonal.
+  // Asegurar que la ruta empiece con "/"
   if (!route.startsWith('/')) {
     route = '/' + route;
   }
-  // =========================================================================================
 
   const componentName = toPascalCase(featureName.replace(/ /g, '-'));
   const componentFolder = toKebabCase(module);
-  const branchName = `feature/${featureName.toLowerCase().replace(/ /g, '-').replace(/[^a-z0-9-]/g, '')}`;
+  const branchName =
+    `feature/${featureName.toLowerCase().replace(/ /g, '-').replace(/[^a-z0-9-]/g, '')}`;
   const filesCreated = [];
 
   try {
-    // ... (El resto del script no cambia)
-
-    const timestamp = Date.now();
-    const migrationFileName = `${timestamp}_agregar-funcion-${toKebabCase(code)}.js`;
+    /* ============================================
+       Generar ID único de migración (AQUÍ ESTÁ LA CLAVE)
+    ============================================ */
+    const timestamp = getNextMigrationId(); // <--- YA NO Date.now()
+    const migrationFileName =
+      `${timestamp}_agregar-funcion-${toKebabCase(code)}.js`;
     const migrationPath = path.join('backend', 'migrations', migrationFileName);
-    
+
     const migrationContent = `
 /** @type {import('node-pg-migrate').ColumnDefinitions | undefined} */
 export const shorthands = undefined;
+
 /** @param pgm {import('node-pg-migrate').MigrationBuilder} */
 export const up = async (pgm) => {
   await pgm.sql(\`
@@ -62,11 +118,13 @@ export const up = async (pgm) => {
       ruta = EXCLUDED.ruta;
   \`);
 };
+
 /** @param pgm {import('node-pg-migrate').MigrationBuilder} */
 export const down = async (pgm) => {
   await pgm.sql(\`DELETE FROM public.funciones WHERE codigo = ${escapeSql(code)};\`);
 };
 `;
+
     await fs.writeFile(migrationPath, migrationContent);
     filesCreated.push(migrationPath);
     console.log(`✅ Migración creada: ${migrationPath}`);
@@ -75,53 +133,84 @@ export const down = async (pgm) => {
     execSync('npm run migrate up', { cwd: './backend', stdio: 'inherit' });
     console.log('✅ Migración aplicada exitosamente.');
 
-    const pageTemplate = await fs.readFile(path.join('scripts', 'templates', 'Page.jsx.template'), 'utf-8');
-    const componentTemplate = await fs.readFile(path.join('scripts', 'templates', 'Component.jsx.template'), 'utf-8');
-    
-    const pageContent = pageTemplate.replace(/{{ComponentName}}/g, componentName).replace(/{{FeatureName}}/g, featureName).replace(/{{ComponentFolder}}/g, componentFolder);
-    const componentContent = componentTemplate.replace(/{{ComponentName}}/g, componentName).replace(/{{FeatureName}}/g, featureName).replace(/{{ComponentFolder}}/g, componentFolder);
+    /* ============================================
+       Crear plantillas
+    ============================================ */
+    const pageTemplate = await fs.readFile(
+      path.join('scripts', 'templates', 'Page.jsx.template'), 'utf-8'
+    );
+    const componentTemplate = await fs.readFile(
+      path.join('scripts', 'templates', 'Component.jsx.template'), 'utf-8'
+    );
 
-    const componentDirPath = path.join('sira-front', 'src', 'components', componentFolder);
+    const pageContent = pageTemplate
+      .replace(/{{ComponentName}}/g, componentName)
+      .replace(/{{FeatureName}}/g, featureName)
+      .replace(/{{ComponentFolder}}/g, componentFolder);
+
+    const componentContent = componentTemplate
+      .replace(/{{ComponentName}}/g, componentName)
+      .replace(/{{FeatureName}}/g, featureName)
+      .replace(/{{ComponentFolder}}/g, componentFolder);
+
+    const componentDirPath =
+      path.join('sira-front', 'src', 'components', componentFolder);
     await fs.ensureDir(componentDirPath);
-    
-    const pagePath = path.join('sira-front', 'src', 'pages', `${componentName}Page.jsx`);
-    const componentPath = path.join(componentDirPath, `${componentName}.jsx`);
+
+    const pagePath =
+      path.join('sira-front', 'src', 'pages', `${componentName}Page.jsx`);
+    const componentPath =
+      path.join(componentDirPath, `${componentName}.jsx`);
 
     await fs.writeFile(pagePath, pageContent);
     filesCreated.push(pagePath);
     console.log(`✅ Página creada: ${pagePath}`);
+
     await fs.writeFile(componentPath, componentContent);
     filesCreated.push(componentPath);
     console.log(`✅ Componente creado: ${componentPath}`);
 
+    /* ============================================
+       Insertar nueva ruta en App.jsx
+    ============================================ */
     console.log('🔄 Modificando App.jsx para añadir la nueva ruta...');
     const appPath = path.join('sira-front', 'src', 'App.jsx');
     let appContent = await fs.readFile(appPath, 'utf-8');
+
     const routeMarker = '{/* --- AÑADIR NUEVAS RUTAS AUTOMÁTICAMENTE AQUÍ --- */}';
-    const newRoute = `          <Route path="${route}" element={<RutaProtegida permiso="${code}"><MainLayout><${componentName}Page /></MainLayout></RutaProtegida>}/>`;
-    
+    const newRoute =
+      `          <Route path="${route}" element={<RutaProtegida permiso="${code}"><MainLayout><${componentName}Page /></MainLayout></RutaProtegida>}/>`;
+
     if (appContent.includes(routeMarker)) {
-      appContent = appContent.replace(routeMarker, `${newRoute}\n          ${routeMarker}`);
-      appContent = `import ${componentName}Page from "./pages/${componentName}Page";\n` + appContent;
+      appContent = appContent.replace(
+        routeMarker,
+        `${newRoute}\n          ${routeMarker}`
+      );
+      appContent =
+        `import ${componentName}Page from "./pages/${componentName}Page";\n` +
+        appContent;
+
       await fs.writeFile(appPath, appContent);
       console.log('✅ Ruta añadida a App.jsx exitosamente.');
     } else {
       throw new Error(`No se encontró el marcador de ruta en App.jsx: ${routeMarker}`);
     }
 
+    /* ============================================
+       Crear rama Git y commit
+    ============================================ */
     console.log('🔄 Automatizando Git...');
     execSync(`git checkout -b ${branchName}`);
     console.log(`✅ Rama creada y seleccionada: ${branchName}`);
+
     execSync('git add .');
-    console.log('✅ Nuevos archivos añadidos al stage.');
     execSync(`git commit -m "feat: scaffold para la funcionalidad '${featureName}'"`);
     console.log('✅ Commit inicial realizado.');
 
-    console.log('\n🎉 ¡Proceso completado! La nueva funcionalidad está lista para desarrollar.');
-    console.log(`   - Tu nueva rama es: ${branchName}`);
-    console.log('   - El enlace ya debería aparecer en el Sidebar (para los roles con permiso).');
+    console.log('\n🎉 ¡Proceso completado! Tu nueva funcionalidad está lista para desarrollar.');
+    console.log(`   - Nueva rama: ${branchName}`);
     if (icon === 'HelpOutline') {
-      console.log('   - 🟡 Recuerda cambiar el ícono por defecto en la BD y agregarlo al \`Sidebar.jsx\`.');
+      console.log('   - 🟡 Considera reemplazar el ícono por uno adecuado.');
     }
 
   } catch (error) {
@@ -129,17 +218,13 @@ export const down = async (pgm) => {
     console.error(error.message);
 
     console.log('🔄 Revirtiendo cambios...');
-    if (filesCreated.length > 0) {
-      for (const file of filesCreated) {
-        try {
-          await fs.remove(file);
-          console.log(`   - Archivo eliminado: ${file}`);
-        } catch (rmError) {
-          console.error(`   - Error al eliminar ${file}:`, rmError.message);
-        }
-      }
+    for (const file of filesCreated) {
+      try {
+        await fs.remove(file);
+        console.log(`   - Archivo eliminado: ${file}`);
+      } catch {}
     }
-    console.log('🔥 Reversión completada. Tu proyecto está limpio.');
+    console.log('🔥 Reversión completada. Proyecto limpio.');
   }
 }
 

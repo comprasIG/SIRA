@@ -1,145 +1,64 @@
 // sira-front/src/components/PICK_IN/RetiroStock.jsx
-import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, Autocomplete, TextField, Button, CircularProgress, Stack } from '@mui/material';
-import SendIcon from '@mui/icons-material/Send';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Box, Typography, Autocomplete, TextField, Stack, Collapse } from '@mui/material'; // <-- Aseguramos importación de Collapse
+import FormularioRetiroStock from './FormularioRetiroStock'; // Importamos el nuevo formulario
 
-export default function RetiroStock({
-    filterOptions,
-    stockInfo,
-    loadingStock,
-    fetchStockMaterial,
-    registrarRetiro,
-    isSubmitting,
-}) {
-    const [selectedMaterial, setSelectedMaterial] = useState(null);
-    const [cantidadRetirar, setCantidadRetirar] = useState('');
+export default function RetiroStock(props) {
+    // Extraemos todos los props del hook principal
+    const { filterOptions } = props;
+
+    // Estado local solo para el destino
     const [selectedSitioDest, setSelectedSitioDest] = useState(null);
     const [selectedProyectoDest, setSelectedProyectoDest] = useState(null);
 
-    // Llama a fetchStockMaterial cuando cambia el material seleccionado
-    useEffect(() => {
-        if (selectedMaterial) {
-            fetchStockMaterial(selectedMaterial.id);
-        } else {
-            fetchStockMaterial(null); // Limpia la info si no hay material
-        }
-    }, [selectedMaterial, fetchStockMaterial]);
-
-    // Filtra proyectos basado en sitio destino
-     const proyectosDestFiltrados = useMemo(() => {
+    // Lógica para filtrar proyectos co-dependientes
+    const proyectosDestFiltrados = useMemo(() => {
         if (!selectedSitioDest) return [];
         return (filterOptions.todosProyectos || []).filter(p => p.sitio_id === selectedSitioDest.id);
     }, [selectedSitioDest, filterOptions.todosProyectos]);
 
-    // Limpia proyecto si cambia sitio destino
-     useEffect(() => {
+    useEffect(() => {
         if(selectedSitioDest && selectedProyectoDest && selectedProyectoDest.sitio_id !== selectedSitioDest.id) {
             setSelectedProyectoDest(null);
         }
     }, [selectedSitioDest, selectedProyectoDest]);
-
-
-    const handleQuantityChange = (value) => {
-        const maxQty = parseFloat(stockInfo?.stock_total) || 0;
-        const inputQty = parseFloat(value) || 0;
-        const finalQty = Math.max(0, Math.min(inputQty, maxQty));
-        setCantidadRetirar(finalQty === 0 ? '' : finalQty.toString());
-    };
-
-    const handleSubmit = async () => {
-        if (!selectedMaterial || !cantidadRetirar || !selectedSitioDest || !selectedProyectoDest) {
-            alert('Debes seleccionar material, cantidad, sitio y proyecto de destino.');
-            return;
-        }
-
-        const cantidadNum = parseFloat(cantidadRetirar);
-        if (cantidadNum <= 0) {
-             alert('La cantidad a retirar debe ser mayor a cero.');
-             return;
-        }
-
-         const payload = {
-            tipoRetiro: 'STOCK',
-            items: [{
-                material_id: selectedMaterial.id,
-                cantidad_a_retirar: cantidadNum,
-            }],
-            proyectoDestinoId: selectedProyectoDest.id,
-            sitioDestinoId: selectedSitioDest.id,
-        };
-
-        const success = await registrarRetiro(payload);
-         if(success) {
-            // Limpiar formulario
-            setSelectedMaterial(null);
-            setCantidadRetirar('');
-            setSelectedSitioDest(null);
-            setSelectedProyectoDest(null);
-            // fetchStockMaterial(null); // El useEffect limpiará
-        }
-    };
-
-    const stockTotal = parseFloat(stockInfo?.stock_total) || 0;
-    const unidad = selectedMaterial?.unidad_simbolo || '';
+    
+    const destinoSeleccionado = selectedSitioDest && selectedProyectoDest;
 
     return (
         <Box>
             <Typography variant="h6" gutterBottom>Retirar Material de Stock General</Typography>
+            
+            {/* --- SECCIÓN 1: DESTINO --- */}
             <Stack spacing={3}>
-                <Autocomplete fullWidth
-                    options={filterOptions.materialesEnStock || []}
-                    getOptionLabel={(o) => o.nombre || ''}
-                    value={selectedMaterial}
-                    onChange={(_, v) => setSelectedMaterial(v)}
-                    renderInput={(params) => <TextField {...params} label="Buscar Material en Stock" />}
-                />
+                <Typography variant="subtitle1">1. Selecciona el Destino</Typography>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                     <Autocomplete fullWidth
+                        options={filterOptions.todosSitios || []}
+                        getOptionLabel={(o) => o.nombre || ''}
+                        value={selectedSitioDest}
+                        onChange={(_, v) => setSelectedSitioDest(v)}
+                        renderInput={(params) => <TextField {...params} label="Sitio Destino" required />}
+                    />
+                    <Autocomplete fullWidth
+                        options={proyectosDestFiltrados}
+                        getOptionLabel={(o) => o.nombre || ''}
+                        value={selectedProyectoDest}
+                        onChange={(_, v) => setSelectedProyectoDest(v)}
+                        renderInput={(params) => <TextField {...params} label="Proyecto Destino" required />}
+                        disabled={!selectedSitioDest}
+                    />
+                </Stack>
 
-                {selectedMaterial && (
-                    <>
-                        {loadingStock ? <CircularProgress size={24} /> : (
-                            <Typography variant="body2" color="text.secondary">
-                                Stock Total Disponible: <strong>{stockTotal} {unidad}</strong>
-                            </Typography>
-                        )}
-
-                        <TextField
-                            fullWidth label={`Cantidad a Retirar (${unidad})`} type="number"
-                            value={cantidadRetirar}
-                            onChange={(e) => handleQuantityChange(e.target.value)}
-                            disabled={loadingStock || stockTotal <= 0}
-                            inputProps={{ max: stockTotal, min: 0, step: 'any' }}
-                            helperText={stockTotal <= 0 ? "No hay stock disponible para este material." : ""}
-                            error={stockTotal <= 0}
-                        />
-
-                        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                             <Autocomplete fullWidth
-                                options={filterOptions.todosSitios || []}
-                                getOptionLabel={(o) => o.nombre || ''}
-                                value={selectedSitioDest}
-                                onChange={(_, v) => setSelectedSitioDest(v)}
-                                renderInput={(params) => <TextField {...params} label="Sitio Destino" required />}
-                            />
-                            <Autocomplete fullWidth
-                                options={proyectosDestFiltrados}
-                                getOptionLabel={(o) => o.nombre || ''}
-                                value={selectedProyectoDest}
-                                onChange={(_, v) => setSelectedProyectoDest(v)}
-                                renderInput={(params) => <TextField {...params} label="Proyecto Destino" required />}
-                                disabled={!selectedSitioDest}
-                            />
-                        </Stack>
-
-                        <Button
-                            variant="contained"
-                            onClick={handleSubmit}
-                            disabled={isSubmitting || loadingStock || cantidadRetirar <= 0 || !selectedSitioDest || !selectedProyectoDest}
-                            startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
-                        >
-                           {isSubmitting ? 'Registrando Retiro...' : 'Confirmar Retiro de Stock'}
-                        </Button>
-                    </>
-                )}
+                {/* --- SECCIÓN 2: MATERIALES (CONDICIONAL) --- */}
+                <Collapse in={destinoSeleccionado} timeout="auto" unmountOnExit>
+                    <FormularioRetiroStock
+                        // Pasamos el destino y todos los props del hook al formulario
+                        sitioDestinoId={selectedSitioDest?.id}
+                        proyectoDestinoId={selectedProyectoDest?.id}
+                        {...props} // Pasa registrarRetiro, isSubmitting, materialesEnStock, etc.
+                    />
+                </Collapse>
             </Stack>
         </Box>
     );

@@ -1,7 +1,14 @@
 // backend/controllers/recoleccion.controller.js
 const pool = require('../db/pool');
-const { uploadMulterFileToOcFolder } = require('../services/googleDrive');
+const { uploadOcEvidenceFile } = require('../services/googleDrive');
 const { sendWhatsAppMessage } = require('../services/whatsappService');
+
+const SKU_EVENTO_MAP = {
+  'SERV-VEH-PREV': 'SERVICIO_PREV',
+  'SERV-VEH-CORR': 'SERVICIO_CORR',
+  'LLANTA-GEN': 'LLANTAS',
+  'COMBUS-GEN': 'COMBUSTIBLE',
+};
 
 const getOcsAprobadas = async (req, res) => {
   // Esta es la línea clave de la corrección
@@ -63,6 +70,7 @@ const getOcsAprobadas = async (req, res) => {
   }
 };
 
+
 const procesarOcParaRecoleccion = async (req, res) => {
     const { id: ordenCompraId } = req.params;
     const { id: usuarioId } = req.usuarioSira;
@@ -81,7 +89,13 @@ const procesarOcParaRecoleccion = async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        const ocQuery = await client.query(`SELECT * FROM ordenes_compra WHERE id = $1 FOR UPDATE`, [ordenCompraId]);
+        const ocQuery = await client.query(`
+            SELECT oc.*, r.numero_requisicion, d.codigo AS depto_codigo
+            FROM ordenes_compra oc
+            JOIN requisiciones r ON oc.rfq_id = r.id
+            JOIN departamentos d ON r.departamento_id = d.id
+            WHERE oc.id = $1 FOR UPDATE
+        `, [ordenCompraId]);
         if (ocQuery.rowCount === 0) return res.status(404).json({ error: 'OC no encontrada.' });
 
         const oc = ocQuery.rows[0];
@@ -93,7 +107,7 @@ const procesarOcParaRecoleccion = async (req, res) => {
         if (req.files && req.files.length > 0) {
             for (const file of req.files) {
                 const fileName = `EVIDENCIA_${oc.numero_oc}_${Date.now()}_${file.originalname}`;
-                const driveFile = await uploadMulterFileToOcFolder(file, oc.numero_oc, fileName);
+                const driveFile = await uploadOcEvidenceFile(file, oc.depto_codigo, oc.numero_requisicion, oc.numero_oc, fileName);
                 const insertRes = await client.query(
                     `INSERT INTO archivos_recoleccion_oc (orden_compra_id, archivo_link, tipo) VALUES ($1, $2, $3) RETURNING *`,
                     [ordenCompraId, driveFile.webViewLink, 'EVIDENCIA_EMBARQUE']
@@ -279,6 +293,136 @@ const getDatosParaFiltros = async (_req, res) => {
     }
 };
 
+/**
+ * @description Cierra una Orden de Compra Vehicular.
+ * (MODIFICADO: Ahora busca el unidad_id real antes de insertar en bitácora)
+ */
+const cerrarOcVehicular = async (req, res) => {
+  const { id: ordenCompraId } = req.params;
+  const { id: usuarioId } = req.usuarioSira;
+  const {
+    kilometraje_final,
+    numeros_serie,
+    comentario_cierre,
+  } = req.body;
+
+  const kmNum = parseInt(kilometraje_final, 10);
+  if (!kmNum || kmNum <= 0) {
+    return res.status(400).json({ error: 'El kilometraje final es obligatorio.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Obtener datos de la OC y bloquearla
+    const ocQuery = await client.query(
+      `SELECT proyecto_id, total, rfq_id, status, numero_oc 
+       FROM ordenes_compra 
+       WHERE id = $1 FOR UPDATE`,
+      [ordenCompraId]
+    );
+
+    if (ocQuery.rowCount === 0) throw new Error('Orden de Compra no encontrada.');
+    
+    const oc = ocQuery.rows[0];
+    const proyectoEspejoId = oc.proyecto_id; // Este es el ID del proyecto (ej: 23)
+    const requisicionId = oc.rfq_id; 
+
+    if (oc.status !== 'APROBADA' && oc.status !== 'EN_PROCESO') {
+      throw new Error(`La OC no puede cerrarse, su estado es '${oc.status}'.`);
+    }
+
+    // ==========================================================
+    // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+    // Necesitamos encontrar el 'unidad.id' real (ej: 14) usando el 'proyecto_id' (ej: 23)
+    // ==========================================================
+    const unidadQuery = await client.query(
+      `SELECT u.id, u.km 
+       FROM unidades u
+       JOIN proyectos p ON u.unidad = p.nombre -- Unimos por nombre
+       WHERE p.id = $1 AND p.sitio_id = (SELECT id FROM sitios WHERE nombre = 'UNIDADES')`,
+      [proyectoEspejoId]
+    );
+
+    if (unidadQuery.rowCount === 0) {
+      throw new Error(`No se pudo encontrar la unidad correspondiente al proyecto ID ${proyectoEspejoId}.`);
+    }
+    const unidadId = unidadQuery.rows[0].id; // <<< ¡Este es el ID correcto (ej: 14)!
+    const kmActual = unidadQuery.rows[0].km || 0;
+
+    // 1b. Validar Kilometraje
+    if (kmNum < kmActual) {
+      throw new Error(`El kilometraje (${kmNum}) no puede ser menor al último registrado (${kmActual} km).`);
+    }
+    // ==========================================================
+
+    
+    // 2. Obtener el SKU de la OC (sin cambios)
+    const detalleQuery = await client.query(
+      `SELECT m.sku 
+       FROM ordenes_compra_detalle od
+       JOIN catalogo_materiales m ON od.material_id = m.id
+       WHERE od.orden_compra_id = $1
+       LIMIT 1`,
+      [ordenCompraId]
+    );
+    if (detalleQuery.rowCount === 0) throw new Error('No se encontraron detalles en la OC.');
+    
+    const sku = detalleQuery.rows[0].sku;
+    const eventoCodigo = SKU_EVENTO_MAP[sku];
+    if (!eventoCodigo) throw new Error(`SKU no reconocido para bitácora vehicular: ${sku}`);
+
+    const eventoQuery = await client.query(`SELECT id FROM unidades_evento_tipos WHERE codigo = $1`, [eventoCodigo]);
+    const eventoTipoId = eventoQuery.rows[0]?.id;
+    if (!eventoTipoId) throw new Error(`Código de evento no encontrado en la BD: ${eventoCodigo}`);
+
+    // 3. Actualizar la OC a ENTREGADA (sin cambios)
+    await client.query(
+      `UPDATE ordenes_compra SET status = 'ENTREGADA', actualizado_en = NOW() WHERE id = $1`,
+      [ordenCompraId]
+    );
+
+    // 3b. Actualizar la Requisición original a ENTREGADA (sin cambios)
+    await client.query(
+      `UPDATE requisiciones SET status = 'ENTREGADA', actualizado_en = NOW() WHERE id = $1`,
+      [requisicionId]
+    );
+
+    // 4. Insertar el registro final en la bitácora
+    const descripcionFinal = `Cierre de OC ${oc.numero_oc}. ${comentario_cierre || ''}`;
+    await client.query(
+      `INSERT INTO unidades_historial 
+       (unidad_id, fecha, kilometraje, evento_tipo_id, descripcion, costo_total, numeros_serie, usuario_id, orden_compra_id)
+       VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        unidadId, // <<< ¡CORREGIDO! Usamos el ID de la unidad real
+        kmNum,
+        eventoTipoId,
+        descripcionFinal,
+        oc.total, 
+        numeros_serie || null,
+        usuarioId,
+        ordenCompraId
+      ]
+    );
+
+    // 5. Actualizar el KM maestro en la tabla de unidades
+    await client.query('UPDATE unidades SET km = $1 WHERE id = $2', [kmNum, unidadId]); // <-- ¡CORREGIDO!
+    
+    await client.query('COMMIT');
+    res.status(200).json({ mensaje: `Servicio para OC ${oc.numero_oc} cerrado y registrado en bitácora.` });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(`Error al cerrar OC vehicular ${ordenCompraId}:`, error);
+    res.status(500).json({ error: error.message || 'Error interno del servidor.' });
+  } finally {
+    client.release();
+  }
+};
+
+// ... (asegúrate de que el module.exports sigue incluyendo cerrarOcVehicular)
 module.exports = {
   getOcsAprobadas,
   procesarOcParaRecoleccion,
@@ -286,4 +430,5 @@ module.exports = {
   getRecoleccionKpis,
   getOcsEnProceso,
   getDatosParaFiltros,
+  cerrarOcVehicular,
 };

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef } from 'react';
 import { NavLink } from "react-router-dom";
-import { useAuth } from "../../context/authContext";
+import { useAuth } from "../../context/authContext"; // <-- La ruta de importación ya es correcta
 import clsx from "clsx";
 
 // Importa todos los íconos que definiste en la base de datos
@@ -19,13 +19,28 @@ import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
 import AddBusinessOutlinedIcon from '@mui/icons-material/AddBusinessOutlined';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
-import Warehouse from '@mui/icons-material/Warehouse'; // Ícono agregado
-import HelpOutline from '@mui/icons-material/HelpOutline'; // ¡NUEVO!
+import Warehouse from '@mui/icons-material/Warehouse';
+import HelpOutline from '@mui/icons-material/HelpOutline'; 
+import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
+import HowToRegIcon from '@mui/icons-material/HowToReg';
+import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
+
+// Nuevos Iconos importados aquí si es necesario
+import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder'; //Icono Para Nuevo Proyecto
+import LocationOnIcon from '@mui/icons-material/LocationOn'; //Icono Para Sitios
+import CarCrashIcon from '@mui/icons-material/CarCrash'; // Icono Para Unidades de Transporte
+import FingerprintIcon from '@mui/icons-material/Fingerprint'; // Icono Para Control de Acceso
+import TrolleyIcon from '@mui/icons-material/Trolley'; // Icono Para Ingresar Oc almacén
+import ForkliftIcon from '@mui/icons-material/Forklift'; // Icono Para Salidas OC almacén
+import LocalShippingIcon from '@mui/icons-material/LocalShipping'; // Icono Para Recolección de Materiales
+
 
 // Mapa de íconos: Convierte el string de la BD al componente de React.
+// Aqui es donde se hace el mapeo de los iconos para manejarlos desde la base de datos
+// Para cambiarlo en la base de datos, en la columna 'icono', coloca el nombre ejemplo: 'DashboardIcon'
 const iconMap = {
-  DashboardIcon: <DashboardIcon sx={{ fontSize: 20 }} />,
-  DescriptionIcon: <DescriptionIcon sx={{ fontSize: 20 }} />,
+  DashboardIcon: <DashboardIcon sx={{ fontSize: 20 }} />, // Icono Dashboard
+  DescriptionIcon: <DescriptionIcon sx={{ fontSize: 20 }} />, 
   CheckCircleOutlineIcon: <CheckCircleOutlineIcon sx={{ fontSize: 20 }} />,
   ShoppingCartIcon: <ShoppingCartIcon sx={{ fontSize: 20 }} />,
   PlaylistAddCheckIcon: <PlaylistAddCheckIcon sx={{ fontSize: 20 }} />,
@@ -37,16 +52,31 @@ const iconMap = {
   AddBusinessOutlinedIcon: <AddBusinessOutlinedIcon sx={{ fontSize: 20 }} />,
   FactCheckOutlinedIcon: <FactCheckOutlinedIcon sx={{ fontSize: 20 }} />,
   AdminPanelSettingsIcon: <AdminPanelSettingsIcon sx={{ fontSize: 20 }} />,
-  Warehouse: <Warehouse sx={{ fontSize: 20 }} />, // Ícono agregado
+  Warehouse: <Warehouse sx={{ fontSize: 20 }} />, 
   HelpOutline: <HelpOutline sx={{ fontSize: 20, color: '#fdd835' }} />, 
+  DirectionsCarIcon: <DirectionsCarIcon sx={{ fontSize: 20 }} />,
+  HowToRegIcon: <HowToRegIcon sx={{fontSize: 20}} />,
+  AssignmentIndIcon: <AssignmentIndIcon sx={{fontSize:20}} />
+  // Nuevos iconos mapeados aquí si es necesario
+  ,CreateNewFolderIcon: <CreateNewFolderIcon sx={{ fontSize: 20 }} />, // Icono Para Nuevo Proyecto
+  LocationOnIcon: <LocationOnIcon sx={{ fontSize: 20 }} />, // Icono Para Sitios
+  CarCrashIcon: <CarCrashIcon sx={{ fontSize: 20 }} />, // Icono Para Unidades de Transporte
+  FingerprintIcon: <FingerprintIcon sx={{ fontSize: 20 }} />, // Icono Para Control de Acceso
+  TrolleyIcon: <TrolleyIcon sx={{ fontSize: 20 }} />, // Icono Para Ingresar Oc almacén
+  ForkliftIcon: <ForkliftIcon sx={{ fontSize: 20 }} />, // Icono Para Salidas OC almacén
+  LocalShippingIcon: <LocalShippingIcon sx={{ fontSize: 20 }} /> // Icono Para Recolección de Materiales
 };
 
 export default function Sidebar({ isOpen, toggleSidebar }) {
-  // 'funcionesPermitidas' ahora es un array de objetos completos.
-  const { funcionesPermitidas } = useAuth();
+  // ===============================================
+  // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+  // Obtenemos el objeto 'usuario' COMPLETO, que contiene la lista de OBJETOS de funciones.
+  // 'funcionesPermitidas' (la lista de strings) ya no se usa aquí.
+  // ===============================================
+  const { usuario } = useAuth();
   const timerRef = useRef(null);
 
-  // Lógica del temporizador para cerrar el sidebar (sin cambios)
+  // ... (Lógica del temporizador sin cambios) ...
   const startTimer = () => {
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
@@ -59,31 +89,39 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
     if (isOpen) startTimer(); else stopTimer();
     return () => clearTimeout(timerRef.current);
   }, [isOpen, toggleSidebar]);
+  // ===============================================
 
-  // Agrupamos dinámicamente las funciones por 'módulo' usando useMemo para optimizar.
+
+  // Agrupamos dinámicamente las funciones por 'módulo'
   const menuGroups = useMemo(() => {
-    if (!funcionesPermitidas || funcionesPermitidas.length === 0) {
+    // ===============================================
+    // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+    // Usamos 'usuario.funciones' (la lista de OBJETOS) 
+    // en lugar de 'funcionesPermitidas' (la lista de STRINGS)
+    // ===============================================
+    const funciones = usuario?.funciones || [];
+    if (funciones.length === 0) {
       return {};
     }
-    return funcionesPermitidas.reduce((acc, func) => {
-      const { modulo = 'General' } = func; // Módulo por defecto si alguno no lo tuviera
+    return funciones.reduce((acc, func) => {
+      const { modulo = 'General' } = func; 
       if (!acc[modulo]) {
         acc[modulo] = [];
       }
       acc[modulo].push(func);
       return acc;
     }, {});
-  }, [funcionesPermitidas]);
+  }, [usuario]); // <-- Ahora depende de 'usuario'
 
   const handleLinkClick = () => {
     if (isOpen) toggleSidebar();
   };
 
+  // ... (Estilos y renderLink sin cambios) ...
   const linkBaseStyle = "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors duration-200";
   const linkInactiveStyle = "text-gray-300 hover:bg-gray-700 hover:text-white";
   const linkActiveStyle = "bg-indigo-600 text-white font-semibold shadow-inner";
 
-  // Función reutilizable para renderizar un enlace
   const renderLink = (item) => (
     <NavLink
       key={item.codigo}
@@ -93,13 +131,12 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
         clsx(linkBaseStyle, isActive ? linkActiveStyle : linkInactiveStyle)
       }
     >
-      {/* Usamos el mapa para obtener el componente del ícono. Ponemos un fallback por si acaso. */}
       {iconMap[item.icono] || <DashboardIcon sx={{ fontSize: 20 }} />}
       <span>{item.nombre}</span>
     </NavLink>
   );
 
-  // Separamos los módulos para renderizarlos en el orden deseado
+  // ... (Separación de módulos sin cambios) ...
   const dashboardItems = menuGroups['Dashboard'] || [];
   const configItems = menuGroups['Configuracion'] || [];
   
@@ -120,10 +157,9 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
       
       <nav className="p-4 space-y-2 overflow-y-auto" style={{ height: 'calc(100vh - 4rem)' }}>
         
-        {/* Sección 1: Dashboard (siempre al principio) */}
+        {/* ... (Renderizado de secciones sin cambios) ... */}
         {dashboardItems.map(renderLink)}
 
-        {/* Sección 2: Módulos de Procesos (generados dinámicamente) */}
         {processModules.map((modulo) => (
           <div key={modulo} className="pt-4">
             <h3 className="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
@@ -135,7 +171,6 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
           </div>
         ))}
 
-        {/* Sección 3: Módulo de Configuración (siempre al final) */}
         {configItems.length > 0 && (
           <div className="pt-4">
             <h3 className="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">

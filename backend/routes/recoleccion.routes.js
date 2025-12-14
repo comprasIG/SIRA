@@ -32,4 +32,10 @@ router.post(
   recoleccionController.procesarOcParaRecoleccion
 );
 
+// Ruta para cerrar una OC Vehicular
+router.post(
+  '/ocs/:id/cerrar-vehicular',
+  recoleccionController.cerrarOcVehicular
+);
+
 module.exports = router;
