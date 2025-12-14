@@ -7,6 +7,8 @@ const router = express.Router();
 const verifyFirebaseToken = require("../middleware/verifyFirebaseToken");
 const loadSiraUser = require("../middleware/loadSiraUser");
 const dashboardController = require("../controllers/dashboard.controller");
+// Importar el controlador específico para obtener detalles de OC
+const ordenCompraDashboardController = require("../controllers/dashboard/ordenCompraDashboard.controller");
 
 router.use(verifyFirebaseToken, loadSiraUser);
 
@@ -18,5 +20,8 @@ router.get("/departamentos", dashboardController.getDepartamentosConRfq);
 
 // NUEVO: Endpoints para enums dinámicos
 router.get("/status-options", dashboardController.getStatusOptions);
+
+// NUEVO: EndPoint para obtener detalle de una Orden de Compra por su número
+router.get("/oc/:numero_oc", ordenCompraDashboardController.getOrdenCompraDetalle);
 
 module.exports = router;
