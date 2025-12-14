@@ -12,10 +12,19 @@ router.get('/', controller.getDashboardData);
 // Obtener lista simple de clientes para selects
 router.get('/clientes-list', controller.getClientesList);
 
+// Totales de OC por sitio (agrupados por moneda)
+router.get('/oc-totales-por-sitio', controller.getOCTotalesPorSitio);
+
+// Proyectos por sitio
+router.get('/:sitioId/proyectos', controller.getProyectosPorSitio);
+
+
 // Crear sitio
 router.post('/', controller.createSitio);
 
 // Crear cliente
 router.post('/cliente', controller.createCliente);
+
+
 
 module.exports = router;
