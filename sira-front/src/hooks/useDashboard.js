@@ -1,3 +1,20 @@
+// C:\SIRA\sira-front\src\hooks\useDashboard.js
+/**
+ * ============================================================================
+ * Hook: useDashboard(mode)
+ * ----------------------------------------------------------------------------
+ * Encapsula toda la lógica del dashboard:
+ *  - Carga de data base desde endpoint (según dashboardConfig[mode].endpoint)
+ *  - Carga de enums/status-options + departamentos (solo si aplica)
+ *  - Filtros facetados en frontend (sitio/proyecto/status)
+ *  - KPIs
+ *
+ * Nota importante (2025-12):
+ *  - AuthContext expone "usuario", no "user".
+ *    Este archivo antes intentaba leer "user" y siempre quedaba undefined.
+ * ============================================================================
+ */
+
 import { useState, useEffect, useCallback, useMemo, useContext } from 'react';
 import dashboardConfig from '../components/dashboard/dashboardConfig';
 import { AuthContext } from '../context/authContext';
@@ -31,7 +48,7 @@ function isActiveStatus(value) {
 function filterRfqs(rfqs, filters, excludeKey = null) {
   let out = Array.isArray(rfqs) ? rfqs : [];
 
-  // Departamento (si viene en el payload) lo filtra backend normalmente; aquí solo por seguridad.
+  // Departamento (solo aplica a Compras normalmente; si viene en payload, filtramos por seguridad)
   if (excludeKey !== 'departamento_id' && filters.departamento_id) {
     out = out.filter((r) => String(r.departamento_id || '') === String(filters.departamento_id));
   }
@@ -88,7 +105,9 @@ function computeKpis(rfqs) {
 }
 
 export function useDashboard(mode) {
-  const { user } = useContext(AuthContext) || {};
+  // ✅ FIX: en AuthContext la propiedad se llama "usuario"
+  const { usuario } = useContext(AuthContext) || {};
+
   const config = dashboardConfig[mode] || {};
 
   // Base data (sin filtros facetados de UI; solo lo mínimo)
@@ -100,9 +119,9 @@ export function useDashboard(mode) {
 
   // Opciones (facetadas)
   const [options, setOptions] = useState({
-    rfqStatus: [],     // incluye 'ACTIVOS' + enums presentes
-    ocStatus: [],      // incluye '' + 'ACTIVOS' + enums presentes
-    departamentos: [], // desde endpoint (si aplica)
+    rfqStatus: [],
+    ocStatus: [],
+    departamentos: [],
     sitios: [],
     proyectos: [],
   });
@@ -135,8 +154,6 @@ export function useDashboard(mode) {
         setOptions((prev) => ({
           ...prev,
           departamentos: Array.isArray(deptoRes) ? deptoRes : [],
-          // rfqStatus/ocStatus los haremos facetados más abajo con base a data,
-          // pero guardamos estos enums como referencia si los necesitas luego.
           _rfqEnum: statusRes?.rfqStatus || [],
           _ocEnum: statusRes?.ocStatus || [],
         }));
@@ -153,17 +170,32 @@ export function useDashboard(mode) {
     };
   }, [config.showDepartmentFilter]);
 
-  // 2) Cargar data base del dashboard.
-  // Importante: aquí NO aplicamos rfq_status/oc_status/sitio/proyecto para poder facetar en front.
-  // Solo filtramos por departamento si el usuario lo selecciona (para reducir dataset).
-  const loadBaseData = useCallback(async (departamentoId) => {
+  /**
+   * 2) Cargar dataset base del dashboard.
+   * - Compras (SSD): permite filtrar por departamento_id (dropdown)
+   * - Departamentales: backend filtra por el departamento del usuario, no hace falta parámetro
+   */
+ const loadBaseData = useCallback(
+  async (departamentoIdFromFilter) => {
     setLoadingBase(true);
     setError(null);
+
     try {
       const params = new URLSearchParams();
-      if (departamentoId) params.append('departamento_id', departamentoId);
 
       const endpoint = config.endpoint || '/api/dashboard/compras';
+
+      // ✅ Caso 1: SSD (Compras): usa filtro departamento_id (si aplica)
+      if (config.showDepartmentFilter && departamentoIdFromFilter) {
+        params.append('departamento_id', departamentoIdFromFilter);
+      }
+
+      // ✅ Caso 2: NO-SSD: manda SIEMPRE el departamento_id del usuario como fallback
+      // (sin romper SSD y sin tocar middlewares)
+      if (!config.showDepartmentFilter && usuario?.departamento_id) {
+        params.append('departamento_id', String(usuario.departamento_id));
+      }
+
       const url = params.toString() ? `${endpoint}?${params.toString()}` : endpoint;
 
       const data = await api.get(url);
@@ -175,9 +207,11 @@ export function useDashboard(mode) {
     } finally {
       setLoadingBase(false);
     }
-  }, [config.endpoint]);
+  },
+  [config.endpoint, config.showDepartmentFilter, usuario?.departamento_id]
+);
 
-  // carga inicial
+  // carga inicial (cuando cambia el dashboard)
   useEffect(() => {
     loadBaseData(filters.departamento_id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -188,24 +222,16 @@ export function useDashboard(mode) {
     loadBaseData(filters.departamento_id);
   }, [filters.departamento_id, loadBaseData]);
 
-  // 3) Filtros facetados vivos:
-  // Cada vez que cambia cualquier filtro (excepto depto que ya recarga),
-  // recalculamos:
-  // - rfqs filtrados
-  // - KPIs
-  // - opciones disponibles para cada dropdown (facets)
+  // 3) Facets / filtros vivos
   const facets = useMemo(() => {
-    // Para calcular opciones de cada facet, filtramos por “otros filtros” (excludeKey)
     const dataForRfqStatus = filterRfqs(baseRfqs, filters, 'rfq_status');
     const dataForOcStatus = filterRfqs(baseRfqs, filters, 'oc_status');
-    const dataForSitio     = filterRfqs(baseRfqs, filters, 'sitio');
-    const dataForProyecto  = filterRfqs(baseRfqs, filters, 'proyecto');
+    const dataForSitio = filterRfqs(baseRfqs, filters, 'sitio');
+    const dataForProyecto = filterRfqs(baseRfqs, filters, 'proyecto');
 
-    // RFQ statuses presentes (más ACTIVOS)
     const rfqStatusPresent = uniqSorted((dataForRfqStatus || []).map((r) => r.rfq_status));
     const rfqStatusOptions = ['ACTIVOS', ...rfqStatusPresent];
 
-    // OC statuses presentes (más ''/ACTIVOS)
     const ocStatusSet = [];
     (dataForOcStatus || []).forEach((r) => {
       (r.ordenes || []).forEach((oc) => {
@@ -215,10 +241,7 @@ export function useDashboard(mode) {
     const ocStatusPresent = uniqSorted(ocStatusSet);
     const ocStatusOptions = ['', 'ACTIVOS', ...ocStatusPresent];
 
-    // Sitios presentes
     const sitiosOptions = [''].concat(uniqSorted((dataForSitio || []).map((r) => r.sitio)));
-
-    // Proyectos presentes (dependen de sitio seleccionado porque proyecto facet se calcula excluyendo 'proyecto')
     const proyectosOptions = [''].concat(uniqSorted((dataForProyecto || []).map((r) => r.proyecto)));
 
     return {
@@ -229,7 +252,7 @@ export function useDashboard(mode) {
     };
   }, [baseRfqs, filters]);
 
-  // Auto-limpiar filtros que se vuelven inválidos
+  // Auto-limpiar filtros inválidos
   useEffect(() => {
     setFilters((prev) => {
       let next = { ...prev };
@@ -239,17 +262,14 @@ export function useDashboard(mode) {
         next.rfq_status = 'ACTIVOS';
         changed = true;
       }
-
       if (next.oc_status && !facets.ocStatusOptions.includes(next.oc_status)) {
         next.oc_status = '';
         changed = true;
       }
-
       if (next.sitio && !facets.sitiosOptions.includes(next.sitio)) {
         next.sitio = '';
         changed = true;
       }
-
       if (next.proyecto && !facets.proyectosOptions.includes(next.proyecto)) {
         next.proyecto = '';
         changed = true;
@@ -259,13 +279,12 @@ export function useDashboard(mode) {
     });
   }, [facets]);
 
-  // Aplicar filtros finales (con todos)
+  // Aplicar filtros finales + KPIs + options UI
   useEffect(() => {
     const filtered = filterRfqs(baseRfqs, filters, null);
     setRfqs(filtered);
     setKpis(computeKpis(filtered));
 
-    // Publicar options a UI
     setOptions((prev) => ({
       ...prev,
       rfqStatus: facets.rfqStatusOptions,
@@ -275,11 +294,10 @@ export function useDashboard(mode) {
     }));
   }, [baseRfqs, filters, facets]);
 
-  const loading = loadingBase;
-
   return {
-    user,
-    loading,
+    // ✅ devolvemos "usuario" por claridad (si lo ocupas en UI futura)
+    usuario,
+    loading: loadingBase,
     error,
     kpis,
     rfqs,

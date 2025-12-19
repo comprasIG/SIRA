@@ -1,6 +1,21 @@
-// Configuración por departamento para los dashboards.
-// Cada clave corresponde al código del departamento (por ejemplo, SSD para Compras).
-// Define el título, el endpoint a consultar y si se muestra el filtro de departamentos.
+// C:\SIRA\sira-front\src\components\dashboard\dashboardConfig.js
+/**
+ * ============================================================================
+ * Configuración por departamento para los dashboards.
+ * ----------------------------------------------------------------------------
+ * Regla:
+ *  - SSD (Compras) usa endpoint dedicado: /api/dashboard/compras
+ *  - Todos los demás departamentos usan endpoint único: /api/dashboard/departamento
+ *    (filtra por el departamento del usuario autenticado en el backend)
+ *
+ * Ventajas:
+ *  - Evita endpoints /api/dashboard/produccion, /ventas, etc. (404)
+ *  - Mantiene el patrón de DashboardBase + useDashboard(mode)
+ *  - No requiere cambios en BD (códigos con guion no importan aquí)
+ * ============================================================================
+ */
+
+const DEPARTAMENTO_ENDPOINT = '/api/dashboard/departamento';
 
 const dashboardConfig = {
   SSD: {
@@ -8,56 +23,21 @@ const dashboardConfig = {
     endpoint: '/api/dashboard/compras',
     showDepartmentFilter: true,
   },
-  FIN: {
-    title: 'Dashboard de Finanzas',
-    endpoint: '/api/dashboard/finanzas',
-    showDepartmentFilter: false,
-  },
-  ALM: {
-    title: 'Dashboard de Almacén',
-    endpoint: '/api/dashboard/almacen',
-    showDepartmentFilter: false,
-  },
-  ING: {
-    title: 'Dashboard de Ingreso',
-    endpoint: '/api/dashboard/ingreso',
-    showDepartmentFilter: false,
-  },
-  SH: {
-    title: 'Dashboard de Seguridad e Higiene',
-    endpoint: '/api/dashboard/seguridad',
-    showDepartmentFilter: false,
-  },
-  MKT: {
-    title: 'Dashboard de Marketing',
-    endpoint: '/api/dashboard/marketing',
-    showDepartmentFilter: false,
-  },
-  RH: {
-    title: 'Dashboard de Recursos Humanos',
-    endpoint: '/api/dashboard/recursos-humanos',
-    showDepartmentFilter: false,
-  },
-  VTA: {
-    title: 'Dashboard de Ventas',
-    endpoint: '/api/dashboard/ventas',
-    showDepartmentFilter: false,
-  },
-  PROD: {
-    title: 'Dashboard de Producción',
-    endpoint: '/api/dashboard/produccion',
-    showDepartmentFilter: false,
-  },
-  DIR: {
-    title: 'Dashboard Dirección',
-    endpoint: '/api/dashboard/direccion',
-    showDepartmentFilter: false,
-  },
-  TI: {
-    title: 'Dashboard de TI',
-    endpoint: '/api/dashboard/ti',
-    showDepartmentFilter: false,
-  },
+
+  // Todos los dashboards departamentales comparten el mismo endpoint
+  FIN: { title: 'Dashboard de Finanzas', endpoint: DEPARTAMENTO_ENDPOINT, showDepartmentFilter: false },
+  ALM: { title: 'Dashboard de Almacén', endpoint: DEPARTAMENTO_ENDPOINT, showDepartmentFilter: false },
+  ING: { title: 'Dashboard de Ingreso', endpoint: DEPARTAMENTO_ENDPOINT, showDepartmentFilter: false },
+  MKT: { title: 'Dashboard de Marketing', endpoint: DEPARTAMENTO_ENDPOINT, showDepartmentFilter: false },
+  RH:  { title: 'Dashboard de Recursos Humanos', endpoint: DEPARTAMENTO_ENDPOINT, showDepartmentFilter: false },
+  VTA: { title: 'Dashboard de Ventas', endpoint: DEPARTAMENTO_ENDPOINT, showDepartmentFilter: false },
+  PROD:{ title: 'Dashboard de Producción', endpoint: DEPARTAMENTO_ENDPOINT, showDepartmentFilter: false },
+  DIR: { title: 'Dashboard Dirección', endpoint: DEPARTAMENTO_ENDPOINT, showDepartmentFilter: false },
+  TI:  { title: 'Dashboard de TI', endpoint: DEPARTAMENTO_ENDPOINT, showDepartmentFilter: false },
+
+  // Nota: Si en el futuro agregas DEI (o S-H), solo añade la clave aquí:
+  // DEI: { title: 'Dashboard DEI', endpoint: DEPARTAMENTO_ENDPOINT, showDepartmentFilter: false },
+  // SH:  { title: 'Dashboard Seguridad e Higiene', endpoint: DEPARTAMENTO_ENDPOINT, showDepartmentFilter: false },
 };
 
 export default dashboardConfig;
