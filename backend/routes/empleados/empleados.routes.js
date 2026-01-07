@@ -13,4 +13,8 @@ if (!empleadoController) {
 router.get('/', empleadoController.obtenerEmpleados); // Asegúrate que la función se llame así 
 // Asegúrate de que la función 'obtenerEmpleados' exista en tu controlador
 
+router.post('/', empleadoController.crearEmpleado); // Ruta para crear un nuevo empleado
+router.put('/:id', empleadoController.actualizarEmpleado); // Ruta para actualizar un empleado existente
+router.delete('/:id', empleadoController.eliminarEmpleado); // Ruta para eliminar un empleado
+
 module.exports = router;
