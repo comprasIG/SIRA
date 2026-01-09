@@ -1547,73 +1547,98 @@ const reversarMovimiento = async (req, res) => {
           observacionesExtra: `Reversa de ENTRADA: se retiró de asignado (sitio=${ocSitioId}).`,
         });
       }
-    } else if (tipo === "SALIDA") {
-      /**
-       * SALIDA: en tu operación, normalmente sale de asignado (inventario_asignado + inventario_actual.asignado).
-       * Reversa: regresa a asignado.
-       * Para sitio:
-       * - Intentamos requisicion.sitio_id, si existe
-       * - Si no, usamos proyectos.sitio_id
+    } else if (tipo === "SALIDA") {     
+       /**
+       * SALIDA puede venir de:
+       * - STOCK (proyecto_origen_id NULL)  => revertir sumando a stock_actual
+       * - ASIGNADO (proyecto_origen_id NOT NULL) => revertir sumando a asignado + inventario_asignado
+       *
+       * Regla del negocio: "la reversa debe devolver al lugar de donde salió".
        */
-      const proyectoDestino = mov.proyecto_destino_id;
-      if (!proyectoDestino) {
-        throw new Error("SALIDA sin proyecto_destino_id. No se puede reversar automáticamente.");
-      }
 
-      let sitioDestino = null;
+      const proyectoOrigen = mov.proyecto_origen_id;   // <- clave para saber de dónde salió
+      const proyectoDestino = mov.proyecto_destino_id; // destino real (auditoría)
 
-      if (mov.requisicion_id) {
-        // Si tu tabla requisiciones tiene sitio_id, úsalo; si no existe, la query fallará y caerá al catch.
-        try {
-          const rRes = await client.query(`SELECT sitio_id FROM public.requisiciones WHERE id = $1 LIMIT 1`, [
-            mov.requisicion_id,
-          ]);
-          sitioDestino = rRes.rows[0]?.sitio_id ?? null;
-        } catch (_e) {
-          // Ignorar si la columna no existe; usamos proyecto.sitio_id
+      // Caso A) Salida desde STOCK
+      if (!proyectoOrigen) {
+        // Reversa: regresa a STOCK en la MISMA ubicación física del movimiento
+        await client.query(
+          `
+          UPDATE public.inventario_actual
+             SET stock_actual = stock_actual + $1,
+                 actualizado_en = NOW()
+           WHERE id = $2
+          `,
+          [cantidad, inv.id]
+        );
+
+        await insertReversaAudit({
+          tipo_movimiento: "SALIDA",
+          proyecto_origen_id: null,
+          proyecto_destino_id: proyectoDestino ?? null,
+          observacionesExtra: "Reversa de SALIDA desde STOCK: regresa a stock_actual.",
+        });
+
+      } else {
+        // Caso B) Salida desde ASIGNADO
+        // Reversa: regresa a ASIGNADO bajo el proyecto_origen_id
+        // Sitio: intentamos requisicion.sitio_id (si existe), si no proyectos.sitio_id del proyectoOrigen
+        let sitioOrigen = null;
+
+        if (mov.requisicion_id) {
+          try {
+            const rRes = await client.query(
+              `SELECT sitio_id FROM public.requisiciones WHERE id = $1 LIMIT 1`,
+              [mov.requisicion_id]
+            );
+            sitioOrigen = rRes.rows[0]?.sitio_id ?? null;
+          } catch (_e) {
+            // Si requisiciones no tiene sitio_id, usamos proyecto.sitio_id
+          }
         }
-      }
 
-      if (!sitioDestino) {
-        const pRes = await client.query(`SELECT sitio_id FROM public.proyectos WHERE id = $1 LIMIT 1`, [
-          proyectoDestino,
-        ]);
-        sitioDestino = pRes.rows[0]?.sitio_id ?? null;
-      }
+        if (!sitioOrigen) {
+          const pRes = await client.query(
+            `SELECT sitio_id FROM public.proyectos WHERE id = $1 LIMIT 1`,
+            [proyectoOrigen]
+          );
+          sitioOrigen = pRes.rows[0]?.sitio_id ?? null;
+        }
 
-      if (!sitioDestino) {
-        throw new Error("No se pudo resolver sitio destino para reversa de SALIDA.");
-      }
+        if (!sitioOrigen) {
+          throw new Error("No se pudo resolver sitio para reversa de SALIDA desde ASIGNADO.");
+        }
 
-      // Reversa SALIDA: sumamos a asignado + inventario_asignado
-      await client.query(
-        `
-        UPDATE public.inventario_actual
-           SET asignado = asignado + $1,
-               actualizado_en = NOW()
-         WHERE id = $2
-        `,
-        [cantidad, inv.id]
-      );
+        // Sumar a inventario_actual.asignado
+        await client.query(
+          `
+          UPDATE public.inventario_actual
+             SET asignado = asignado + $1,
+                 actualizado_en = NOW()
+           WHERE id = $2
+          `,
+          [cantidad, inv.id]
+        );
 
-      await upsertInventarioAsignado({
-        client,
-        inventarioId: inv.id,
-        proyectoId: proyectoDestino,
-        sitioId: sitioDestino,
-        requisicionId: mov.requisicion_id ?? null,
-        cantidad,
-        valorUnitario: mov.valor_unitario,
-        moneda: mov.moneda,
-      });
+        // Sumar a inventario_asignado (regresa al proyecto ORIGEN)
+        await upsertInventarioAsignado({
+          client,
+          inventarioId: inv.id,
+          proyectoId: proyectoOrigen,
+          sitioId: sitioOrigen,
+          requisicionId: mov.requisicion_id ?? null,
+          cantidad,
+          valorUnitario: mov.valor_unitario,
+          moneda: mov.moneda,
+        });
 
-      await insertReversaAudit({
-        tipo_movimiento: "SALIDA",
-        proyecto_origen_id: null,
-        proyecto_destino_id: proyectoDestino,
-        observacionesExtra: `Reversa de SALIDA: regresa a asignado (sitio=${sitioDestino}).`,
-      });
-    } else {
+        await insertReversaAudit({
+          tipo_movimiento: "SALIDA",
+          proyecto_origen_id: proyectoOrigen,
+          proyecto_destino_id: proyectoDestino ?? null,
+          observacionesExtra: `Reversa de SALIDA desde ASIGNADO: regresa a asignado (sitio=${sitioOrigen}).`,
+        });}
+      } else {
       throw new Error(`Tipo de movimiento no soportado para reversa: ${tipo}`);
     }
 
