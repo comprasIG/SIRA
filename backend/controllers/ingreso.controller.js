@@ -85,13 +85,13 @@ const getDatosIniciales = async (req, res) => {
         const departamentosQuery = `SELECT DISTINCT d.id, d.nombre FROM departamentos d JOIN requisiciones r ON d.id = r.departamento_id JOIN ordenes_compra oc ON r.id = oc.rfq_id WHERE oc.status = 'EN_PROCESO' ORDER BY d.nombre ASC`;
         const ubicacionesQuery = `SELECT id, codigo, nombre FROM ubicaciones_almacen ORDER BY nombre ASC`;
         const incidenciasQuery = `SELECT id, codigo, descripcion, activo FROM catalogo_incidencias_recepcion ORDER BY descripcion ASC`;
-        
+
         const [kpiRes, proveedoresRes, sitiosRes, proyectosRes, departamentosRes, ubicacionesRes, incidenciasRes] = await Promise.all([
             pool.query(kpiQuery), pool.query(proveedoresQuery), pool.query(sitiosQuery),
             pool.query(proyectosQuery), pool.query(departamentosQuery), pool.query(ubicacionesQuery),
             pool.query(incidenciasQuery),
         ]);
-        
+
         res.json({
             kpis: kpiRes.rows[0] || {},
             filterOptions: {
@@ -177,18 +177,18 @@ const registrarIngreso = async (req, res) => {
 
             let updatedDetail;
             if (cantidadNum > 0 || (incidencia && incidencia.tipo_id)) {
-                 const updateDetailQuery = `
+                const updateDetailQuery = `
                     UPDATE ordenes_compra_detalle SET cantidad_recibida = cantidad_recibida + $1
                     WHERE id = $2 AND orden_compra_id = $3
                     RETURNING id, cantidad, cantidad_recibida, requisicion_detalle_id, precio_unitario, moneda; -- <<< AÑADIDO: Devolver moneda
                  `;
-                 const detailRes = await client.query(updateDetailQuery, [cantidadNum, detalle_id, orden_compra_id]);
-                 if(detailRes.rowCount === 0) throw new Error(`Detalle ID ${detalle_id} no encontrado o no pertenece a OC ${orden_compra_id}.`);
-                 updatedDetail = detailRes.rows[0];
+                const detailRes = await client.query(updateDetailQuery, [cantidadNum, detalle_id, orden_compra_id]);
+                if (detailRes.rowCount === 0) throw new Error(`Detalle ID ${detalle_id} no encontrado o no pertenece a OC ${orden_compra_id}.`);
+                updatedDetail = detailRes.rows[0];
 
-                 if(updatedDetail.cantidad_recibida < updatedDetail.cantidad) {
+                if (updatedDetail.cantidad_recibida < updatedDetail.cantidad) {
                     hasAnyPartial = true;
-                 }
+                }
             }
 
             if (incidencia && incidencia.tipo_id && incidencia.descripcion) {
@@ -223,6 +223,26 @@ const registrarIngreso = async (req, res) => {
                     await client.query(stockUpdateQuery, [material_id, targetUbicacionId, cantidadNum, precioUnitarioNum, moneda]);
                     // --- FIN SECCIÓN MODIFICADA (STOCK) ---
 
+                    // ✅ Kardex: registrar ENTRADA por OC (STOCK)
+                    await client.query(
+                        `INSERT INTO movimientos_inventario
+     (material_id, tipo_movimiento, cantidad, usuario_id, ubicacion_id,
+      proyecto_destino_id, orden_compra_id, valor_unitario, moneda, observaciones)
+   VALUES
+     ($1, 'ENTRADA', $2, $3, $4, $5, $6, $7, $8, $9)`,
+                        [
+                            material_id,
+                            cantidadNum,
+                            usuarioId,
+                            targetUbicacionId,      // ubicación de almacén seleccionada
+                            ocInfo.proyecto_id,     // proyecto de la OC (STOCK ALMACEN)
+                            orden_compra_id,
+                            precioUnitarioNum,
+                            moneda,
+                            `Ingreso por OC (STOCK) - DetalleOC:${detalle_id}`
+                        ]
+                    );
+
                 } else {
                     // --- SECCIÓN MODIFICADA (ASIGNADO) ---
                     targetUbicacionId = ocSitioId;
@@ -255,8 +275,29 @@ const registrarIngreso = async (req, res) => {
                     `;
                     await client.query(assignedInsertQuery, [inventarioId, requisicion_principal_id, ocInfo.proyecto_id, ocSitioId, cantidadNum, precio_unitario, monedaDetalle]);
                     // --- FIN SECCIÓN MODIFICADA (ASIGNADO) ---
+                    // ✅ Kardex: registrar ENTRADA por OC (ASIGNADO)
+                    await client.query(
+                        `INSERT INTO movimientos_inventario
+     (material_id, tipo_movimiento, cantidad, usuario_id, ubicacion_id,
+      proyecto_destino_id, orden_compra_id, requisicion_id, valor_unitario, moneda, observaciones)
+   VALUES
+     ($1, 'ENTRADA', $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+                        [
+                            material_id,
+                            cantidadNum,
+                            usuarioId,
+                            targetUbicacionId,        // en tu flujo actual esto es ocSitioId
+                            ocInfo.proyecto_id,       // proyecto destino (el de la OC)
+                            orden_compra_id,
+                            requisicion_principal_id, // requisición principal (para trazabilidad)
+                            precio_unitario,
+                            monedaDetalle,
+                            `Ingreso por OC (ASIGNADO) - DetalleOC:${detalle_id}`
+                        ]
+                    );
+
                 }
-                 ingresoDetalles.push({ detalle_id, material_id, cantidad: cantidadNum, isStock: isStockProject, ubicacion: targetUbicacionId });
+                ingresoDetalles.push({ detalle_id, material_id, cantidad: cantidadNum, isStock: isStockProject, ubicacion: targetUbicacionId });
             }
         } // End item loop
 
@@ -279,7 +320,7 @@ const registrarIngreso = async (req, res) => {
         await client.query(
             `INSERT INTO ordenes_compra_historial (orden_compra_id, usuario_id, accion_realizada, detalles)
              VALUES ($1, $2, 'REGISTRO_INGRESO', $3)`,
-            [orden_compra_id, usuarioId, JSON.stringify({ itemsProcesados: ingresoDetalles, ubicacionStock: isStockProject ? ubicacion_id : null})]
+            [orden_compra_id, usuarioId, JSON.stringify({ itemsProcesados: ingresoDetalles, ubicacionStock: isStockProject ? ubicacion_id : null })]
         );
 
         await client.query('COMMIT');

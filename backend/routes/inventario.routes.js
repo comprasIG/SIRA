@@ -20,6 +20,15 @@ router.get('/', inventarioController.getInventarioActual);
 // GET detalle de asignaciones para un material específico (acción 'i')
 router.get('/material/:materialId/asignaciones', inventarioController.getDetalleAsignacionesMaterial);
 
+// GET kardex de movimientos para un material específico
+router.get('/kardex', inventarioController.getKardex);
+
+// POST para reversar un movimiento de inventario
+router.post('/movimientos/:id/reversar', inventarioController.reversarMovimiento);
+
+// POST para ajustar inventario (entradas/salidas)
+router.post('/ajustes', inventarioController.ajustarInventario);
+
 // POST para apartar stock general a un proyecto
 router.post('/apartar', inventarioController.apartarStock);
 
