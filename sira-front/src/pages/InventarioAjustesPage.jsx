@@ -1,4 +1,14 @@
 // sira-front/src/pages/InventarioAjustesPage.jsx
+/**
+ * Página: InventarioAjustesPage (Paso 9C)
+ * --------------------------------------------------------------------------------------
+ * Cambios clave:
+ * - ✅ Ahora usa useInventario({ mode: "catalogo" }) y consume /api/inventario/catalogo-resumen
+ *   -> muestra TODO el catálogo activo (incluye ceros y materiales que aún no existen en inventario_actual)
+ * - ✅ Permite crear stock para que empiece a existir en inventario_actual mediante POST /ajustes
+ * - ✅ UX: delta/precio aceptan coma "1,5"
+ */
+
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
@@ -9,56 +19,60 @@ import {
   MenuItem,
   Button,
   Divider,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
 } from "@mui/material";
 import { toast } from "react-toastify";
 
 import api from "../api/api";
 import { useAuth } from "../context/authContext";
 import { useInventario } from "../hooks/useInventario";
-import InventarioItemRow from "../components/almacen/InventarioItemRow";
 import FiltrosInventario from "../components/almacen/FiltrosInventario";
 
+/** Parser tolerante (coma -> punto) */
+const parseNumberInput = (v) => {
+  const s = (v ?? "").toString().trim().replace(",", ".");
+  if (s === "") return NaN;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : NaN;
+};
+
 export default function InventarioAjustesPage() {
+  /** ---------------------------------------------
+   * Auth / permisos
+   * --------------------------------------------- */
   const { usuario } = useAuth();
   const isSuper = Boolean(usuario?.es_superusuario);
 
+  /** ---------------------------------------------
+   * Hook inventario en modo catálogo (Paso 9C)
+   * --------------------------------------------- */
   const {
-    inventario,
+    catalogoResumen,
     loading,
     error,
     filters,
     setFilters,
     filterOptions,
-    refreshInventario,
-  } = useInventario();
+    resetFilters,
+    refreshCatalogoResumen,
+  } = useInventario({ mode: "catalogo" });
 
-  // Monedas desde backend (tu endpoint existe)
+  /** ---------------------------------------------
+   * Catálogo monedas
+   * --------------------------------------------- */
   const [monedas, setMonedas] = useState([]);
   const [loadingMonedas, setLoadingMonedas] = useState(false);
 
-  // Form
-  const [selected, setSelected] = useState(null); // row inventario_actual
-  const [delta, setDelta] = useState("");
-  const [observaciones, setObservaciones] = useState("");
-
-  const [ubicacionId, setUbicacionId] = useState("");
-  const [precio, setPrecio] = useState("");
-  const [moneda, setMoneda] = useState("");
-
-  const [guardando, setGuardando] = useState(false);
-
-  // Ubicaciones de almacén: en tu proyecto viene en datos iniciales del inventario
-  const ubicaciones = useMemo(() => {
-    return filterOptions?.ubicacionesAlmacen || filterOptions?.ubicaciones || [];
-  }, [filterOptions]);
-
   useEffect(() => {
-    // cargar monedas
-    const load = async () => {
+    const loadMonedas = async () => {
       try {
         setLoadingMonedas(true);
         const res = await api.get("/api/monedas");
-        setMonedas(res || []);
+        setMonedas(Array.isArray(res) ? res : []);
       } catch (e) {
         toast.error(e?.error || "No se pudo cargar monedas.");
         setMonedas([]);
@@ -66,61 +80,66 @@ export default function InventarioAjustesPage() {
         setLoadingMonedas(false);
       }
     };
-    load();
+    loadMonedas();
   }, []);
 
+  /** ---------------------------------------------
+   * Form Ajustes
+   * --------------------------------------------- */
+  const [selected, setSelected] = useState(null);
+  const [delta, setDelta] = useState("");
+  const [observaciones, setObservaciones] = useState("");
+
+  const ubicaciones = useMemo(() => {
+    return filterOptions?.ubicacionesAlmacen || [];
+  }, [filterOptions]);
+
+  const [ubicacionId, setUbicacionId] = useState("");
+  const [precio, setPrecio] = useState("");
+  const [moneda, setMoneda] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  // Al seleccionar material: reset inputs y default ubicación
   useEffect(() => {
     if (!selected) return;
 
-    // por default: usa ubicación de la fila si existe
-    setUbicacionId(selected.ubicacion_id ?? "");
-
-    // resetea inputs secundarios
     setDelta("");
     setObservaciones("");
     setPrecio("");
     setMoneda("");
-  }, [selected]);
 
+    if (ubicaciones.length > 0) setUbicacionId(String(ubicaciones[0].id));
+    else setUbicacionId("");
+  }, [selected, ubicaciones]);
+
+  /** ---------------------------------------------
+   * Reglas precio/moneda (mismas del backend)
+   * - totalAntes = disponible + apartado
+   * - puedeEditarPrecio: totalAntes==0 y delta>0
+   * --------------------------------------------- */
   const totalAntes = useMemo(() => {
     if (!selected) return 0;
-    const stock = Number(selected.stock_actual || 0);
-    const asignado = Number(selected.asignado || 0);
+    const stock = Number(selected.total_stock || 0);
+    const asignado = Number(selected.total_asignado || 0);
     return stock + asignado;
   }, [selected]);
 
-  const deltaNum = useMemo(() => {
-    const n = Number(delta);
-    return Number.isFinite(n) ? n : NaN;
-  }, [delta]);
+  const deltaNum = useMemo(() => parseNumberInput(delta), [delta]);
 
   const puedeEditarPrecio = useMemo(() => {
     return selected && totalAntes === 0 && Number.isFinite(deltaNum) && deltaNum > 0;
   }, [selected, totalAntes, deltaNum]);
 
+  /** ---------------------------------------------
+   * Guardar ajuste
+   * --------------------------------------------- */
   const handleGuardar = async () => {
-    if (!isSuper) {
-      toast.error("No autorizado.");
-      return;
-    }
-    if (!selected) {
-      toast.error("Selecciona un material de la tabla.");
-      return;
-    }
-    if (!ubicacionId) {
-      toast.error("Selecciona una ubicación de almacén.");
-      return;
-    }
-    if (!Number.isFinite(deltaNum) || deltaNum === 0) {
-      toast.error("Delta debe ser un número distinto de 0.");
-      return;
-    }
-    if (!observaciones.trim()) {
-      toast.error("Observaciones es obligatorio.");
-      return;
-    }
+    if (!isSuper) return toast.error("No autorizado.");
+    if (!selected) return toast.error("Selecciona un material de la tabla.");
+    if (!ubicacionId) return toast.error("Selecciona ubicación (almacén).");
+    if (!Number.isFinite(deltaNum) || deltaNum === 0) return toast.error("Delta debe ser un número distinto de 0.");
+    if (!observaciones.trim()) return toast.error("Observaciones es obligatorio.");
 
-    // Regla precio/moneda
     const payload = {
       material_id: selected.material_id,
       delta: deltaNum,
@@ -128,18 +147,15 @@ export default function InventarioAjustesPage() {
       observaciones: observaciones.trim(),
     };
 
+    // Precio/moneda solo si permitido (backend valida igual)
     if (puedeEditarPrecio) {
-      // Solo mandamos si el user llenó ambos (en backend no permitimos moneda sola)
-      if (precio !== "" || moneda !== "") {
-        const p = Number(precio);
-        if (!Number.isFinite(p) || p <= 0) {
-          toast.error("Precio inválido.");
-          return;
-        }
-        if (!moneda) {
-          toast.error("Moneda es obligatoria si capturas precio.");
-          return;
-        }
+      const traePrecio = precio !== "";
+      const traeMoneda = moneda !== "";
+
+      if (traePrecio || traeMoneda) {
+        const p = parseNumberInput(precio);
+        if (!Number.isFinite(p) || p <= 0) return toast.error("Precio inválido.");
+        if (!moneda) return toast.error("Moneda es obligatoria si capturas precio.");
         payload.ultimo_precio_entrada = p;
         payload.moneda = moneda;
       }
@@ -150,17 +166,22 @@ export default function InventarioAjustesPage() {
       await api.post("/api/inventario/ajustes", payload);
       toast.success("Ajuste aplicado.");
 
-      // refrescar inventario
-      await refreshInventario();
+      // ✅ refrescar catálogo resumen y mantener selección si sigue visible
+      const materialId = selected.material_id;
+      const newList = await refreshCatalogoResumen();
+      const updated = (newList || []).find((r) => r.material_id === materialId);
 
-      // limpiar
-      setSelected(null);
+      setSelected(updated || null);
+
+      // limpiar inputs
       setDelta("");
       setObservaciones("");
       setPrecio("");
       setMoneda("");
-      setUbicacionId("");
 
+      if (!updated) {
+        toast.info("Ajuste aplicado, pero el material ya no aparece con los filtros actuales.");
+      }
     } catch (e) {
       toast.error(e?.error || "Error al guardar ajuste.");
     } finally {
@@ -168,6 +189,9 @@ export default function InventarioAjustesPage() {
     }
   };
 
+  /** ---------------------------------------------
+   * Render
+   * --------------------------------------------- */
   return (
     <Box sx={{ px: 3, pb: 3 }}>
       <Typography variant="h6" sx={{ mb: 1, fontWeight: "bold" }}>
@@ -176,18 +200,22 @@ export default function InventarioAjustesPage() {
 
       <Paper sx={{ p: 2, mb: 2 }}>
         <Typography sx={{ fontSize: 13, opacity: 0.8 }}>
-          Ajustes manuales (delta) solo sobre <b>stock disponible</b>. Requiere observaciones.
-          Precio/moneda solo se habilita cuando <b>(disponible + asignado) = 0</b> y el delta es positivo.
+          Ajustes manuales (delta) sobre <b>stock disponible</b>. Requiere observaciones.
+          Precio/moneda se habilita cuando <b>(disponible + asignado) = 0</b> y <b>delta &gt; 0</b>.
         </Typography>
       </Paper>
 
-      {/* Formulario */}
+      {/* Form */}
       <Paper sx={{ p: 2, mb: 2 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={5}>
             <TextField
               label="Material seleccionado"
-              value={selected ? `#${selected.material_id} - ${selected.material_descripcion || ""}` : ""}
+              value={
+                selected
+                  ? `${selected.sku || ""} — ${selected.material_nombre || ""} (#${selected.material_id})`
+                  : ""
+              }
               fullWidth
               size="small"
               disabled
@@ -203,10 +231,11 @@ export default function InventarioAjustesPage() {
               onChange={(e) => setUbicacionId(e.target.value)}
               fullWidth
               size="small"
+              disabled={ubicaciones.length === 0}
+              helperText={ubicaciones.length === 0 ? "No hay ubicaciones_almacen cargadas." : ""}
             >
-              <MenuItem value="">Seleccionar...</MenuItem>
               {ubicaciones.map((u) => (
-                <MenuItem key={u.id} value={u.id}>
+                <MenuItem key={u.id} value={String(u.id)}>
                   {u.nombre}
                 </MenuItem>
               ))}
@@ -220,19 +249,13 @@ export default function InventarioAjustesPage() {
               onChange={(e) => setDelta(e.target.value)}
               fullWidth
               size="small"
-              placeholder="Ej: 5 o -2"
+              placeholder="Ej: 5, -2, 1.5, 1,5"
             />
           </Grid>
 
-          <Grid item xs={12} md={3}>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={handleGuardar}
-              disabled={guardando || !selected}
-              fullWidth
-            >
-              {guardando ? "Guardando..." : "Guardar ajuste"}
+          <Grid item xs={12} md={2}>
+            <Button variant="contained" onClick={handleGuardar} disabled={guardando || !selected} fullWidth>
+              {guardando ? "Guardando..." : "Guardar"}
             </Button>
           </Grid>
 
@@ -261,7 +284,7 @@ export default function InventarioAjustesPage() {
               fullWidth
               size="small"
               disabled={!puedeEditarPrecio}
-              placeholder={puedeEditarPrecio ? "Ej: 55.1234" : "No permitido"}
+              placeholder={puedeEditarPrecio ? "Ej: 55.1234 ó 55,1234" : "No permitido"}
             />
           </Grid>
 
@@ -291,7 +314,12 @@ export default function InventarioAjustesPage() {
               </Typography>
               {selected && (
                 <Typography sx={{ fontSize: 12, opacity: 0.8 }}>
-                  Stock: {selected.stock_actual} | Asignado: {selected.asignado} | Total: {totalAntes}
+                  Disponible: {selected.total_stock} | Apartado: {selected.total_asignado} | Total: {totalAntes}
+                </Typography>
+              )}
+              {!Number.isFinite(deltaNum) && delta !== "" && (
+                <Typography sx={{ fontSize: 12, color: "error.main" }}>
+                  Delta inválido (usa números; acepto coma o punto).
                 </Typography>
               )}
             </Paper>
@@ -299,15 +327,13 @@ export default function InventarioAjustesPage() {
         </Grid>
       </Paper>
 
-      {/* Filtros + Tabla (selección) */}
-      <Paper sx={{ p: 2 }}>
-        <Typography sx={{ fontWeight: "bold", mb: 1 }}>Selecciona un material</Typography>
-
+      {/* Filtros */}
+      <Paper sx={{ p: 2, mb: 2 }}>
         <FiltrosInventario
           filters={filters}
-          setFilters={setFilters}
-          filterOptions={filterOptions}
-          onBuscar={refreshInventario}
+          onFilterChange={(newFilters) => setFilters(newFilters)}
+          onReset={resetFilters}
+          filterOptions={filterOptions || { sitios: [], proyectos: [] }}
         />
 
         {error && (
@@ -315,27 +341,69 @@ export default function InventarioAjustesPage() {
             {error}
           </Typography>
         )}
+      </Paper>
 
-        <Box sx={{ mt: 2 }}>
-          {loading ? (
-            <Typography>Cargando inventario...</Typography>
-          ) : (
-            (inventario || []).map((row) => (
-              <Box
-                key={row.id}
-                onClick={() => setSelected(row)}
-                sx={{
-                  border: selected?.id === row.id ? "2px solid #1976d2" : "1px solid #e0e0e0",
-                  borderRadius: 2,
-                  mb: 1,
-                  cursor: "pointer",
-                }}
-              >
-                <InventarioItemRow item={row} />
-              </Box>
-            ))
-          )}
-        </Box>
+      {/* Tabla */}
+      <Paper sx={{ p: 2 }}>
+        <Typography sx={{ fontWeight: "bold", mb: 1 }}>
+          Selecciona un material (catálogo activo completo)
+        </Typography>
+
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: "bold" }}>SKU</TableCell>
+              <TableCell sx={{ fontWeight: "bold" }}>Material</TableCell>
+              <TableCell align="right" sx={{ fontWeight: "bold" }}>
+                Disponible
+              </TableCell>
+              <TableCell align="right" sx={{ fontWeight: "bold" }}>
+                Apartado
+              </TableCell>
+              <TableCell align="right" sx={{ fontWeight: "bold" }}>
+                Total
+              </TableCell>
+              <TableCell sx={{ fontWeight: "bold" }}>Unidad</TableCell>
+            </TableRow>
+          </TableHead>
+
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={6}>Cargando catálogo...</TableCell>
+              </TableRow>
+            ) : (catalogoResumen || []).length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6}>No hay resultados con esos filtros.</TableCell>
+              </TableRow>
+            ) : (
+              (catalogoResumen || []).map((row) => {
+                const isSel = selected?.material_id === row.material_id;
+                return (
+                  <TableRow
+                    key={row.material_id}
+                    hover
+                    onClick={() => setSelected(row)}
+                    sx={{
+                      cursor: "pointer",
+                      bgcolor: isSel ? "rgba(25, 118, 210, 0.08)" : "transparent",
+                    }}
+                  >
+                    <TableCell>{row.sku}</TableCell>
+                    <TableCell>
+                      <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{row.material_nombre}</Typography>
+                      <Typography sx={{ fontSize: 12, opacity: 0.7 }}>#{row.material_id}</Typography>
+                    </TableCell>
+                    <TableCell align="right">{row.total_stock}</TableCell>
+                    <TableCell align="right">{row.total_asignado}</TableCell>
+                    <TableCell align="right">{row.total_existencia}</TableCell>
+                    <TableCell>{row.unidad_simbolo}</TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
       </Paper>
     </Box>
   );
