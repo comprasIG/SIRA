@@ -13,10 +13,9 @@ const pool = require("../db/pool");
  * - Registrar Kardex:
  *    - movimientos_inventario tipo_movimiento = 'ENTRADA'
  *
- * IMPORTANTE (bug histórico resuelto):
+ * IMPORTANTE:
  * - ubicacion_id SIEMPRE es la ubicación física (ubicaciones_almacen.id)
  * - sitio_id NO es ubicación física, es destino final (cliente/espacio)
- *   => antes se estaba metiendo sitio_id como ubicacion_id (mezcla incorrecta)
  */
 
 /** =========================================================================================
@@ -125,18 +124,46 @@ const getOcInfoForIngreso = async (client, ocId) => {
 
 /** =========================================================================================
  * GET /api/ingreso/ocs-en-proceso
- * (Se deja como lo traías, sin cambios funcionales)
  * ======================================================================================= */
 const getOcsEnProceso = async (req, res) => {
   const { departamentoId, sitioId, proyectoId, proveedorId, search } = req.query;
+
+  // ✅ Cambio importante:
+  // Traemos el parámetro del sistema (si existe) y devolvemos:
+  // - almacen_central_id
+  // - entra_a_disponible = true/false (regla real, no por nombre de proyecto)
   let query = `
         SELECT
-            oc.id, oc.numero_oc, oc.total, oc.actualizado_en AS fecha_ultimo_movimiento,
-            oc.status, oc.entrega_parcial, oc.con_incidencia,
-            p.marca AS proveedor_marca, p.razon_social AS proveedor_razon_social,
-            pr.nombre AS proyecto_nombre, s.nombre AS sitio_nombre, d.nombre AS departamento_nombre,
-            oc.metodo_recoleccion_id, cmr.nombre AS metodo_recoleccion_nombre, oc.entrega_responsable,
-            r.departamento_id, oc.sitio_id, oc.proyecto_id, oc.proveedor_id
+            oc.id,
+            oc.numero_oc,
+            oc.total,
+            oc.actualizado_en AS fecha_ultimo_movimiento,
+            oc.status,
+            oc.entrega_parcial,
+            oc.con_incidencia,
+
+            p.marca AS proveedor_marca,
+            p.razon_social AS proveedor_razon_social,
+
+            pr.nombre AS proyecto_nombre,
+            s.nombre AS sitio_nombre,
+            d.nombre AS departamento_nombre,
+
+            oc.metodo_recoleccion_id,
+            cmr.nombre AS metodo_recoleccion_nombre,
+            oc.entrega_responsable,
+
+            r.departamento_id,
+            oc.sitio_id,
+            oc.proyecto_id,
+            oc.proveedor_id,
+
+            ps.almacen_central_id,
+            CASE
+              WHEN ps.almacen_central_id IS NULL THEN false
+              ELSE (oc.sitio_id = ps.almacen_central_id)
+            END AS entra_a_disponible
+
         FROM ordenes_compra oc
         JOIN proveedores p ON oc.proveedor_id = p.id
         JOIN proyectos pr ON oc.proyecto_id = pr.id
@@ -144,8 +171,18 @@ const getOcsEnProceso = async (req, res) => {
         JOIN requisiciones r ON oc.rfq_id = r.id
         JOIN departamentos d ON r.departamento_id = d.id
         LEFT JOIN catalogo_metodos_recoleccion cmr ON oc.metodo_recoleccion_id = cmr.id
+
+        -- Parametro del sistema (si no existe, almacen_central_id queda NULL)
+        LEFT JOIN LATERAL (
+          SELECT NULLIF(valor, '')::int AS almacen_central_id
+          FROM public.parametros_sistema
+          WHERE clave = 'id_sitio_almacen_central'
+          LIMIT 1
+        ) ps ON true
+
         WHERE oc.status = 'EN_PROCESO'
     `;
+
   const params = [];
   let paramIndex = 1;
 
@@ -170,20 +207,19 @@ const getOcsEnProceso = async (req, res) => {
     params.push(`%${search}%`);
   }
 
-  query += " ORDER BY oc.actualizado_en DESC";
+  query += ` ORDER BY oc.actualizado_en DESC`;
 
   try {
     const { rows } = await pool.query(query, params);
-    res.json(rows);
+    return res.json(rows);
   } catch (error) {
     console.error("Error fetching OCs EN_PROCESO:", error);
-    res.status(500).json({ error: "Internal Server Error." });
+    return res.status(500).json({ error: "Internal Server Error." });
   }
 };
 
 /** =========================================================================================
  * GET /api/ingreso/datos-iniciales
- * (Se deja como lo traías)
  * ======================================================================================= */
 const getDatosIniciales = async (req, res) => {
   try {
@@ -222,7 +258,7 @@ const getDatosIniciales = async (req, res) => {
       pool.query(incidenciasQuery),
     ]);
 
-    res.json({
+    return res.json({
       kpis: kpiRes.rows[0] || {},
       filterOptions: {
         proveedores: proveedoresRes.rows,
@@ -235,13 +271,12 @@ const getDatosIniciales = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching initial data for ING_OC:", error);
-    res.status(500).json({ error: "Internal Server Error." });
+    return res.status(500).json({ error: "Internal Server Error." });
   }
 };
 
 /** =========================================================================================
  * GET /api/ingreso/oc/:id/detalles
- * Devuelve items de la OC (incluye precio_unitario + moneda para registrar ENTRADA)
  * ======================================================================================= */
 const getOcDetalleParaIngreso = async (req, res) => {
   const { id: ordenCompraId } = req.params;
@@ -267,34 +302,15 @@ const getOcDetalleParaIngreso = async (req, res) => {
     if (rows.length === 0) {
       return res.status(404).json({ error: "Detalles no encontrados para esta OC." });
     }
-    res.json(rows);
+    return res.json(rows);
   } catch (error) {
     console.error(`Error fetching details for OC ${ordenCompraId}:`, error);
-    res.status(500).json({ error: "Internal Server Error." });
+    return res.status(500).json({ error: "Internal Server Error." });
   }
 };
 
 /** =========================================================================================
  * POST /api/ingreso/registrar
- * Body:
- * - orden_compra_id
- * - ubicacion_id (opcional; si viene vacío, usamos SIN_UBICACION / fallback)
- * - items: [
- *     {
- *       detalle_id,
- *       material_id,
- *       cantidad_ingresada_ahora,
- *       precio_unitario,   // recomendado enviarlo desde UI (o usar el del detalle)
- *       moneda,           // idem
- *       incidencia: { tipo_id, descripcion, cantidad_afectada }
- *     }
- *   ]
- *
- * Reglas:
- * - Si OC entraADisponible => inventario_actual.stock_actual += qty
- * - Si NO => inventario_actual.asignado += qty + inventario_asignado INSERT (destino proyecto/sitio de OC)
- * - Siempre: inventario_actual.ultimo_precio_entrada = precio y moneda
- * - Kardex: movimientos_inventario tipo_movimiento='ENTRADA' con ubicacion_id (físico)
  * ======================================================================================= */
 const registrarIngreso = async (req, res) => {
   const { orden_compra_id, items, ubicacion_id } = req.body;
@@ -311,7 +327,6 @@ const registrarIngreso = async (req, res) => {
     const ocInfo = await getOcInfoForIngreso(client, orden_compra_id);
     const ubicacionIdFinal = await resolveUbicacionId(client, ubicacion_id);
 
-    let hasAnyIncident = false;
     let hasAnyPartial = false;
     const ingresoDetalles = [];
 
@@ -322,12 +337,10 @@ const registrarIngreso = async (req, res) => {
       if (cantidadNum < 0) continue;
 
       // Precio/Moneda: preferimos lo que venga del frontend; si no, lo tomamos del detalle.
-      // (Esto respeta tu regla: "siempre tomamos el último precio de entrada")
       const precioUnitarioFromBody = toNumber(item?.precio_unitario, NaN);
       const monedaFromBody = toTrimmedString(item?.moneda).toUpperCase();
 
-      // 1) Actualizar ordenes_compra_detalle (cantidad_recibida)
-      //    Nota: aunque haya incidencia sin cantidad, tu flujo anterior lo permite.
+      // 1) Update detalle OC
       let updatedDetail = null;
 
       if (cantidadNum > 0 || (incidencia && incidencia.tipo_id)) {
@@ -357,16 +370,13 @@ const registrarIngreso = async (req, res) => {
 
         updatedDetail = detailRes.rows[0];
 
-        // Detectar parcialidad
         if (toNumber(updatedDetail.cantidad_recibida, 0) < toNumber(updatedDetail.cantidad, 0)) {
           hasAnyPartial = true;
         }
       }
 
-      // 2) Registrar incidencia si aplica
+      // 2) Incidencias
       if (incidencia && incidencia.tipo_id && incidencia.descripcion) {
-        hasAnyIncident = true;
-
         const incidentQuery = `
           INSERT INTO public.incidencias_recepcion_oc
             (orden_compra_id, incidencia_id, cantidad_afectada, descripcion_problema, usuario_id, material_id)
@@ -387,24 +397,26 @@ const registrarIngreso = async (req, res) => {
         ingresoDetalles.push({ detalle_id, material_id, incidencia: true, ...incidencia });
       }
 
-      // 3) Si no hubo ingreso real, seguir
+      // 3) Sin ingreso real, continuar
       if (cantidadNum <= 0) continue;
 
-      // Resolver precio/moneda finales
+      // Precio/moneda finales (regla: “último precio de entrada”)
       const precioDetalle = toNumber(updatedDetail?.precio_unitario, 0);
       const monedaDetalle = toTrimmedString(updatedDetail?.moneda).toUpperCase();
 
-      const precioFinal = Number.isFinite(precioUnitarioFromBody) && precioUnitarioFromBody > 0
-        ? precioUnitarioFromBody
-        : precioDetalle;
+      const precioFinal =
+        Number.isFinite(precioUnitarioFromBody) && precioUnitarioFromBody > 0
+          ? precioUnitarioFromBody
+          : precioDetalle;
 
-      const monedaFinal = monedaFromBody && monedaFromBody.length === 3
-        ? monedaFromBody
-        : (monedaDetalle && monedaDetalle.length === 3 ? monedaDetalle : null);
+      const monedaFinal =
+        monedaFromBody && monedaFromBody.length === 3
+          ? monedaFromBody
+          : (monedaDetalle && monedaDetalle.length === 3 ? monedaDetalle : null);
 
-      // 4) Actualizar inventario_actual (en ubicación física) + inventario_asignado si corresponde
+      // 4) Inventario + Kardex
       if (ocInfo.entraADisponible) {
-        // ENTRA A DISPONIBLE (stock_actual)
+        // DISPONIBLE (stock_actual)
         const stockUpdateQuery = `
           INSERT INTO public.inventario_actual
             (material_id, ubicacion_id, stock_actual, ultimo_precio_entrada, moneda)
@@ -424,7 +436,6 @@ const registrarIngreso = async (req, res) => {
           monedaFinal,
         ]);
 
-        // Kardex ENTRADA
         await client.query(
           `
           INSERT INTO public.movimientos_inventario
@@ -455,10 +466,7 @@ const registrarIngreso = async (req, res) => {
           ubicacion_id: ubicacionIdFinal,
         });
       } else {
-        // ENTRA DIRECTO A APARTADO (asignado + inventario_asignado)
-        // - inventario_actual.asignado en ubicación física
-        // - inventario_asignado vincula destino real (sitio/proyecto de la OC) + requisición principal
-
+        // DIRECTO A APARTADO
         const assignedUpdateQuery = `
           INSERT INTO public.inventario_actual
             (material_id, ubicacion_id, asignado, ultimo_precio_entrada, moneda)
@@ -482,7 +490,6 @@ const registrarIngreso = async (req, res) => {
 
         const inventarioId = invActualRes.rows[0].id;
 
-        // Requisición principal (para trazabilidad)
         const requisicionPrincipalQuery = `
           SELECT r.id AS requisicion_principal_id
           FROM public.requisiciones_detalle rd
@@ -501,7 +508,6 @@ const registrarIngreso = async (req, res) => {
 
         const { requisicion_principal_id } = reqPrincipalRes.rows[0];
 
-        // Insert (no upsert) por recomendación: trazabilidad por evento
         const assignedInsertQuery = `
           INSERT INTO public.inventario_asignado
             (inventario_id, requisicion_id, proyecto_id, sitio_id, cantidad, valor_unitario, moneda, asignado_en)
@@ -518,7 +524,6 @@ const registrarIngreso = async (req, res) => {
           monedaFinal,
         ]);
 
-        // Kardex ENTRADA (asignado)
         await client.query(
           `
           INSERT INTO public.movimientos_inventario
@@ -532,10 +537,10 @@ const registrarIngreso = async (req, res) => {
             material_id,
             cantidadNum,
             usuarioId,
-            ubicacionIdFinal,            // ✅ ubicación física (YA NO sitio_id)
-            ocInfo.proyecto_id,          // destino proyecto OC
+            ubicacionIdFinal,
+            ocInfo.proyecto_id,
             orden_compra_id,
-            requisicion_principal_id,    // trazabilidad requisición principal
+            requisicion_principal_id,
             precioFinal,
             monedaFinal,
             `Ingreso por OC (DIRECTO A APARTADO) - destino sitio=${ocInfo.sitio_id} proyecto=${ocInfo.proyecto_id} - DetalleOC:${detalle_id}`,
@@ -555,8 +560,7 @@ const registrarIngreso = async (req, res) => {
       }
     }
 
-    // Flags OC: incidencia/parcial
-    // (recalculamos incidencia por tabla, parcial por lógica de cantidades)
+    // Flags OC
     const checkIncidentQuery = `
       SELECT EXISTS (
         SELECT 1 FROM public.incidencias_recepcion_oc WHERE orden_compra_id = $1
@@ -566,14 +570,16 @@ const registrarIngreso = async (req, res) => {
     const finalIncidentFlag = !!incidentCheckRes.rows[0]?.has_incident;
     const finalPartialFlag = !!hasAnyPartial;
 
-    const updateFlagsQuery = `
+    await client.query(
+      `
       UPDATE public.ordenes_compra
          SET con_incidencia = $1,
              entrega_parcial = $2,
              actualizado_en = NOW()
        WHERE id = $3;
-    `;
-    await client.query(updateFlagsQuery, [finalIncidentFlag, finalPartialFlag, orden_compra_id]);
+      `,
+      [finalIncidentFlag, finalPartialFlag, orden_compra_id]
+    );
 
     // Historial OC
     await client.query(
@@ -600,7 +606,9 @@ const registrarIngreso = async (req, res) => {
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Error registrando ingreso OC:", error);
-    return res.status(500).json({ error: error.message || "Error interno al registrar el ingreso." });
+    return res
+      .status(500)
+      .json({ error: error.message || "Error interno al registrar el ingreso." });
   } finally {
     client.release();
   }

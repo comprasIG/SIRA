@@ -12,7 +12,7 @@ const pool = require("../db/pool");
  *    - Se descuenta inventario_actual.asignado (misma ubicación física del inventario_id)
  *    - Kardex: movimientos_inventario tipo_movimiento = 'SALIDA'
  *      * proyecto_origen_id = proyecto del apartado
- *      * proyecto_destino_id = destino (normalmente el mismo)
+ *      * proyecto_destino_id = destino (seleccionado por UI)
  *      * requisicion_id = requisición que originó el apartado (para reversa correcta)
  *
  * 2) STOCK:
@@ -25,18 +25,17 @@ const pool = require("../db/pool");
  * - Si una salida salió de ASIGNADO, DEBE llevar requisicion_id y proyecto_origen_id,
  *   para que la reversa pueda devolver correctamente a asignado (no a stock).
  * - Si una salida salió de STOCK, requisicion_id debe ser NULL y proyecto_origen_id NULL.
+ *
+ * VALUACIÓN:
+ * - Regla del proyecto: siempre usar el último precio de entrada (inventario_actual.ultimo_precio_entrada)
+ *   para registrar valor_unitario en kardex.
  */
 
 /** =========================================================================================
  * GET /api/retiro/datos-filtros
- * Opciones para filtros:
- * - Sitios/Proyectos con asignaciones
- * - Materiales con stock
- * - Todos sitios/proyectos para destino
  * ======================================================================================= */
 const getDatosFiltrosRetiro = async (req, res) => {
   try {
-    // Sitios con material asignado
     const sitiosQuery = `
       SELECT DISTINCT s.id, s.nombre
       FROM sitios s
@@ -45,7 +44,6 @@ const getDatosFiltrosRetiro = async (req, res) => {
       ORDER BY s.nombre ASC;
     `;
 
-    // Proyectos con material asignado
     const proyectosQuery = `
       SELECT DISTINCT p.id, p.nombre, p.sitio_id
       FROM proyectos p
@@ -54,7 +52,6 @@ const getDatosFiltrosRetiro = async (req, res) => {
       ORDER BY p.nombre ASC;
     `;
 
-    // Materiales con stock disponible (sumado)
     const materialesStockQuery = `
       SELECT
         cm.id,
@@ -69,7 +66,6 @@ const getDatosFiltrosRetiro = async (req, res) => {
       ORDER BY cm.nombre ASC;
     `;
 
-    // Todos para destino
     const todosProyectosQuery = `SELECT id, nombre, sitio_id FROM proyectos ORDER BY nombre ASC`;
     const todosSitiosQuery = `SELECT id, nombre FROM sitios ORDER BY nombre ASC`;
 
@@ -102,8 +98,6 @@ const getDatosFiltrosRetiro = async (req, res) => {
 
 /** =========================================================================================
  * GET /api/retiro/asignado/:sitioId/:proyectoId
- * Lista materiales asignados a proyecto/sitio:
- * - IMPORTANTE: regresamos requisicion_id y moneda para kardex + reversa.
  * ======================================================================================= */
 const getMaterialesAsignados = async (req, res) => {
   const { sitioId, proyectoId } = req.params;
@@ -142,7 +136,6 @@ const getMaterialesAsignados = async (req, res) => {
 
 /** =========================================================================================
  * GET /api/retiro/stock/:materialId
- * Stock total y ubicaciones con stock para un material.
  * ======================================================================================= */
 const getStockMaterial = async (req, res) => {
   const { materialId } = req.params;
@@ -172,17 +165,6 @@ const getStockMaterial = async (req, res) => {
 
 /** =========================================================================================
  * POST /api/retiro/registrar
- * Body:
- * - tipoRetiro: 'ASIGNADO' | 'STOCK'
- * - proyectoDestinoId
- * - sitioDestinoId
- * - items:
- *   ASIGNADO: [{ asignacion_id, material_id, cantidad_a_retirar }]
- *   STOCK:    [{ material_id, cantidad_a_retirar }]
- *
- * Kardex:
- * - Inserta movimientos_inventario tipo_movimiento='SALIDA'
- * - Incluye moneda y requisicion_id cuando aplica
  * ======================================================================================= */
 const registrarRetiro = async (req, res) => {
   const { tipoRetiro, items, proyectoDestinoId, sitioDestinoId } = req.body;
@@ -216,8 +198,9 @@ const registrarRetiro = async (req, res) => {
         /**
          * 1) Tomamos la asignación FOR UPDATE para:
          * - validar disponibilidad
-         * - obtener requisicion_id, valor_unitario, moneda, proyecto_origen, sitio_origen
-         * - saber inventario_id -> ubicacion_id física
+         * - obtener requisicion_id, proyecto_origen_id
+         * - obtener inventario_id -> ubicacion_id física
+         * - VALUACIÓN: usamos inv.ultimo_precio_entrada y inv.moneda
          */
         const asigRes = await client.query(
           `
@@ -228,10 +211,12 @@ const registrarRetiro = async (req, res) => {
             ia.proyecto_id AS proyecto_origen_id,
             ia.sitio_id AS sitio_origen_id,
             ia.cantidad,
-            ia.valor_unitario,
-            ia.moneda,
+            ia.valor_unitario AS valor_unitario_asignacion,
+            ia.moneda AS moneda_asignacion,
             inv.material_id,
-            inv.ubicacion_id
+            inv.ubicacion_id,
+            inv.ultimo_precio_entrada,
+            inv.moneda
           FROM inventario_asignado ia
           JOIN inventario_actual inv ON ia.inventario_id = inv.id
           WHERE ia.id = $1
@@ -279,6 +264,17 @@ const registrarRetiro = async (req, res) => {
         }
 
         // 4) Kardex SALIDA (desde ASIGNADO)
+        // Regla valuación: último precio de entrada
+        const valorUnitario =
+          parseFloat(asig.ultimo_precio_entrada) ||
+          parseFloat(asig.valor_unitario_asignacion) ||
+          0;
+
+        const moneda =
+          asig.moneda ||
+          asig.moneda_asignacion ||
+          null;
+
         const obs = `Retiro ASIGNADO (AsigID:${asignacionId}) -> destino sitio=${sitioDestinoId} proyecto=${proyectoDestinoId}`;
 
         const movIns = await client.query(
@@ -298,11 +294,11 @@ const registrarRetiro = async (req, res) => {
             cantidadNum,
             usuarioId,
             asig.ubicacion_id,
-            asig.proyecto_origen_id,          // ✅ clave para reversa a ASIGNADO
+            asig.proyecto_origen_id,     // ✅ clave para reversa a ASIGNADO
             proyectoDestinoId,
-            asig.requisicion_id || null,      // ✅ clave para reversa a ASIGNADO
-            parseFloat(asig.valor_unitario) || 0,
-            asig.moneda || null,
+            asig.requisicion_id || null, // ✅ clave para reversa a ASIGNADO
+            valorUnitario,
+            moneda,
             obs,
           ]
         );
@@ -322,11 +318,6 @@ const registrarRetiro = async (req, res) => {
 
         if (!materialId || cantidadRestante <= 0) continue;
 
-        /**
-         * Tomamos las filas de inventario_actual con stock para este material
-         * y vamos consumiendo de mayor a menor.
-         * FOR UPDATE para evitar carreras.
-         */
         const ubicacionesStock = await client.query(
           `
           SELECT id, ubicacion_id, stock_actual, ultimo_precio_entrada, moneda
@@ -354,7 +345,6 @@ const registrarRetiro = async (req, res) => {
 
           if (cantidadARestar <= 0) continue;
 
-          // 1) Reducir stock_actual
           await client.query(
             `
             UPDATE inventario_actual
@@ -365,7 +355,6 @@ const registrarRetiro = async (req, res) => {
             [cantidadARestar, ubi.id]
           );
 
-          // 2) Kardex SALIDA (desde STOCK)
           const valorUnitario = parseFloat(ubi.ultimo_precio_entrada) || 0;
           const moneda = ubi.moneda || null;
 
