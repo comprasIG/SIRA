@@ -80,7 +80,7 @@ console.log(import.meta.env.VITE_API_URL); // Verifica que la variable de entorn
           <Route path="/lista-producto" element={<RutaProtegida permiso="AGREGAR_PRODUCTO"><MainLayout><ListaProductos /></MainLayout></RutaProtegida>}/>
           <Route  path="/config/notificaciones" element={<RutaProtegida permiso="SUPERUSUARIO"><MainLayout> <NotificacionesPage /></MainLayout></RutaProtegida>}/>
           <Route path="/PICK_IN" element={<RutaProtegida permiso="PICK_IN"><MainLayout><PickInPage /></MainLayout></RutaProtegida>}/>
-          <Route path="/INV" element={<RutaProtegida permiso="INV"><MainLayout><InventarioPage /></MainLayout></RutaProtegida>}/>
+         <Route path="/INV/*" element={<RutaProtegida permiso="INV"><MainLayout><InventarioPage /></MainLayout></RutaProtegida>}/>
           <Route path="/unidades" element={<RutaProtegida permiso="UNIDADES"><MainLayout><UnidadesPage /></MainLayout></RutaProtegida>}/>
                     <Route path="/config/roles-y-permisos" element={<RutaProtegida permiso="CONFIG_ROLES"><MainLayout><RolesYPermisosPage /></MainLayout></RutaProtegida>}/>
                     <Route path="/G_PROJ" element={<RutaProtegida permiso="G_PROJ"><MainLayout><NuevoProyectoPage /></MainLayout></RutaProtegida>}/>

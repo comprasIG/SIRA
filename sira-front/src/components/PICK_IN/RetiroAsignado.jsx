@@ -1,8 +1,36 @@
 // sira-front/src/components/PICK_IN/RetiroAsignado.jsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, Autocomplete, TextField, Button, CircularProgress, Stack, Checkbox, FormControlLabel } from '@mui/material';
+import {
+    Box,
+    Typography,
+    Autocomplete,
+    TextField,
+    Button,
+    CircularProgress,
+    Stack,
+    Checkbox,
+    Divider,
+    Paper,
+} from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
+import { alpha, useTheme } from '@mui/material/styles';
 
+/**
+ * RetiroAsignado
+ *
+ * Flujo:
+ * 1) Seleccionas ORIGEN (sitio/proyecto) -> lista material asignado pendiente.
+ * 2) Seleccionas DESTINO (sitio/proyecto) -> requerido para registrar la SALIDA.
+ * 3) Seleccionas cantidades por asignación (checkbox + qty).
+ *
+ * Nota:
+ * - El backend usa el ORIGEN real desde la asignación (proyecto_origen_id + requisicion_id),
+ *   para que la reversa devuelva a asignado y no a stock.
+ * - El DESTINO lo enviamos en el payload y queda reflejado en kardex (proyecto_destino_id + observaciones).
+ *
+ * Este componente se ha envuelto en un contenedor `Paper` con estilos
+ * uniformes para lograr coherencia visual con el resto de la aplicación.
+ */
 export default function RetiroAsignado({
     filterOptions,
     materialesAsignados,
@@ -11,81 +39,146 @@ export default function RetiroAsignado({
     registrarRetiro,
     isSubmitting,
 }) {
-    const [selectedSitio, setSelectedSitio] = useState(null);
-    const [selectedProyecto, setSelectedProyecto] = useState(null);
-    const [itemsToWithdraw, setItemsToWithdraw] = useState({}); // { [asignacion_id]: cantidad }
+    const theme = useTheme();
+    // ORIGEN (para consultar asignaciones)
+    const [selectedSitioOrigen, setSelectedSitioOrigen] = useState(null);
+    const [selectedProyectoOrigen, setSelectedProyectoOrigen] = useState(null);
 
-    // Filtra proyectos basados en el sitio seleccionado
-    const proyectosFiltrados = useMemo(() => {
-        if (!selectedSitio) return [];
-        return (filterOptions.proyectosAsignados || []).filter(p => p.sitio_id === selectedSitio.id);
-    }, [selectedSitio, filterOptions.proyectosAsignados]);
+    // DESTINO (para registrar salida)
+    const [selectedSitioDestino, setSelectedSitioDestino] = useState(null);
+    const [selectedProyectoDestino, setSelectedProyectoDestino] = useState(null);
 
-    // Llama a fetchMaterialesAsignados cuando cambian sitio o proyecto
+    // { [asignacion_id]: cantidad_string }
+    const [itemsToWithdraw, setItemsToWithdraw] = useState({});
+
+    /** -------------------------------
+     *  Opciones dependientes
+     * ------------------------------ */
+    const proyectosOrigenFiltrados = useMemo(() => {
+        if (!selectedSitioOrigen) return [];
+        return (filterOptions.proyectosAsignados || []).filter(
+            (p) => p.sitio_id === selectedSitioOrigen.id,
+        );
+    }, [selectedSitioOrigen, filterOptions.proyectosAsignados]);
+
+    const proyectosDestinoFiltrados = useMemo(() => {
+        if (!selectedSitioDestino) return [];
+        return (filterOptions.todosProyectos || []).filter(
+            (p) => p.sitio_id === selectedSitioDestino.id,
+        );
+    }, [selectedSitioDestino, filterOptions.todosProyectos]);
+
+    /** -------------------------------
+     *  Cargar asignaciones cuando cambia ORIGEN
+     * ------------------------------ */
     useEffect(() => {
-        if (selectedSitio && selectedProyecto) {
-            fetchMaterialesAsignados(selectedSitio.id, selectedProyecto.id);
-            setItemsToWithdraw({}); // Limpia selección al cambiar proyecto/sitio
-        } else {
-            // Limpia la lista si no hay sitio o proyecto
-            // fetchMaterialesAsignados(null, null); // El hook ya maneja esto
+        if (selectedSitioOrigen && selectedProyectoOrigen) {
+            fetchMaterialesAsignados(selectedSitioOrigen.id, selectedProyectoOrigen.id);
+            setItemsToWithdraw({});
         }
-    }, [selectedSitio, selectedProyecto, fetchMaterialesAsignados]);
+    }, [selectedSitioOrigen, selectedProyectoOrigen, fetchMaterialesAsignados]);
 
-     // Limpia proyecto si cambia el sitio y el proyecto no pertenece
+    /** -------------------------------
+     *  Si cambia sitio origen y el proyecto ya no coincide, limpiarlo
+     * ------------------------------ */
     useEffect(() => {
-        if(selectedSitio && selectedProyecto && selectedProyecto.sitio_id !== selectedSitio.id) {
-            setSelectedProyecto(null);
+        if (
+            selectedSitioOrigen &&
+            selectedProyectoOrigen &&
+            selectedProyectoOrigen.sitio_id !== selectedSitioOrigen.id
+        ) {
+            setSelectedProyectoOrigen(null);
         }
-    }, [selectedSitio, selectedProyecto]);
+    }, [selectedSitioOrigen, selectedProyectoOrigen]);
 
+    /** -------------------------------
+     *  Si cambia sitio destino y el proyecto ya no coincide, limpiarlo
+     * ------------------------------ */
+    useEffect(() => {
+        if (
+            selectedSitioDestino &&
+            selectedProyectoDestino &&
+            selectedProyectoDestino.sitio_id !== selectedSitioDestino.id
+        ) {
+            setSelectedProyectoDestino(null);
+        }
+    }, [selectedSitioDestino, selectedProyectoDestino]);
+
+    /** -------------------------------
+     *  Conveniencia UX:
+     *  - Cuando ya seleccionaste ORIGEN, prellenamos DESTINO igual (puedes cambiarlo).
+     */
+    useEffect(() => {
+        if (selectedSitioOrigen && !selectedSitioDestino) setSelectedSitioDestino(selectedSitioOrigen);
+    }, [selectedSitioOrigen, selectedSitioDestino]);
+
+    useEffect(() => {
+        if (selectedProyectoOrigen && !selectedProyectoDestino) setSelectedProyectoDestino(selectedProyectoOrigen);
+    }, [selectedProyectoOrigen, selectedProyectoDestino]);
+
+    /** -------------------------------
+     *  Handlers
+     * ------------------------------ */
     const handleQuantityChange = (asignacion_id, value) => {
-        const material = materialesAsignados.find(m => m.asignacion_id === asignacion_id);
+        const material = materialesAsignados.find((m) => m.asignacion_id === asignacion_id);
         if (!material) return;
+
         const maxQty = parseFloat(material.cantidad_asignada_pendiente);
         const inputQty = parseFloat(value) || 0;
-        const finalQty = Math.max(0, Math.min(inputQty, maxQty)); // Asegura 0 <= qty <= max
+        const finalQty = Math.max(0, Math.min(inputQty, maxQty));
 
-        setItemsToWithdraw(prev => ({ ...prev, [asignacion_id]: finalQty.toString() }));
+        setItemsToWithdraw((prev) => ({ ...prev, [asignacion_id]: finalQty.toString() }));
     };
 
     const handleSelectAll = () => {
-         const newItems = {};
-         materialesAsignados.forEach(item => {
-             newItems[item.asignacion_id] = item.cantidad_asignada_pendiente.toString();
-         });
-         setItemsToWithdraw(newItems);
+        const newItems = {};
+        materialesAsignados.forEach((item) => {
+            newItems[item.asignacion_id] = item.cantidad_asignada_pendiente.toString();
+        });
+        setItemsToWithdraw(newItems);
     };
 
-     const handleCheckboxChange = (asignacion_id, checked) => {
+    const handleCheckboxChange = (asignacion_id, checked) => {
         if (checked) {
-            const material = materialesAsignados.find(m => m.asignacion_id === asignacion_id);
-            if(material) {
+            const material = materialesAsignados.find((m) => m.asignacion_id === asignacion_id);
+            if (material) {
                 handleQuantityChange(asignacion_id, material.cantidad_asignada_pendiente);
             }
         } else {
-            // Elimina la propiedad si se desmarca
-            setItemsToWithdraw(prev => {
-                const newState = {...prev};
+            setItemsToWithdraw((prev) => {
+                const newState = { ...prev };
                 delete newState[asignacion_id];
                 return newState;
             });
         }
     };
 
+    const destinoSeleccionado = !!(selectedSitioDestino && selectedProyectoDestino);
+
     const handleSubmit = async () => {
+        if (!selectedSitioOrigen || !selectedProyectoOrigen) {
+            alert('Selecciona ORIGEN (sitio/proyecto) para ver asignaciones.');
+            return;
+        }
+        if (!destinoSeleccionado) {
+            alert('Selecciona DESTINO (sitio/proyecto) para registrar la salida.');
+            return;
+        }
+
         const itemsPayload = Object.entries(itemsToWithdraw)
             .map(([asignacion_id, cantidad_a_retirar]) => {
-                const material = materialesAsignados.find(m => m.asignacion_id === parseInt(asignacion_id));
-                return material ? {
-                    asignacion_id: parseInt(asignacion_id),
-                    material_id: material.material_id,
-                    cantidad_a_retirar: parseFloat(cantidad_a_retirar),
-                    valor_unitario: parseFloat(material.valor_unitario),
-                    ubicacion_id: material.ubicacion_id // Necesario para actualizar inventario_actual.asignado
-                } : null;
+                const material = materialesAsignados.find(
+                    (m) => m.asignacion_id === parseInt(asignacion_id, 10),
+                );
+                return material
+                    ? {
+                          asignacion_id: parseInt(asignacion_id, 10),
+                          material_id: material.material_id,
+                          cantidad_a_retirar: parseFloat(cantidad_a_retirar),
+                      }
+                    : null;
             })
-            .filter(item => item && item.cantidad_a_retirar > 0); // Filtra nulos y cantidades 0
+            .filter((item) => item && item.cantidad_a_retirar > 0);
 
         if (itemsPayload.length === 0) {
             alert('No has seleccionado materiales o cantidades a retirar.');
@@ -95,90 +188,173 @@ export default function RetiroAsignado({
         const payload = {
             tipoRetiro: 'ASIGNADO',
             items: itemsPayload,
-            proyectoDestinoId: selectedProyecto.id, // El proyecto al que está asignado
-            sitioDestinoId: selectedSitio.id,       // El sitio al que está asignado
+            proyectoDestinoId: selectedProyectoDestino.id,
+            sitioDestinoId: selectedSitioDestino.id,
         };
 
         const success = await registrarRetiro(payload);
-        if(success) {
-            // Limpiar selección después de éxito
-             setSelectedSitio(null);
-             setSelectedProyecto(null);
-             setItemsToWithdraw({});
-             // fetchMaterialesAsignados(null, null); // El useEffect limpiará la lista
+
+        if (success) {
+            // ✅ Refrescar asignaciones inmediatamente (sin recargar)
+            await fetchMaterialesAsignados(selectedSitioOrigen.id, selectedProyectoOrigen.id);
+
+            // Limpia cantidades pero mantiene origen/destino para capturar rápido más retiros
+            setItemsToWithdraw({});
         }
     };
 
     return (
-        <Box>
-            <Typography variant="h6" gutterBottom>Retirar Material Asignado</Typography>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 3 }}>
-                <Autocomplete fullWidth
-                    options={filterOptions.sitiosAsignados || []}
-                    getOptionLabel={(o) => o.nombre || ''}
-                    value={selectedSitio}
-                    onChange={(_, v) => setSelectedSitio(v)}
-                    renderInput={(params) => <TextField {...params} label="Seleccionar Sitio" />}
-                />
-                <Autocomplete fullWidth
-                    options={proyectosFiltrados}
-                    getOptionLabel={(o) => o.nombre || ''}
-                    value={selectedProyecto}
-                    onChange={(_, v) => setSelectedProyecto(v)}
-                    renderInput={(params) => <TextField {...params} label="Seleccionar Proyecto" />}
-                    disabled={!selectedSitio}
-                />
-            </Stack>
+        <Paper
+            elevation={0}
+            sx={{
+                p: { xs: 2, md: 3 },
+                borderRadius: 4,
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
+                backgroundImage: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${theme.palette.background.paper} 60%)`,
+                boxShadow: `0 12px 26px ${alpha(theme.palette.primary.main, 0.08)}`,
+            }}
+        >
+            <Box>
+                <Typography variant="h6" gutterBottom>
+                    Retirar Material Asignado
+                </Typography>
 
-            {loadingAsignados && <CircularProgress sx={{ display: 'block', margin: 'auto' }} />}
+                {/* =========================
+                    1) ORIGEN
+                   ========================= */}
+                <Typography variant="subtitle1" sx={{ mt: 1, mb: 1 }}>
+                    1) Origen (de dónde sale el material apartado)
+                </Typography>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2 }}>
+                    <Autocomplete
+                        fullWidth
+                        options={filterOptions.sitiosAsignados || []}
+                        getOptionLabel={(o) => o?.nombre || ''}
+                        value={selectedSitioOrigen}
+                        onChange={(_, v) => {
+                            setSelectedSitioOrigen(v);
+                            setSelectedProyectoOrigen(null);
+                        }}
+                        renderInput={(params) => <TextField {...params} label="Sitio Origen" />}
+                    />
+                    <Autocomplete
+                        fullWidth
+                        options={proyectosOrigenFiltrados}
+                        getOptionLabel={(o) => o?.nombre || ''}
+                        value={selectedProyectoOrigen}
+                        onChange={(_, v) => setSelectedProyectoOrigen(v)}
+                        renderInput={(params) => <TextField {...params} label="Proyecto Origen" />}
+                        disabled={!selectedSitioOrigen}
+                    />
+                </Stack>
 
-            {!loadingAsignados && selectedSitio && selectedProyecto && (
-                <>
-                    {materialesAsignados.length === 0 ? (
-                        <Typography>No hay materiales asignados pendientes para este proyecto/sitio.</Typography>
-                    ) : (
-                        <Stack spacing={1}>
-                             <Box sx={{ display: 'flex', justifyContent: 'flex-end'}}>
-                                 <Button size="small" onClick={handleSelectAll}>Seleccionar Todo</Button>
-                             </Box>
-                             {materialesAsignados.map((item) => (
-                                <Stack key={item.asignacion_id} direction="row" spacing={2} alignItems="center"
-                                       sx={{ p: 1, borderBottom: 1, borderColor: 'divider' }}>
-                                    <Checkbox
-                                        checked={!!itemsToWithdraw[item.asignacion_id]}
-                                        onChange={(e) => handleCheckboxChange(item.asignacion_id, e.target.checked)}
-                                    />
-                                    <Typography sx={{ flexGrow: 1 }}>{item.material_nombre}</Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        {`Disp: ${item.cantidad_asignada_pendiente} ${item.unidad_simbolo}`}
-                                    </Typography>
-                                    <TextField
-                                        size="small" type="number"
-                                        label="Retirar"
-                                        value={itemsToWithdraw[item.asignacion_id] || ''}
-                                        onChange={(e) => handleQuantityChange(item.asignacion_id, e.target.value)}
-                                        sx={{ width: '100px' }}
-                                        inputProps={{
-                                            max: item.cantidad_asignada_pendiente,
-                                            min: 0, step: 'any'
-                                        }}
-                                        disabled={!itemsToWithdraw[item.asignacion_id]} // Deshabilita si no está chequeado
-                                    />
-                                </Stack>
-                            ))}
-                            <Button
-                                sx={{ mt: 3 }}
-                                variant="contained"
-                                onClick={handleSubmit}
-                                disabled={isSubmitting || Object.keys(itemsToWithdraw).length === 0}
-                                startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
-                            >
-                                {isSubmitting ? 'Registrando Retiro...' : 'Confirmar Retiro Asignado'}
-                            </Button>
-                        </Stack>
-                    )}
-                </>
-            )}
-        </Box>
+                <Divider sx={{ my: 2 }} />
+
+                {/* =========================
+                    2) DESTINO
+                   ========================= */}
+                <Typography variant="subtitle1" sx={{ mt: 1, mb: 1 }}>
+                    2) Destino (a dónde se va el material)
+                </Typography>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2 }}>
+                    <Autocomplete
+                        fullWidth
+                        options={filterOptions.todosSitios || []}
+                        getOptionLabel={(o) => o?.nombre || ''}
+                        value={selectedSitioDestino}
+                        onChange={(_, v) => {
+                            setSelectedSitioDestino(v);
+                            setSelectedProyectoDestino(null);
+                        }}
+                        renderInput={(params) => <TextField {...params} label="Sitio Destino" required />}
+                    />
+                    <Autocomplete
+                        fullWidth
+                        options={proyectosDestinoFiltrados}
+                        getOptionLabel={(o) => o?.nombre || ''}
+                        value={selectedProyectoDestino}
+                        onChange={(_, v) => setSelectedProyectoDestino(v)}
+                        renderInput={(params) => <TextField {...params} label="Proyecto Destino" required />}
+                        disabled={!selectedSitioDestino}
+                    />
+                </Stack>
+
+                {/* =========================
+                    3) LISTA + CANTIDADES
+                   ========================= */}
+                {loadingAsignados && (
+                    <CircularProgress sx={{ display: 'block', margin: 'auto', mt: 2 }} />
+                )}
+                {!loadingAsignados && selectedSitioOrigen && selectedProyectoOrigen && (
+                    <>
+                        {materialesAsignados.length === 0 ? (
+                            <Typography>
+                                No hay materiales asignados pendientes para este proyecto/sitio.
+                            </Typography>
+                        ) : (
+                            <Stack spacing={1}>
+                                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                    <Button size="small" onClick={handleSelectAll}>
+                                        Seleccionar Todo
+                                    </Button>
+                                </Box>
+                                {materialesAsignados.map((item) => (
+                                    <Stack
+                                        key={item.asignacion_id}
+                                        direction="row"
+                                        spacing={2}
+                                        alignItems="center"
+                                        sx={{ p: 1, borderBottom: 1, borderColor: 'divider' }}
+                                    >
+                                        <Checkbox
+                                            checked={!!itemsToWithdraw[item.asignacion_id]}
+                                            onChange={(e) => handleCheckboxChange(item.asignacion_id, e.target.checked)}
+                                        />
+                                        <Typography sx={{ flexGrow: 1 }}>{item.material_nombre}</Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            {`Disp: ${item.cantidad_asignada_pendiente} ${item.unidad_simbolo}`}
+                                        </Typography>
+                                
+                                        <TextField
+                                            size="small"
+                                            type="number"
+                                            label="Retirar"
+                                            value={itemsToWithdraw[item.asignacion_id] || ''}
+                                            onChange={(e) => handleQuantityChange(item.asignacion_id, e.target.value)}
+                                            sx={{ width: '110px' }}
+                                            inputProps={{
+                                                max: item.cantidad_asignada_pendiente,
+                                                min: 0,
+                                                step: 'any',
+                                            }}
+                                            disabled={!itemsToWithdraw[item.asignacion_id]}
+                                        />
+                                    </Stack>
+                                ))}
+                                <Button
+                                    sx={{ mt: 3 }}
+                                    variant="contained"
+                                    onClick={handleSubmit}
+                                    disabled={
+                                        isSubmitting ||
+                                        Object.keys(itemsToWithdraw).length === 0 ||
+                                        !destinoSeleccionado
+                                    }
+                                    startIcon={
+                                        isSubmitting ? (
+                                            <CircularProgress size={20} color="inherit" />
+                                        ) : (
+                                            <SendIcon />
+                                        )
+                                    }
+                                >
+                                    {isSubmitting ? 'Registrando Retiro...' : 'Confirmar Retiro Asignado'}
+                                </Button>
+                            </Stack>
+                        )}
+                    </>
+                )}
+            </Box>
+        </Paper>
     );
 }

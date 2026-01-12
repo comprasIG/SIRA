@@ -134,6 +134,11 @@ app.use('/api/inventario', inventarioRoutes);
 const empleadosRoutes = require('./routes/empleados/empleados.routes');
 app.use('/api/empleados', empleadosRoutes);
 
+// Dashboard por departamento
+const dashboardDepartamentoRoutes = require('./routes/dashboard_departamento.routes');
+app.use('/api/dashboard', dashboardDepartamentoRoutes);
+
+
 // Nuestra ruta de unidades (solo una vez)
 const unidadesRoutes = require('./routes/unidades.routes');
 app.use('/api/unidades', unidadesRoutes);
