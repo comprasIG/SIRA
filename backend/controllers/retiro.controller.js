@@ -275,33 +275,41 @@ const registrarRetiro = async (req, res) => {
           asig.moneda_asignacion ||
           null;
 
-        const obs = `Retiro ASIGNADO (AsigID:${asignacionId}) -> destino sitio=${sitioDestinoId} proyecto=${proyectoDestinoId}`;
+// Dentro de registrarRetiro -> tipoRetiro === "ASIGNADO"
+// Reemplaza tu INSERT actual por este:
 
-        const movIns = await client.query(
-          `
-          INSERT INTO movimientos_inventario
-            (material_id, tipo_movimiento, cantidad, usuario_id, ubicacion_id,
-             proyecto_origen_id, proyecto_destino_id, orden_compra_id, requisicion_id,
-             valor_unitario, moneda, observaciones)
-          VALUES
-            ($1, 'SALIDA', $2, $3, $4,
-             $5, $6, NULL, $7,
-             $8, $9, $10)
-          RETURNING id
-          `,
-          [
-            materialId,
-            cantidadNum,
-            usuarioId,
-            asig.ubicacion_id,
-            asig.proyecto_origen_id,     // ✅ clave para reversa a ASIGNADO
-            proyectoDestinoId,
-            asig.requisicion_id || null, // ✅ clave para reversa a ASIGNADO
-            valorUnitario,
-            moneda,
-            obs,
-          ]
-        );
+const obs = `Retiro ASIGNADO (AsigID:${asignacionId}) -> destino sitio=${sitioDestinoId} proyecto=${proyectoDestinoId}`;
+
+const movIns = await client.query(
+  `
+  INSERT INTO movimientos_inventario
+    (material_id, tipo_movimiento, cantidad, usuario_id, ubicacion_id,
+     proyecto_origen_id, proyecto_destino_id,
+     orden_compra_id, requisicion_id,
+     valor_unitario, moneda, observaciones,
+     asignacion_origen_id)
+  VALUES
+    ($1, 'SALIDA', $2, $3, $4,
+     $5, $6,
+     NULL, NULL,
+     $7, $8, $9,
+     $10)
+  RETURNING id
+  `,
+  [
+    materialId,
+    cantidadNum,
+    usuarioId,
+    asig.ubicacion_id,
+    asig.proyecto_origen_id,
+    proyectoDestinoId,
+    valorUnitario,
+    moneda,
+    obs,
+    asignacionId, // ✅ clave para reversa sin requisición
+  ]
+);
+
 
         movimientosRegistrados.push({
           movimiento_id: movIns.rows[0].id,
