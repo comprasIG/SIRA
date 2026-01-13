@@ -1,12 +1,20 @@
 // C:\SIRA\sira-front\src\components\finanzas\pay_oc\SubirComprobanteDialog.jsx
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
-  TextField, MenuItem, Typography, Box, Paper, IconButton
+  TextField, MenuItem, Typography, Box, Paper, IconButton, Divider
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import CloseIcon from '@mui/icons-material/Close';
+import api from '@/api/api';
+
+const toYYYYMMDD = (d) => {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return '';
+  return dt.toISOString().slice(0, 10);
+};
 
 export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, loading }) {
   const saldo = useMemo(() => {
@@ -21,7 +29,35 @@ export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, lo
   const [comentario, setComentario] = useState('');
   const [isDragActive, setIsDragActive] = useState(false);
 
-  const reset = () => { setArchivo(null); setTipoPago('TOTAL'); setMonto(''); setComentario(''); };
+  // Nuevos campos
+  const [fuentes, setFuentes] = useState([]);
+  const [fuentePagoId, setFuentePagoId] = useState('');
+  const [fechaCompromisoPago, setFechaCompromisoPago] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d;
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        const rows = await api.get('/api/finanzas/fuentes-pago?soloActivas=true');
+        setFuentes(rows || []);
+        // default: primera fuente activa
+        if ((rows || []).length > 0) setFuentePagoId(String(rows[0].id));
+      } catch {
+        setFuentes([]);
+      }
+    })();
+  }, [open]);
+
+  const reset = () => {
+    setArchivo(null);
+    setTipoPago('TOTAL');
+    setMonto('');
+    setComentario('');
+  };
   const handleClose = () => { reset(); onClose(); };
 
   const handleFileChange = (e) => {
@@ -37,15 +73,22 @@ export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, lo
   };
 
   const isMontoInvalido = tipoPago === 'ANTICIPO' && (!monto || Number(monto) <= 0);
+  const isFuenteInvalida = !fuentePagoId;
+  const isFechaInvalida = tipoPago === 'ANTICIPO' && !toYYYYMMDD(fechaCompromisoPago);
 
   const handleSubmit = async () => {
     if (!archivo) return;
     if (isMontoInvalido) return;
+    if (isFuenteInvalida) return;
+    if (isFechaInvalida) return;
+
     await onSubmit({
       archivo,
-      tipoPago, // <-- ahora puede ser 'TOTAL' o 'ANTICIPO'
+      tipoPago,
       monto: tipoPago === 'TOTAL' ? undefined : monto,
       comentario: comentario.trim(),
+      fuentePagoId: Number(fuentePagoId),
+      fechaCompromisoPago: tipoPago === 'TOTAL' ? undefined : toYYYYMMDD(fechaCompromisoPago),
     });
     reset();
   };
@@ -59,7 +102,6 @@ export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, lo
       </DialogTitle>
 
       <DialogContent dividers>
-        {/* Dropzone */}
         {!archivo ? (
           <Box
             component="label"
@@ -128,6 +170,38 @@ export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, lo
           </Box>
         )}
 
+        <Divider sx={{ my: 2 }} />
+
+        <TextField
+          select
+          label="Fuente de pago (de dónde salió el dinero)"
+          fullWidth
+          value={fuentePagoId}
+          onChange={(e) => setFuentePagoId(e.target.value)}
+          error={isFuenteInvalida}
+          helperText={isFuenteInvalida ? 'Selecciona una fuente' : 'Catálogo administrable desde Finanzas'}
+        >
+          {fuentes.map((f) => (
+            <MenuItem key={f.id} value={String(f.id)}>
+              {f.nombre} ({f.tipo})
+            </MenuItem>
+          ))}
+        </TextField>
+
+        {tipoPago === 'ANTICIPO' && (
+          <TextField
+            label="Próxima fecha comprometida"
+            type="date"
+            fullWidth
+            sx={{ mt: 2 }}
+            value={toYYYYMMDD(fechaCompromisoPago)}
+            onChange={(e) => setFechaCompromisoPago(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            error={isFechaInvalida}
+            helperText={isFechaInvalida ? 'Selecciona una fecha válida (obligatoria en anticipo)' : 'Esto alimenta el seguimiento de CxP'}
+          />
+        )}
+
         <TextField
           label="Comentario (opcional)"
           fullWidth
@@ -144,7 +218,7 @@ export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, lo
         <Button
           onClick={handleSubmit}
           variant="contained"
-          disabled={loading || !archivo || isMontoInvalido}
+          disabled={loading || !archivo || isMontoInvalido || isFuenteInvalida || isFechaInvalida}
         >
           {loading ? 'Subiendo…' : 'Subir comprobante'}
         </Button>

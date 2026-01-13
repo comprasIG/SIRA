@@ -31,12 +31,17 @@ const upload = multer({
 
 router.use(verifyFirebaseToken, loadSiraUser);
 
-// ✅ Valida que :id sea entero positivo (sin usar regex en el path)
+// ✅ Valida que :id sea entero positivo
 router.param('id', (req, res, next, val) => {
   const n = Number(val);
-  if (!Number.isInteger(n) || n <= 0) {
-    return res.status(400).json({ error: 'El id debe ser numérico y > 0.' });
-  }
+  if (!Number.isInteger(n) || n <= 0) return res.status(400).json({ error: 'El id debe ser numérico y > 0.' });
+  next();
+});
+
+// ✅ Valida pagoId
+router.param('pagoId', (req, res, next, val) => {
+  const n = Number(val);
+  if (!Number.isInteger(n) || n <= 0) return res.status(400).json({ error: 'pagoId debe ser numérico y > 0.' });
   next();
 });
 
@@ -49,16 +54,19 @@ router.get('/oc/:id/pagos', pagosOCController.listarPagos);
 /**
  * Registra un pago de OC (subida de comprobante)
  * POST /api/finanzas/oc/:id/pagos
- * (field: comprobante)
  */
 router.post('/oc/:id/pagos', upload.single('comprobante'), pagosOCController.registrarPago);
 
-// (Opcional) Manejador simple de errores de Multer a nivel de router
+/**
+ * Reversar un pago (append-only)
+ * POST /api/finanzas/oc/:id/pagos/:pagoId/reversar
+ */
+router.post('/oc/:id/pagos/:pagoId/reversar', upload.single('comprobante'), pagosOCController.reversarPago);
+
+// Manejador errores multer
 router.use((err, _req, res, _next) => {
   if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: `El archivo supera ${MAX_FILE_MB}MB.` });
-    }
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: `El archivo supera ${MAX_FILE_MB}MB.` });
     return res.status(400).json({ error: `Error de carga: ${err.code}` });
   }
   if (err && /Tipo de archivo no permitido/i.test(err.message)) {

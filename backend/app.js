@@ -118,6 +118,9 @@ app.use('/api/finanzas', finanzasRoutes);
 const pagosOCRoutes = require('./routes/finanzas/pagosOC.routes');
 app.use('/api/finanzas', pagosOCRoutes);
 
+const fuentesPagoRoutes = require('./routes/finanzas/fuentesPago.routes');
+app.use('/api/finanzas', fuentesPagoRoutes);
+
 const recoleccionRoutes = require('./routes/recoleccion.routes');
 app.use('/api/recoleccion', recoleccionRoutes);
 
