@@ -2,34 +2,41 @@
 const pool = require("../db/pool");
 
 /**
- * RETIRO (Salida física)
+ * RETIRO (PICK_IN) - Salidas físicas de almacén
  * =========================================================================================
- * Este módulo registra salidas reales de material.
+ * Objetivos:
+ * - Registrar una "SALIDA DE ALMACÉN" (cabecera) totalmente auditable.
+ * - Registrar sus items (detalle).
+ * - Registrar los movimientos en kardex (movimientos_inventario) y ligar todo con salida_almacen_id.
  *
- * Dos tipos:
- * 1) ASIGNADO:
- *    - Sale de inventario_asignado (apartado por proyecto/sitio)
- *    - Se descuenta inventario_actual.asignado (misma ubicación física del inventario_id)
- *    - Kardex: movimientos_inventario tipo_movimiento = 'SALIDA'
- *      * proyecto_origen_id = proyecto del apartado
- *      * proyecto_destino_id = destino (seleccionado por UI)
- *      * requisicion_id = requisición que originó el apartado (para reversa correcta)
+ * Reglas acordadas:
+ * - Siempre se registra "solicitante" (empleado_id) seleccionado desde /empleados (status_laboral=activo).
+ * - Hay 2 tipos:
+ *   A) ASIGNADO: sale de inventario_asignado (apartado) y descuenta inventario_actual.asignado.
+ *      * Destino NO se captura (opción 1): se entiende que es consumo del mismo proyecto/sitio origen.
+ *      * En kardex: proyecto_origen_id = proyecto de la asignación, proyecto_destino_id = NULL.
+ *      * asignacion_origen_id SIEMPRE se guarda para reversas finas.
  *
- * 2) STOCK:
- *    - Sale de inventario_actual.stock_actual (de todas las ubicaciones disponibles)
- *    - Kardex: movimientos_inventario tipo_movimiento = 'SALIDA'
- *      * proyecto_origen_id = NULL (porque venía de stock general)
- *      * proyecto_destino_id = destino seleccionado
+ *   B) STOCK: sale de inventario_actual.stock_actual y requiere destino (sitio/proyecto).
+ *      * En kardex: proyecto_origen_id = NULL, proyecto_destino_id = proyecto destino.
  *
- * IMPORTANTE PARA REVERSAS:
- * - Si una salida salió de ASIGNADO, DEBE llevar requisicion_id y proyecto_origen_id,
- *   para que la reversa pueda devolver correctamente a asignado (no a stock).
- * - Si una salida salió de STOCK, requisicion_id debe ser NULL y proyecto_origen_id NULL.
- *
- * VALUACIÓN:
- * - Regla del proyecto: siempre usar el último precio de entrada (inventario_actual.ultimo_precio_entrada)
- *   para registrar valor_unitario en kardex.
+ * Valuación:
+ * - valor_unitario = inventario_actual.ultimo_precio_entrada (fallback a 0).
+ * - moneda = inventario_actual.moneda (nullable).
  */
+
+// --------------------------
+// Helpers
+// --------------------------
+const toNumber = (v, def = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : def;
+};
+
+const toInt = (v, def = null) => {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : def;
+};
 
 /** =========================================================================================
  * GET /api/retiro/datos-filtros
@@ -100,7 +107,12 @@ const getDatosFiltrosRetiro = async (req, res) => {
  * GET /api/retiro/asignado/:sitioId/:proyectoId
  * ======================================================================================= */
 const getMaterialesAsignados = async (req, res) => {
-  const { sitioId, proyectoId } = req.params;
+  const sitioId = toInt(req.params.sitioId);
+  const proyectoId = toInt(req.params.proyectoId);
+
+  if (!sitioId || !proyectoId) {
+    return res.status(400).json({ error: "sitioId/proyectoId inválidos." });
+  }
 
   try {
     const query = `
@@ -138,7 +150,11 @@ const getMaterialesAsignados = async (req, res) => {
  * GET /api/retiro/stock/:materialId
  * ======================================================================================= */
 const getStockMaterial = async (req, res) => {
-  const { materialId } = req.params;
+  const materialId = toInt(req.params.materialId);
+
+  if (!materialId) {
+    return res.status(400).json({ error: "materialId inválido." });
+  }
 
   try {
     const query = `
@@ -167,17 +183,53 @@ const getStockMaterial = async (req, res) => {
  * POST /api/retiro/registrar
  * ======================================================================================= */
 const registrarRetiro = async (req, res) => {
-  const { tipoRetiro, items, proyectoDestinoId, sitioDestinoId } = req.body;
-  const { id: usuarioId } = req.usuarioSira;
+  const {
+    tipoRetiro,
+    solicitanteEmpleadoId,
+    // STOCK: destino requerido
+    proyectoDestinoId,
+    sitioDestinoId,
+    // ASIGNADO: origen informativo (para cabecera / validación de consistencia)
+    proyectoOrigenId,
+    sitioOrigenId,
+    observaciones,
+    items,
+  } = req.body;
 
-  if (
-    !tipoRetiro ||
-    !Array.isArray(items) ||
-    items.length === 0 ||
-    !proyectoDestinoId ||
-    !sitioDestinoId
-  ) {
-    return res.status(400).json({ error: "Datos de retiro inválidos." });
+  const usuarioId = req.usuarioSira?.id;
+
+  // --------------------------
+  // Validaciones base
+  // --------------------------
+  if (!usuarioId) {
+    return res.status(401).json({ error: "Usuario no autenticado." });
+  }
+
+  if (!tipoRetiro || !["ASIGNADO", "STOCK"].includes(String(tipoRetiro).toUpperCase())) {
+    return res.status(400).json({ error: "tipoRetiro inválido (ASIGNADO|STOCK)." });
+  }
+
+  const solicitanteId = toInt(solicitanteEmpleadoId);
+  if (!solicitanteId) {
+    return res.status(400).json({ error: "solicitanteEmpleadoId es obligatorio y debe ser numérico." });
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: "items es obligatorio y debe contener al menos 1 elemento." });
+  }
+
+  const tipo = String(tipoRetiro).toUpperCase();
+
+  if (tipo === "STOCK") {
+    if (!toInt(sitioDestinoId) || !toInt(proyectoDestinoId)) {
+      return res.status(400).json({ error: "Para STOCK, sitioDestinoId y proyectoDestinoId son obligatorios." });
+    }
+  }
+
+  if (tipo === "ASIGNADO") {
+    // destino eliminado (opción 1): no se exige destino.
+    // origen es recomendado para cabecera y consistencia, pero no bloqueamos si no viene
+    // (porque el origen real sale de cada asignación).
   }
 
   const client = await pool.connect();
@@ -185,23 +237,60 @@ const registrarRetiro = async (req, res) => {
   try {
     await client.query("BEGIN");
 
+    // Validar solicitante existe (y opcionalmente que esté activo)
+    const empRes = await client.query(
+      `SELECT id, status_laboral FROM public.empleados WHERE id = $1 LIMIT 1`,
+      [solicitanteId]
+    );
+    if (empRes.rowCount === 0) throw new Error("El solicitante (empleado) no existe.");
+    // Si quieres forzar solo activos:
+    if (String(empRes.rows[0].status_laboral).toLowerCase() !== "activo") {
+      throw new Error("El solicitante debe estar en status_laboral='activo'.");
+    }
+
+    // Crear cabecera (salidas_almacen)
+    const salidaIns = await client.query(
+      `
+      INSERT INTO public.salidas_almacen
+        (tipo_retiro, usuario_id, solicitante_empleado_id,
+         sitio_origen_id, proyecto_origen_id,
+         sitio_destino_id, proyecto_destino_id,
+         observaciones)
+      VALUES
+        ($1, $2, $3,
+         $4, $5,
+         $6, $7,
+         $8)
+      RETURNING id, fecha
+      `,
+      [
+        tipo,
+        usuarioId,
+        solicitanteId,
+        toInt(sitioOrigenId),
+        toInt(proyectoOrigenId),
+        toInt(sitioDestinoId),
+        toInt(proyectoDestinoId),
+        (observaciones || "").toString().trim() || null,
+      ]
+    );
+
+    const salidaAlmacenId = salidaIns.rows[0].id;
+
     const movimientosRegistrados = [];
 
-    if (tipoRetiro === "ASIGNADO") {
+    // =====================================================================
+    // ASIGNADO
+    // =====================================================================
+    if (tipo === "ASIGNADO") {
       for (const item of items) {
-        const asignacionId = item.asignacion_id;
-        const materialId = item.material_id;
-        const cantidadNum = parseFloat(item.cantidad_a_retirar) || 0;
+        const asignacionId = toInt(item.asignacion_id);
+        const materialId = toInt(item.material_id);
+        const cantidadNum = toNumber(item.cantidad_a_retirar, 0);
 
         if (!asignacionId || !materialId || cantidadNum <= 0) continue;
 
-        /**
-         * 1) Tomamos la asignación FOR UPDATE para:
-         * - validar disponibilidad
-         * - obtener requisicion_id, proyecto_origen_id
-         * - obtener inventario_id -> ubicacion_id física
-         * - VALUACIÓN: usamos inv.ultimo_precio_entrada y inv.moneda
-         */
+        // Lock de la asignación y su inventario físico
         const asigRes = await client.query(
           `
           SELECT
@@ -211,14 +300,12 @@ const registrarRetiro = async (req, res) => {
             ia.proyecto_id AS proyecto_origen_id,
             ia.sitio_id AS sitio_origen_id,
             ia.cantidad,
-            ia.valor_unitario AS valor_unitario_asignacion,
-            ia.moneda AS moneda_asignacion,
             inv.material_id,
             inv.ubicacion_id,
             inv.ultimo_precio_entrada,
             inv.moneda
-          FROM inventario_asignado ia
-          JOIN inventario_actual inv ON ia.inventario_id = inv.id
+          FROM public.inventario_asignado ia
+          JOIN public.inventario_actual inv ON inv.id = ia.inventario_id
           WHERE ia.id = $1
           FOR UPDATE
           `,
@@ -231,85 +318,98 @@ const registrarRetiro = async (req, res) => {
 
         const asig = asigRes.rows[0];
 
-        if (parseFloat(asig.cantidad) < cantidadNum) {
+        // Consistencia: material debe coincidir con la asignación
+        if (Number(asig.material_id) !== Number(materialId)) {
+          throw new Error(
+            `Asignación ${asignacionId}: material_id no coincide (payload=${materialId}, DB=${asig.material_id}).`
+          );
+        }
+
+        // Consistencia opcional con origen seleccionado en UI
+        if (toInt(proyectoOrigenId) && Number(asig.proyecto_origen_id) !== Number(toInt(proyectoOrigenId))) {
+          throw new Error(`Asignación ${asignacionId}: proyecto origen no coincide con selección UI.`);
+        }
+        if (toInt(sitioOrigenId) && Number(asig.sitio_origen_id) !== Number(toInt(sitioOrigenId))) {
+          throw new Error(`Asignación ${asignacionId}: sitio origen no coincide con selección UI.`);
+        }
+
+        if (toNumber(asig.cantidad, 0) < cantidadNum) {
           throw new Error(`Stock asignado insuficiente para Asignación ${asignacionId}.`);
         }
 
-        // 2) Reducir inventario_asignado
+        // 1) reducir inventario_asignado
         await client.query(
           `
-          UPDATE inventario_asignado
-          SET cantidad = cantidad - $1
-          WHERE id = $2
+          UPDATE public.inventario_asignado
+             SET cantidad = cantidad - $1,
+                 asignado_en = NOW()
+           WHERE id = $2
           `,
           [cantidadNum, asignacionId]
         );
 
-        // 3) Reducir inventario_actual.asignado (misma ubicación física)
+        // 2) reducir inventario_actual.asignado (misma ubicación física)
         const invUpd = await client.query(
           `
-          UPDATE inventario_actual
-          SET asignado = asignado - $1,
-              actualizado_en = NOW()
-          WHERE id = $2
-            AND asignado >= $1
+          UPDATE public.inventario_actual
+             SET asignado = asignado - $1,
+                 actualizado_en = NOW()
+           WHERE id = $2
+             AND asignado >= $1
           `,
           [cantidadNum, asig.inventario_id]
         );
-
         if (invUpd.rowCount === 0) {
           throw new Error(
             `Error al descontar inventario_actual.asignado (inventario_id=${asig.inventario_id}).`
           );
         }
 
-        // 4) Kardex SALIDA (desde ASIGNADO)
-        // Regla valuación: último precio de entrada
-        const valorUnitario =
-          parseFloat(asig.ultimo_precio_entrada) ||
-          parseFloat(asig.valor_unitario_asignacion) ||
-          0;
+        // 3) registrar item (detalle)
+        await client.query(
+          `
+          INSERT INTO public.salidas_almacen_items
+            (salida_almacen_id, material_id, ubicacion_id, cantidad, asignacion_origen_id)
+          VALUES
+            ($1, $2, $3, $4, $5)
+          `,
+          [salidaAlmacenId, materialId, asig.ubicacion_id, cantidadNum, asignacionId]
+        );
 
-        const moneda =
-          asig.moneda ||
-          asig.moneda_asignacion ||
-          null;
+        // 4) kardex SALIDA
+        const valorUnitario = toNumber(asig.ultimo_precio_entrada, 0);
+        const moneda = asig.moneda || null;
+        const obs = `Retiro ASIGNADO (AsigID:${asignacionId}) - consumo en proyecto_origen=${asig.proyecto_origen_id}`;
 
-// Dentro de registrarRetiro -> tipoRetiro === "ASIGNADO"
-// Reemplaza tu INSERT actual por este:
-
-const obs = `Retiro ASIGNADO (AsigID:${asignacionId}) -> destino sitio=${sitioDestinoId} proyecto=${proyectoDestinoId}`;
-
-const movIns = await client.query(
-  `
-  INSERT INTO movimientos_inventario
-    (material_id, tipo_movimiento, cantidad, usuario_id, ubicacion_id,
-     proyecto_origen_id, proyecto_destino_id,
-     orden_compra_id, requisicion_id,
-     valor_unitario, moneda, observaciones,
-     asignacion_origen_id)
-  VALUES
-    ($1, 'SALIDA', $2, $3, $4,
-     $5, $6,
-     NULL, NULL,
-     $7, $8, $9,
-     $10)
-  RETURNING id
-  `,
-  [
-    materialId,
-    cantidadNum,
-    usuarioId,
-    asig.ubicacion_id,
-    asig.proyecto_origen_id,
-    proyectoDestinoId,
-    valorUnitario,
-    moneda,
-    obs,
-    asignacionId, // ✅ clave para reversa sin requisición
-  ]
-);
-
+        const movIns = await client.query(
+          `
+          INSERT INTO public.movimientos_inventario
+            (material_id, tipo_movimiento, cantidad, usuario_id, ubicacion_id,
+             proyecto_origen_id, proyecto_destino_id,
+             orden_compra_id, requisicion_id,
+             valor_unitario, moneda, observaciones,
+             asignacion_origen_id, salida_almacen_id)
+          VALUES
+            ($1, 'SALIDA', $2, $3, $4,
+             $5, NULL,
+             NULL, NULL,
+             $6, $7, $8,
+             $9, $10)
+          RETURNING id
+          `,
+          [
+            materialId,
+            cantidadNum,
+            usuarioId,
+            asig.ubicacion_id,
+            asig.proyecto_origen_id,
+            valorUnitario,
+            moneda,
+            obs,
+            asignacionId,
+            salidaAlmacenId,
+          ]
+        );
 
         movimientosRegistrados.push({
           movimiento_id: movIns.rows[0].id,
@@ -319,65 +419,88 @@ const movIns = await client.query(
           tipo: "SALIDA_ASIGNADO",
         });
       }
-    } else if (tipoRetiro === "STOCK") {
+    }
+
+    // =====================================================================
+    // STOCK
+    // =====================================================================
+    if (tipo === "STOCK") {
+      const sitioDest = toInt(sitioDestinoId);
+      const proyectoDest = toInt(proyectoDestinoId);
+
       for (const item of items) {
-        const materialId = item.material_id;
-        let cantidadRestante = parseFloat(item.cantidad_a_retirar) || 0;
+        const materialId = toInt(item.material_id);
+        let cantidadRestante = toNumber(item.cantidad_a_retirar, 0);
 
         if (!materialId || cantidadRestante <= 0) continue;
 
-        const ubicacionesStock = await client.query(
+        // Lock filas de inventario_actual con stock para ese material
+        const ubiRes = await client.query(
           `
           SELECT id, ubicacion_id, stock_actual, ultimo_precio_entrada, moneda
-          FROM inventario_actual
+          FROM public.inventario_actual
           WHERE material_id = $1
             AND stock_actual > 0
-          ORDER BY stock_actual DESC
+          ORDER BY stock_actual DESC, id ASC
           FOR UPDATE
           `,
           [materialId]
         );
 
-        const totalDisponible = ubicacionesStock.rows.reduce(
-          (sum, u) => sum + parseFloat(u.stock_actual),
-          0
-        );
-
-        if (ubicacionesStock.rows.length === 0 || totalDisponible < cantidadRestante) {
-          throw new Error(`Stock insuficiente para material ${materialId}.`);
+        const totalDisponible = (ubiRes.rows || []).reduce((sum, u) => sum + toNumber(u.stock_actual, 0), 0);
+        if (ubiRes.rowCount === 0 || totalDisponible < cantidadRestante) {
+          throw new Error(`Stock insuficiente para material ${materialId}. Disponible=${totalDisponible}, requerido=${cantidadRestante}`);
         }
 
-        for (const ubi of ubicacionesStock.rows) {
-          const stockEnUbicacion = parseFloat(ubi.stock_actual);
+        // Consumir de varias ubicaciones si aplica
+        for (const ubi of ubiRes.rows) {
+          if (cantidadRestante <= 0) break;
+
+          const stockEnUbicacion = toNumber(ubi.stock_actual, 0);
           const cantidadARestar = Math.min(cantidadRestante, stockEnUbicacion);
 
           if (cantidadARestar <= 0) continue;
 
           await client.query(
             `
-            UPDATE inventario_actual
-            SET stock_actual = stock_actual - $1,
-                actualizado_en = NOW()
-            WHERE id = $2
+            UPDATE public.inventario_actual
+               SET stock_actual = stock_actual - $1,
+                   actualizado_en = NOW()
+             WHERE id = $2
             `,
             [cantidadARestar, ubi.id]
           );
 
-          const valorUnitario = parseFloat(ubi.ultimo_precio_entrada) || 0;
-          const moneda = ubi.moneda || null;
+          // detalle
+          await client.query(
+            `
+            INSERT INTO public.salidas_almacen_items
+              (salida_almacen_id, material_id, ubicacion_id, cantidad, asignacion_origen_id)
+            VALUES
+              ($1, $2, $3, $4, NULL)
+            `,
+            [salidaAlmacenId, materialId, ubi.ubicacion_id, cantidadARestar]
+          );
 
-          const obs = `Retiro STOCK -> destino sitio=${sitioDestinoId} proyecto=${proyectoDestinoId}`;
+          // kardex
+          const valorUnitario = toNumber(ubi.ultimo_precio_entrada, 0);
+          const moneda = ubi.moneda || null;
+          const obs = `Retiro STOCK -> destino sitio=${sitioDest} proyecto=${proyectoDest}`;
 
           const movIns = await client.query(
             `
-            INSERT INTO movimientos_inventario
+            INSERT INTO public.movimientos_inventario
               (material_id, tipo_movimiento, cantidad, usuario_id, ubicacion_id,
-               proyecto_origen_id, proyecto_destino_id, orden_compra_id, requisicion_id,
-               valor_unitario, moneda, observaciones)
+               proyecto_origen_id, proyecto_destino_id,
+               orden_compra_id, requisicion_id,
+               valor_unitario, moneda, observaciones,
+               asignacion_origen_id, salida_almacen_id)
             VALUES
               ($1, 'SALIDA', $2, $3, $4,
-               NULL, $5, NULL, NULL,
-               $6, $7, $8)
+               NULL, $5,
+               NULL, NULL,
+               $6, $7, $8,
+               NULL, $9)
             RETURNING id
             `,
             [
@@ -385,10 +508,11 @@ const movIns = await client.query(
               cantidadARestar,
               usuarioId,
               ubi.ubicacion_id,
-              proyectoDestinoId,
+              proyectoDest,
               valorUnitario,
               moneda,
               obs,
+              salidaAlmacenId,
             ]
           );
 
@@ -401,22 +525,24 @@ const movIns = await client.query(
           });
 
           cantidadRestante -= cantidadARestar;
-          if (cantidadRestante <= 0) break;
         }
       }
-    } else {
-      throw new Error("Tipo de retiro no válido.");
+    }
+
+    if (movimientosRegistrados.length === 0) {
+      throw new Error("No se registró ningún movimiento. Revisa items/cantidades.");
     }
 
     await client.query("COMMIT");
-    res.status(200).json({
-      mensaje: "Retiro registrado exitosamente.",
+    return res.json({
+      mensaje: "Retiro registrado con éxito.",
+      salida_almacen_id: salidaAlmacenId,
       movimientos: movimientosRegistrados,
     });
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Error registrando retiro:", error);
-    res.status(500).json({ error: error.message || "Error interno al registrar el retiro." });
+    return res.status(400).json({ error: error.message || "Error al registrar el retiro." });
   } finally {
     client.release();
   }

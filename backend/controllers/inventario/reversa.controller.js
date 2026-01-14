@@ -118,12 +118,12 @@ const reversarMovimiento = async (req, res) => {
           (material_id, tipo_movimiento, cantidad, usuario_id, ubicacion_id,
            proyecto_origen_id, proyecto_destino_id, orden_compra_id, requisicion_id,
            valor_unitario, moneda, observaciones, reversa_de_movimiento_id,
-           asignacion_origen_id)
+           asignacion_origen_id, salida_almacen_id)
         VALUES
           ($1, $2, $3, $4, $5,
            $6, $7, $8, $9,
            $10, $11, $12, $13,
-           $14)
+           $14, $15)
         `,
         [
           materialId,
@@ -142,6 +142,7 @@ const reversarMovimiento = async (req, res) => {
           }`.trim(),
           movimientoId,
           asignacion_origen_id,
+          mov.salida_almacen_id ?? null,
         ]
       );
     };
