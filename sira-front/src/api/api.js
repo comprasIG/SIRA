@@ -1,7 +1,7 @@
 // C:\SIRA\sira-front\src\api\api.js
 import { auth } from "../firebase/firebase";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 async function getIdToken() {
   const user = auth.currentUser;
@@ -11,10 +11,13 @@ async function getIdToken() {
 
 /**
  * request(path, { method, body, headers, responseType })
- * - Si body es FormData: NO se fija Content-Type (el navegador agrega boundary)
+ * - Si body es FormData: NO fijar Content-Type (el navegador agrega boundary)
  * - responseType: 'json' (default) | 'blob'
  */
-async function request(path, { method = "GET", body, headers = {}, responseType = 'json' } = {}) {
+async function request(
+  path,
+  { method = "GET", body, headers = {}, responseType = "json" } = {}
+) {
   const idToken = await getIdToken();
 
   // Construcción de headers
@@ -27,8 +30,9 @@ async function request(path, { method = "GET", body, headers = {}, responseType 
 
   // Si el body es FormData, nos aseguramos de no mandar Content-Type
   if (body instanceof FormData) {
-    // si alguien lo pasó en options.headers, lo removemos
-    if ('Content-Type' in fetchHeaders) delete fetchHeaders['Content-Type'];
+    // ⚠️ Muy importante: eliminar en ambos casos (mayúsculas/minúsculas)
+    if ("Content-Type" in fetchHeaders) delete fetchHeaders["Content-Type"];
+    if ("content-type" in fetchHeaders) delete fetchHeaders["content-type"];
     fetchBody = body;
   } else if (body !== undefined) {
     fetchHeaders["Content-Type"] = "application/json";
@@ -44,13 +48,17 @@ async function request(path, { method = "GET", body, headers = {}, responseType 
   // Manejo de errores primero
   if (!res.ok) {
     let errorPayload = null;
-    try { errorPayload = await res.json(); } catch { /* puede no ser JSON */ }
+    try {
+      errorPayload = await res.json();
+    } catch {
+      /* puede no ser JSON */
+    }
     const msg = errorPayload?.error || `Error ${res.status} en la petición a ${path}`;
     throw { ...errorPayload, error: msg, status: res.status };
   }
 
   // Respuestas exitosas
-  if (responseType === 'blob') {
+  if (responseType === "blob") {
     const blob = await res.blob();
     return { data: blob, headers: res.headers };
   }

@@ -3,25 +3,21 @@ import { useState, useCallback, useEffect } from 'react';
 import api from '../../../api/api';
 import { toast } from 'react-toastify';
 
-const toYYYYMMDD = (d) => {
-  if (!d) return null;
-  const dt = new Date(d);
-  if (Number.isNaN(dt.getTime())) return null;
-  return dt.toISOString().slice(0, 10);
-};
-
 export const useAutorizaciones = () => {
+  // Listas
   const [ocsPorAutorizar, setOcsPorAutorizar] = useState([]);
   const [ocsSpeiConfirmar, setOcsSpeiConfirmar] = useState([]);
   const [ocsPorLiquidar, setOcsPorLiquidar] = useState([]);
   const [ocsEnHold, setOcsEnHold] = useState([]);
 
+  // UI
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Dialog crédito: ahora la fecha es editable
+  // Dialog crédito
   const [dialogState, setDialogState] = useState({ open: false, ocId: null, diasCredito: 0, fechaPago: null });
 
+  // === FETCHERS ===
   const fetchPorAutorizar = useCallback(async () => {
     try { return await api.get('/api/finanzas/ocs/por-autorizar'); }
     catch { toast.error('No se pudieron cargar OCs por autorizar.'); return []; }
@@ -68,20 +64,14 @@ export const useAutorizaciones = () => {
       const { dias_credito } = await api.get(`/api/finanzas/oc/${ocId}/detalles-credito`);
       const dias = dias_credito > 0 ? dias_credito : 30;
       const fecha = new Date(); fecha.setDate(fecha.getDate() + dias);
-      setDialogState({ open: true, ocId, diasCredito: dias, fechaPago: fecha });
+      setDialogState({ open: true, ocId, diasCredito: dias_credito, fechaPago: fecha });
     } catch { toast.error('No se pudo obtener la información de crédito.'); }
   };
 
-  const setFechaPagoCredito = (fecha) => {
-    setDialogState((prev) => ({ ...prev, fechaPago: fecha }));
-  };
-
   const confirmarAprobacionCredito = async () => {
-    const { ocId, fechaPago } = dialogState;
-    if (!ocId) return;
+    const { ocId } = dialogState; if (!ocId) return;
     try {
-      const payload = { fecha_vencimiento_pago: toYYYYMMDD(fechaPago) };
-      const resp = await api.post(`/api/finanzas/oc/${ocId}/aprobar-credito`, payload);
+      const resp = await api.post(`/api/finanzas/oc/${ocId}/aprobar-credito`);
       setOcsPorAutorizar(prev => prev.filter(o => o.id !== ocId));
       setDialogState({ open: false, ocId: null, diasCredito: 0, fechaPago: null });
       toast.success(resp?.mensaje || 'OC aprobada a crédito.');
@@ -118,23 +108,29 @@ export const useAutorizaciones = () => {
     catch (err) { toast.error(err?.error || 'No se pudo reanudar la OC.'); }
   };
 
-  // === PAGOS ===
-  const subirComprobantePago = async (ocId, { archivo, tipoPago, monto, comentario, fuentePagoId, fechaCompromisoPago }) => {
+  // === PAGOS (comprobantes) ===
+  const subirComprobantePago = async (ocId, { archivo, tipoPago, monto, comentario, fuentePagoId }) => {
+    const fuenteIdNum = Number(fuentePagoId);
+    if (!Number.isInteger(fuenteIdNum) || fuenteIdNum <= 0) {
+      toast.error('Selecciona una fuente de pago válida.');
+      throw { error: 'fuente_pago_id es obligatorio y debe ser numérico.', status: 400 };
+    }
+
     const fd = new FormData();
     fd.append('comprobante', archivo);
 
+    // Mapea defensivo (por si en algún flujo llega "PARCIAL")
     const t = (tipoPago || '').toString().toUpperCase();
     const tipoCanonico = t === 'PARCIAL' ? 'ANTICIPO' : t;
-    fd.append('tipo_pago', tipoCanonico);
+    fd.append('tipo_pago', tipoCanonico); // 'TOTAL' | 'ANTICIPO'
 
-    fd.append('fuente_pago_id', String(fuentePagoId || ''));
+    // ✅ fuente de pago
+    fd.append('fuente_pago_id', String(fuenteIdNum));
 
+    // Si no es TOTAL, mandamos SIEMPRE monto
     if (tipoCanonico !== 'TOTAL') {
       const montoStr = String(monto ?? '').replace(',', '.').trim();
       fd.append('monto', montoStr);
-
-      // requerida para ANTICIPO
-      fd.append('fecha_compromiso_pago', String(fechaCompromisoPago || ''));
     }
 
     if (comentario) fd.append('comentario', comentario);
@@ -149,33 +145,29 @@ export const useAutorizaciones = () => {
     }
   };
 
+  // === PREVIEW ===
   const getOcPreview = async (ocId) => {
     try { return await api.get(`/api/finanzas/oc/${ocId}/preview`); }
     catch { toast.error('No se pudo obtener la previsualización.'); return null; }
   };
 
   return {
+    // listas
     ocs: ocsPorAutorizar,
     speiPorConfirmar: ocsSpeiConfirmar,
     porLiquidar: ocsPorLiquidar,
     enHold: ocsEnHold,
+    // ui
     loading, error,
-
-    dialogState,
-    iniciarAprobacionCredito,
-    setFechaPagoCredito,
-    confirmarAprobacionCredito,
-    cerrarDialogo,
-
-    preautorizarSpei,
-    cancelarSpei,
-
-    rechazarOC,
-    holdOC,
-    reanudarOC,
-
+    // crédito
+    dialogState, iniciarAprobacionCredito, confirmarAprobacionCredito, cerrarDialogo,
+    // contado
+    preautorizarSpei, cancelarSpei,
+    // hold & rechazo
+    rechazarOC, holdOC, reanudarOC,
+    // pagos
     subirComprobantePago,
-
+    // preview
     getOcPreview,
   };
 };

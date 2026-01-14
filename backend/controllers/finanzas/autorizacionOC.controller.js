@@ -58,8 +58,8 @@ const listSpeiPorConfirmar = async (_req, res) => {
 
 /** =========================
  *  POR LIQUIDAR (CxP)
- *  Regla: saldo_pendiente > 0  (independiente del status operativo)
- *  oc.status es informativo; solo excluimos estados que NO deben aparecer en CxP
+ *  Regla: saldo > 0 (independiente del status operativo)
+ *  oc.status es informativo; solo excluimos estados que NO deben estar en CxP
  * ========================== */
 const listOcsPorLiquidar = async (_req, res) => {
   try {
@@ -87,10 +87,11 @@ const listOcsPorLiquidar = async (_req, res) => {
     const { rows } = await pool.query(q);
     res.json(rows);
   } catch (error) {
-    console.error('Error al listar OCs por liquidar:', error);
-    res.status(500).json({ error: 'Error interno del servidor.' });
+    console.error("Error al listar OCs por liquidar:", error);
+    res.status(500).json({ error: "Error interno del servidor." });
   }
 };
+
 /** =========================
  *  EN HOLD
  * ========================== */
