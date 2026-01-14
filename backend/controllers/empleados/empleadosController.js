@@ -1,19 +1,57 @@
 // backend/controllers/empleados/empleadosController.js
 const pool = require('../../db/pool'); 
-// Función para obtener todos los empleados
+
+// Función para obtener empleados
+// Soporta filtros via query params:
+//  - status_laboral=activo|inactivo|vacaciones|licencia|baja
+//  - search=texto (busca por num_empl, empleado, puesto, departamento)
+//  - limit=numero (opcional)
 const obtenerEmpleados = async (req, res) => {
     try {
-        // Ejecutamos la consulta SQL
-        const result = await pool.query('SELECT * FROM empleados ORDER BY id ASC');
-        
-            // Enviamos los resultados como respuesta JSON
-        res.json(result.rows); 
-        
+        const { status_laboral, search, limit } = req.query;
+
+        const params = [];
+        let i = 1;
+
+        let sql = 'SELECT * FROM empleados';
+        const where = [];
+
+        if (status_laboral) {
+            where.push(`status_laboral = $${i++}`);
+            params.push(status_laboral);
+        }
+
+        if (search) {
+            // Búsqueda simple (ILIKE) en campos relevantes
+            where.push(`(
+                num_empl ILIKE $${i} OR
+                empleado ILIKE $${i} OR
+                puesto ILIKE $${i} OR
+                departamento ILIKE $${i}
+            )`);
+            params.push(`%${search}%`);
+            i++;
+        }
+
+        if (where.length) sql += ' WHERE ' + where.join(' AND ');
+
+        sql += ' ORDER BY empleado ASC';
+
+        if (limit) {
+            const lim = parseInt(limit, 10);
+            if (!Number.isNaN(lim) && lim > 0 && lim <= 1000) {
+                sql += ` LIMIT ${lim}`;
+            }
+        }
+
+        const result = await pool.query(sql, params);
+        res.json(result.rows);
     } catch (error) {
         console.error("Error en la consulta:", error);
         res.status(500).json({ error: 'Error al obtener empleados de la BD' });
     }
 };
+
 
 // Función para crear un nuevo empleado
 const crearEmpleado = async (req, res) => {

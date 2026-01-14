@@ -57,9 +57,9 @@ const listSpeiPorConfirmar = async (_req, res) => {
 };
 
 /** =========================
- *  POR LIQUIDAR
- *  (APROBADA con monto_pagado < total) para CREDITO y SPEI
- *  Incluye saldo_pendiente
+ *  POR LIQUIDAR (CxP)
+ *  Regla: saldo > 0 (independiente del status operativo)
+ *  oc.status es informativo; solo excluimos estados que NO deben estar en CxP
  * ========================== */
 const listOcsPorLiquidar = async (_req, res) => {
   try {
@@ -68,7 +68,11 @@ const listOcsPorLiquidar = async (_req, res) => {
         oc.id, oc.numero_oc, oc.total,
         COALESCE(oc.monto_pagado, 0) AS monto_pagado,
         (oc.total - COALESCE(oc.monto_pagado, 0)) AS saldo_pendiente,
-        oc.fecha_vencimiento_pago, oc.status, oc.metodo_pago,
+        oc.fecha_vencimiento_pago,
+        oc.status,
+        oc.metodo_pago,
+        oc.estatus_pago,
+        oc.pendiente_liquidar,
         p.razon_social AS proveedor_razon_social,
         pr.nombre AS proyecto_nombre,
         s.nombre AS sitio_nombre
@@ -76,16 +80,15 @@ const listOcsPorLiquidar = async (_req, res) => {
       JOIN proveedores p ON oc.proveedor_id = p.id
       JOIN proyectos  pr ON oc.proyecto_id = pr.id
       JOIN sitios     s  ON oc.sitio_id = s.id
-      WHERE oc.status = 'APROBADA'
-        AND COALESCE(oc.monto_pagado, 0) < oc.total
-        AND (oc.metodo_pago = 'CREDITO' OR oc.metodo_pago = 'SPEI')
+      WHERE (oc.total - COALESCE(oc.monto_pagado, 0)) > 0
+        AND oc.status NOT IN ('POR_AUTORIZAR','RECHAZADA','CANCELADA','HOLD','CONFIRMAR_SPEI')
       ORDER BY oc.fecha_vencimiento_pago NULLS LAST, oc.fecha_creacion ASC
     `;
     const { rows } = await pool.query(q);
     res.json(rows);
   } catch (error) {
-    console.error('Error al listar OCs por liquidar:', error);
-    res.status(500).json({ error: 'Error interno del servidor.' });
+    console.error("Error al listar OCs por liquidar:", error);
+    res.status(500).json({ error: "Error interno del servidor." });
   }
 };
 

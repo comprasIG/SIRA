@@ -140,13 +140,17 @@ export default function PAY_OCForm() {
   const [comprobanteDialogOpen, setComprobanteDialogOpen] = useState(false);
   const [ocSeleccionada, setOcSeleccionada] = useState(null);
   const [loadingComprobante, setLoadingComprobante] = useState(false);
-  const handleSubirComprobante = async ({ archivo, tipoPago, monto, comentario }) => {
+ const handleSubirComprobante = async ({ archivo, tipoPago, monto, comentario, fuentePagoId }) => {
+  try {
     setLoadingComprobante(true);
-    await subirComprobantePago(ocSeleccionada.id, { archivo, tipoPago, monto, comentario });
-    setLoadingComprobante(false);
+    await subirComprobantePago(ocSeleccionada.id, { archivo, tipoPago, monto, comentario, fuentePagoId });
     setComprobanteDialogOpen(false);
     setOcSeleccionada(null);
-  };
+  } finally {
+    setLoadingComprobante(false);
+  }
+};
+
 
   const [rechazoOpen, setRechazoOpen] = useState(false);
   const [ocRechazo, setOcRechazo] = useState(null);
