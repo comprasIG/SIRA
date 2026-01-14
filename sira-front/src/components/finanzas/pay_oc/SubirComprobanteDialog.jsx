@@ -1,12 +1,13 @@
 // C:\SIRA\sira-front\src\components\finanzas\pay_oc\SubirComprobanteDialog.jsx
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
-  TextField, MenuItem, Typography, Box, Paper, IconButton
+  TextField, MenuItem, Typography, Box, Paper, IconButton, CircularProgress
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import CloseIcon from '@mui/icons-material/Close';
+import api from '@/api/api';
 
 export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, loading }) {
   const saldo = useMemo(() => {
@@ -21,8 +22,46 @@ export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, lo
   const [comentario, setComentario] = useState('');
   const [isDragActive, setIsDragActive] = useState(false);
 
-  const reset = () => { setArchivo(null); setTipoPago('TOTAL'); setMonto(''); setComentario(''); };
+  // ✅ Fuentes de pago
+  const [fuentes, setFuentes] = useState([]);
+  const [fuentesLoading, setFuentesLoading] = useState(false);
+  const [fuentePagoId, setFuentePagoId] = useState(''); // string para TextField select
+
+  const fmt = useMemo(() => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }), []);
+
+  const reset = () => {
+    setArchivo(null);
+    setTipoPago('TOTAL');
+    setMonto('');
+    setComentario('');
+    setFuentePagoId('');
+  };
+
   const handleClose = () => { reset(); onClose(); };
+
+  // Cargar fuentes al abrir
+  useEffect(() => {
+    const loadFuentes = async () => {
+      if (!open) return;
+      setFuentesLoading(true);
+      try {
+        const data = await api.get('/api/finanzas/fuentes-pago?soloActivas=true');
+        setFuentes(data || []);
+
+        // Default: NO ESPECIFICADO si existe, si no la primera
+        const noEsp = (data || []).find(f => String(f.nombre || '').toUpperCase() === 'NO ESPECIFICADO');
+        const firstId = noEsp?.id ?? (data?.[0]?.id ?? '');
+        setFuentePagoId(firstId ? String(firstId) : '');
+      } catch {
+        setFuentes([]);
+        setFuentePagoId('');
+      } finally {
+        setFuentesLoading(false);
+      }
+    };
+
+    loadFuentes();
+  }, [open]);
 
   const handleFileChange = (e) => {
     const f = e.target.files?.[0];
@@ -37,20 +76,23 @@ export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, lo
   };
 
   const isMontoInvalido = tipoPago === 'ANTICIPO' && (!monto || Number(monto) <= 0);
+  const isFuenteInvalida = !fuentePagoId || Number(fuentePagoId) <= 0;
 
   const handleSubmit = async () => {
     if (!archivo) return;
     if (isMontoInvalido) return;
+    if (isFuenteInvalida) return;
+
     await onSubmit({
       archivo,
-      tipoPago, // <-- ahora puede ser 'TOTAL' o 'ANTICIPO'
+      tipoPago,
       monto: tipoPago === 'TOTAL' ? undefined : monto,
       comentario: comentario.trim(),
+      fuentePagoId: Number(fuentePagoId), // ✅ numérico
     });
+
     reset();
   };
-
-  const fmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
@@ -128,6 +170,30 @@ export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, lo
           </Box>
         )}
 
+        {/* ✅ Fuente de pago obligatoria */}
+        <TextField
+          select
+          fullWidth
+          sx={{ mt: 2 }}
+          label="Fuente de pago (de dónde salió el dinero)"
+          value={fuentePagoId}
+          onChange={(e) => setFuentePagoId(e.target.value)}
+          error={isFuenteInvalida}
+          helperText={isFuenteInvalida ? 'Selecciona una fuente de pago' : 'Catálogo administrable desde Finanzas'}
+          InputProps={{
+            endAdornment: fuentesLoading ? <CircularProgress size={18} /> : null
+          }}
+        >
+          {(fuentes || []).map((f) => (
+            <MenuItem key={f.id} value={String(f.id)}>
+              {f.nombre} {f.tipo ? `(${f.tipo})` : ''}
+            </MenuItem>
+          ))}
+          {(fuentes || []).length === 0 && (
+            <MenuItem value="" disabled>No hay fuentes disponibles</MenuItem>
+          )}
+        </TextField>
+
         <TextField
           label="Comentario (opcional)"
           fullWidth
@@ -144,7 +210,7 @@ export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, lo
         <Button
           onClick={handleSubmit}
           variant="contained"
-          disabled={loading || !archivo || isMontoInvalido}
+          disabled={loading || !archivo || isMontoInvalido || isFuenteInvalida}
         >
           {loading ? 'Subiendo…' : 'Subir comprobante'}
         </Button>

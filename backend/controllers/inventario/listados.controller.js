@@ -81,6 +81,10 @@ const getInventarioActual = async (req, res) => {
 
   if (estado === "DISPONIBLE") having.push(`COALESCE(SUM(ia.stock_actual),0) > 0`);
   if (estado === "APARTADO") having.push(`COALESCE(SUM(ia.asignado),0) > 0`);
+  // ✅ IMPORTANTE: en este endpoint ("solo existentes"), si estado=TODOS
+  // NO queremos materiales con existencia total = 0.
+  if (estado === "TODOS")
+    having.push(`(COALESCE(SUM(ia.stock_actual),0) + COALESCE(SUM(ia.asignado),0)) > 0`);
   if (having.length) sql += ` HAVING ${having.join(" AND ")}`;
 
   sql += ` ORDER BY cm.nombre ASC`;

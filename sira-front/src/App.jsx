@@ -39,7 +39,7 @@ import ListaProductos from "./pages/ListaProductos";
 import NotificacionesPage from './pages/NotificacionesPage';
 import PickInPage from "./pages/PickInPage";
 import VerEmpleadosPage from "./pages/VerEmpleadosPage";
-
+import FIN_FUENTES_PAGO from "./pages/FIN_FUENTES_PAGO";
 
 // Tus importaciones de layout y rutas
 import MainLayout from "./components/layout/MainLayout";
@@ -47,7 +47,7 @@ import RutaProtegida from "./routes/RutaProtegida";
 
 export default function App() {
   const { usuario, cargandoUsuario } = useAuth();
-console.log(import.meta.env.VITE_API_URL); // Verifica que la variable de entorno se está leyendo correctamente
+  console.log(import.meta.env.VITE_API_URL); // Verifica que la variable de entorno se está leyendo correctamente
   if (cargandoUsuario) {
     return (
       <div className="flex items-center justify-center h-screen">Cargando...</div>
@@ -77,18 +77,19 @@ console.log(import.meta.env.VITE_API_URL); // Verifica que la variable de entorn
           <Route path="/VB_RFQ" element={<RutaProtegida permiso="VB_RFQ"><MainLayout><VB_RFQ /></MainLayout></RutaProtegida>} />
           <Route path="/USUARIOS" element={<RutaProtegida permiso="USUARIOS"><MainLayout><USUARIOS /></MainLayout></RutaProtegida>} />
           <Route path="/agregar-producto" element={<RutaProtegida permiso="AGREGAR_PRODUCTO"><MainLayout><AgregarProducto /></MainLayout></RutaProtegida>} />
-          <Route path="/lista-producto" element={<RutaProtegida permiso="AGREGAR_PRODUCTO"><MainLayout><ListaProductos /></MainLayout></RutaProtegida>}/>
-          <Route  path="/config/notificaciones" element={<RutaProtegida permiso="SUPERUSUARIO"><MainLayout> <NotificacionesPage /></MainLayout></RutaProtegida>}/>
-          <Route path="/PICK_IN" element={<RutaProtegida permiso="PICK_IN"><MainLayout><PickInPage /></MainLayout></RutaProtegida>}/>
-         <Route path="/INV/*" element={<RutaProtegida permiso="INV"><MainLayout><InventarioPage /></MainLayout></RutaProtegida>}/>
-          <Route path="/unidades" element={<RutaProtegida permiso="UNIDADES"><MainLayout><UnidadesPage /></MainLayout></RutaProtegida>}/>
-                    <Route path="/config/roles-y-permisos" element={<RutaProtegida permiso="CONFIG_ROLES"><MainLayout><RolesYPermisosPage /></MainLayout></RutaProtegida>}/>
-                    <Route path="/G_PROJ" element={<RutaProtegida permiso="G_PROJ"><MainLayout><NuevoProyectoPage /></MainLayout></RutaProtegida>}/>
-                    <Route path="/biotime_reg" element={<RutaProtegida permiso="biotime_reg"><MainLayout><BioTimeRegistrosPage /></MainLayout></RutaProtegida>}/>
-          <Route path="/empleados" element={<RutaProtegida permiso="empleados"><MainLayout><VerEmpleadosPage /></MainLayout></RutaProtegida>}/>
-                     <Route path="/sitios" element={<RutaProtegida permiso="sitios"><MainLayout><SitiosPage /></MainLayout></RutaProtegida>}/>
+          <Route path="/lista-producto" element={<RutaProtegida permiso="AGREGAR_PRODUCTO"><MainLayout><ListaProductos /></MainLayout></RutaProtegida>} />
+          <Route path="/config/notificaciones" element={<RutaProtegida permiso="SUPERUSUARIO"><MainLayout> <NotificacionesPage /></MainLayout></RutaProtegida>} />
+          <Route path="/PICK_IN" element={<RutaProtegida permiso="PICK_IN"><MainLayout><PickInPage /></MainLayout></RutaProtegida>} />
+          <Route path="/INV/*" element={<RutaProtegida permiso="INV"><MainLayout><InventarioPage /></MainLayout></RutaProtegida>} />
+          <Route path="/unidades" element={<RutaProtegida permiso="UNIDADES"><MainLayout><UnidadesPage /></MainLayout></RutaProtegida>} />
+          <Route path="/config/roles-y-permisos" element={<RutaProtegida permiso="CONFIG_ROLES"><MainLayout><RolesYPermisosPage /></MainLayout></RutaProtegida>} />
+          <Route path="/G_PROJ" element={<RutaProtegida permiso="G_PROJ"><MainLayout><NuevoProyectoPage /></MainLayout></RutaProtegida>} />
+          <Route path="/biotime_reg" element={<RutaProtegida permiso="biotime_reg"><MainLayout><BioTimeRegistrosPage /></MainLayout></RutaProtegida>} />
+          <Route path="/empleados" element={<RutaProtegida permiso="empleados"><MainLayout><VerEmpleadosPage /></MainLayout></RutaProtegida>} />
+          <Route path="/sitios" element={<RutaProtegida permiso="sitios"><MainLayout><SitiosPage /></MainLayout></RutaProtegida>} />
+          <Route path="/FIN_FUENTES_PAGO" element={<RutaProtegida permiso="FIN_FUENTES_PAGO"><MainLayout><FIN_FUENTES_PAGO /></MainLayout></RutaProtegida>} />
           {/* --- AÑADIR NUEVAS RUTAS AUTOMÁTICAMENTE AQUÍ --- */}
-         
+
           {/* Redirección y página no encontrada */}
           <Route path="/" element={<Navigate to={usuario ? "/dashboard" : "/login"} replace />} />
           <Route path="*" element={<Error404 />} />

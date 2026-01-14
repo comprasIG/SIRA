@@ -67,6 +67,7 @@ export const useAutorizaciones = () => {
       setDialogState({ open: true, ocId, diasCredito: dias_credito, fechaPago: fecha });
     } catch { toast.error('No se pudo obtener la información de crédito.'); }
   };
+
   const confirmarAprobacionCredito = async () => {
     const { ocId } = dialogState; if (!ocId) return;
     try {
@@ -77,6 +78,7 @@ export const useAutorizaciones = () => {
       await fetchAll();
     } catch (err) { toast.error(err?.error || 'No se pudo aprobar la OC.'); }
   };
+
   const cerrarDialogo = () => setDialogState({ open: false, ocId: null, diasCredito: 0, fechaPago: null });
 
   // === CONTADO / SPEI ===
@@ -84,6 +86,7 @@ export const useAutorizaciones = () => {
     try { await api.post(`/api/finanzas/oc/${ocId}/preautorizar-spei`); await fetchAll(); toast.success('OC marcada como de contado (SPEI).'); }
     catch (err) { toast.error(err?.error || 'No se pudo pre-autorizar la OC.'); }
   };
+
   const cancelarSpei = async (ocId) => {
     try { await api.post(`/api/finanzas/oc/${ocId}/cancelar-spei`); await fetchAll(); toast.success('Pre-autorización SPEI cancelada.'); }
     catch (err) { toast.error(err?.error || 'No se pudo cancelar la pre-autorización SPEI.'); }
@@ -94,22 +97,25 @@ export const useAutorizaciones = () => {
     try { if (!motivo?.trim()) throw new Error('Escribe un motivo.'); await api.post(`/api/finanzas/oc/${ocId}/rechazar`, { motivo }); toast.success('OC rechazada.'); await fetchAll(); }
     catch (err) { toast.error(err?.error || err?.message || 'No se pudo rechazar la OC.'); }
   };
+
   const holdOC = async (ocId, regresarEn) => {
     try { await api.post(`/api/finanzas/oc/${ocId}/hold`, { regresar_en: regresarEn || null }); toast.success('OC puesta en hold.'); await fetchAll(); }
     catch (err) { toast.error(err?.error || 'No se pudo poner la OC en hold.'); }
   };
+
   const reanudarOC = async (ocId) => {
     try { await api.post(`/api/finanzas/oc/${ocId}/reanudar`); toast.success('OC reanudada.'); await fetchAll(); }
     catch (err) { toast.error(err?.error || 'No se pudo reanudar la OC.'); }
   };
 
   // === PAGOS (comprobantes) ===
-  /**
-   * tipoPago: 'TOTAL' | 'ANTICIPO'
-   * - Si es TOTAL, el back calcula saldo si no mandas monto.
-   * - Si es ANTICIPO, SIEMPRE enviamos 'monto' > 0 (como string con punto decimal).
-   */
-  const subirComprobantePago = async (ocId, { archivo, tipoPago, monto, comentario }) => {
+  const subirComprobantePago = async (ocId, { archivo, tipoPago, monto, comentario, fuentePagoId }) => {
+    const fuenteIdNum = Number(fuentePagoId);
+    if (!Number.isInteger(fuenteIdNum) || fuenteIdNum <= 0) {
+      toast.error('Selecciona una fuente de pago válida.');
+      throw { error: 'fuente_pago_id es obligatorio y debe ser numérico.', status: 400 };
+    }
+
     const fd = new FormData();
     fd.append('comprobante', archivo);
 
@@ -117,6 +123,9 @@ export const useAutorizaciones = () => {
     const t = (tipoPago || '').toString().toUpperCase();
     const tipoCanonico = t === 'PARCIAL' ? 'ANTICIPO' : t;
     fd.append('tipo_pago', tipoCanonico); // 'TOTAL' | 'ANTICIPO'
+
+    // ✅ fuente de pago
+    fd.append('fuente_pago_id', String(fuenteIdNum));
 
     // Si no es TOTAL, mandamos SIEMPRE monto
     if (tipoCanonico !== 'TOTAL') {
