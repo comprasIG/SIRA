@@ -256,15 +256,20 @@ export default function IngresoOCModal({
                 <Typography variant="caption" align="center">Incidencia</Typography>
               </ItemRow>
 
-              {itemsState.map(item => (
-                <Box key={item.detalle_id}>
-                  <ItemRow hasIssue={!!item.incidencia?.tipo_id}>
-                    <Stack spacing={0.5}>
-                      <Typography variant="body2" fontWeight={500}>{item.material_nombre}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {`Faltan ${Math.max(0, parseFloat(item.cantidad_pedida) - parseFloat(item.cantidad_recibida))} ${item.unidad_simbolo}`}
-                      </Typography>
-                    </Stack>
+              {itemsState.map(item => {
+                const materialLabel = item.sku
+                  ? `${item.sku} — ${item.material_nombre}`
+                  : item.material_nombre;
+
+                return (
+                  <Box key={item.detalle_id}>
+                    <ItemRow hasIssue={!!item.incidencia?.tipo_id}>
+                      <Stack spacing={0.5}>
+                        <Typography variant="body2" fontWeight={500}>{materialLabel}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {`Faltan ${Math.max(0, parseFloat(item.cantidad_pedida) - parseFloat(item.cantidad_recibida))} ${item.unidad_simbolo}`}
+                        </Typography>
+                      </Stack>
 
                     <Typography variant="body2" align="right">{item.cantidad_pedida} {item.unidad_simbolo}</Typography>
                     <Typography variant="body2" align="right">{item.cantidad_recibida} {item.unidad_simbolo}</Typography>
@@ -292,18 +297,18 @@ export default function IngresoOCModal({
                     </Tooltip>
                   </ItemRow>
 
-                  <Collapse in={item.showIncidenciaForm}>
-                    <Paper
-                      sx={{
-                        p: 2,
-                        my: 1.5,
-                        backgroundColor: alpha('#F44336', 0.08),
-                        borderLeft: (theme) => `4px solid ${theme.palette.error.main}`,
-                      }}
-                    >
-                      <Typography variant="subtitle2" color="error.dark" gutterBottom>
-                        Reportar incidencia para: {item.material_nombre}
-                      </Typography>
+                    <Collapse in={item.showIncidenciaForm}>
+                      <Paper
+                        sx={{
+                          p: 2,
+                          my: 1.5,
+                          backgroundColor: alpha('#F44336', 0.08),
+                          borderLeft: (theme) => `4px solid ${theme.palette.error.main}`,
+                        }}
+                      >
+                        <Typography variant="subtitle2" color="error.dark" gutterBottom>
+                          Reportar incidencia para: {materialLabel}
+                        </Typography>
 
                       <Stack spacing={1.5}>
                         <Autocomplete
@@ -350,9 +355,10 @@ export default function IngresoOCModal({
                         </Button>
                       </Stack>
                     </Paper>
-                  </Collapse>
-                </Box>
-              ))}
+                    </Collapse>
+                  </Box>
+                );
+              })}
             </>
           )}
         </ContentBox>
