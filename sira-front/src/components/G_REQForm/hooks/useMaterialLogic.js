@@ -13,7 +13,9 @@ export function useMaterialLogic(setValue) {
   const [loading, setLoading] = useState(false);
   const [unidadesLoading, setUnidadesLoading] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [skuSearchTerm, setSkuSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  const debouncedSkuSearchTerm = useDebounce(skuSearchTerm, 500);
 
   useEffect(() => {
     const buscarMateriales = async (query) => {
@@ -36,6 +38,29 @@ export function useMaterialLogic(setValue) {
 
     buscarMateriales(debouncedSearchTerm);
   }, [debouncedSearchTerm]);
+
+  useEffect(() => {
+    const buscarMaterialesPorSku = async (sku) => {
+      if (!sku) {
+        if (!debouncedSearchTerm) {
+          setMaterialesOptions([]);
+        }
+        return;
+      }
+      setLoading(true);
+      try {
+        const data = await api.get(`/api/materiales?sku=${encodeURIComponent(sku)}`);
+        setMaterialesOptions(data);
+      } catch (err) {
+        console.error("Error en el fetch de materiales por SKU:", err);
+        setMaterialesOptions([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    buscarMaterialesPorSku(debouncedSkuSearchTerm);
+  }, [debouncedSearchTerm, debouncedSkuSearchTerm]);
 
   const handleMaterialChange = async (selectedOption, fieldOnChange, index) => {
     // Se actualiza el valor del campo 'material' en el formulario
@@ -66,6 +91,8 @@ export function useMaterialLogic(setValue) {
     unidadesLoading,
     searchTerm,
     setSearchTerm,
+    skuSearchTerm,
+    setSkuSearchTerm,
     handleMaterialChange,
   };
 }
