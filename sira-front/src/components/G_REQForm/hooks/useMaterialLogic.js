@@ -10,7 +10,9 @@ import api from '../../../api/api'; // Asegúrate que la ruta al api.js sea corr
  */
 export function useMaterialLogic(setValue) {
   const [materialesOptions, setMaterialesOptions] = useState([]);
+  const [skuOptions, setSkuOptions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [skuLoading, setSkuLoading] = useState(false);
   const [unidadesLoading, setUnidadesLoading] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [skuSearchTerm, setSkuSearchTerm] = useState('');
@@ -42,25 +44,23 @@ export function useMaterialLogic(setValue) {
   useEffect(() => {
     const buscarMaterialesPorSku = async (sku) => {
       if (!sku) {
-        if (!debouncedSearchTerm) {
-          setMaterialesOptions([]);
-        }
+        setSkuOptions([]);
         return;
       }
-      setLoading(true);
+      setSkuLoading(true);
       try {
         const data = await api.get(`/api/materiales?sku=${encodeURIComponent(sku)}`);
-        setMaterialesOptions(data);
+        setSkuOptions(data);
       } catch (err) {
         console.error("Error en el fetch de materiales por SKU:", err);
-        setMaterialesOptions([]);
+        setSkuOptions([]);
       } finally {
-        setLoading(false);
+        setSkuLoading(false);
       }
     };
 
     buscarMaterialesPorSku(debouncedSkuSearchTerm);
-  }, [debouncedSearchTerm, debouncedSkuSearchTerm]);
+  }, [debouncedSkuSearchTerm]);
 
   const handleMaterialChange = async (selectedOption, fieldOnChange, index) => {
     // Se actualiza el valor del campo 'material' en el formulario
@@ -88,6 +88,8 @@ export function useMaterialLogic(setValue) {
   return {
     materialesOptions,
     loading,
+    skuOptions,
+    skuLoading,
     unidadesLoading,
     searchTerm,
     setSearchTerm,
