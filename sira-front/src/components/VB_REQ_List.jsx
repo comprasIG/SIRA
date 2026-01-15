@@ -60,6 +60,7 @@ const DetalleRequisicionModal = ({ requisicion, open, onClose }) => {
                         <TableHead>
                             <TableRow>
                                 <TableCell>Material</TableCell>
+                                <TableCell>SKU</TableCell>
                                 <TableCell align="right">Cantidad</TableCell>
                                 <TableCell>Unidad</TableCell>
                                 <TableCell>Comentario</TableCell>
@@ -69,6 +70,7 @@ const DetalleRequisicionModal = ({ requisicion, open, onClose }) => {
                             {requisicion.materiales?.map(mat => (
                                 <TableRow key={mat.material_id || mat.id}>
                                     <TableCell>{mat.material}</TableCell>
+                                    <TableCell>{mat.sku || 'N/A'}</TableCell>
                                     <TableCell align="right">{mat.cantidad}</TableCell>
                                     <TableCell>{mat.unidad}</TableCell>
                                     <TableCell>{mat.comentario || 'N/A'}</TableCell>

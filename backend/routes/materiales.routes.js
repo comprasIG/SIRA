@@ -5,6 +5,19 @@ const pool = require('../db/pool'); // Asegúrate de que esta ruta sea correcta
 // --- RUTA ORIGINAL PARA BÚSQUEDA GENERAL (SIN CAMBIOS) ---
 router.get('/', async (req, res) => {
   try {
+    const sku = req.query.sku ? req.query.sku.trim() : '';
+    if (sku) {
+      const sql = `
+        SELECT id, nombre, sku
+        FROM catalogo_materiales
+        WHERE LOWER(sku) LIKE LOWER($1)
+        ORDER BY nombre ASC
+        LIMIT 50
+      `;
+      const result = await pool.query(sql, [`%${sku}%`]);
+      return res.json(result.rows);
+    }
+
     const query = req.query.query || '';
     if (!query) {
       return res.json([]);
