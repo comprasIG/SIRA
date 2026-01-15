@@ -66,14 +66,23 @@ function drawInfoSection(doc, oc) {
 
 function drawItemsTable(doc, items, startY) {
   let currentY = startY;
+  const columnPositions = {
+    material: { x: 40, width: 200 },
+    sku: { x: 240, width: 60 },
+    cantidad: { x: 300, width: 60 },
+    unidad: { x: 360, width: 60 },
+    precio: { x: 420, width: 70 },
+    total: { x: 490, width: 82 },
+  };
   
   // Cabecera de la tabla
   doc.fontSize(10).font('Helvetica-Bold');
-  doc.text('Material', 40, currentY, { width: 260 });
-  doc.text('Cantidad', 300, currentY, { width: 60, align: 'right' });
-  doc.text('Unidad', 370, currentY, { width: 60, align: 'center' });
-  doc.text('Precio Unit.', 430, currentY, { width: 70, align: 'right' });
-  doc.text('Total', 500, currentY, { width: 70, align: 'right' });
+  doc.text('Material', columnPositions.material.x, currentY, { width: columnPositions.material.width });
+  doc.text('SKU', columnPositions.sku.x, currentY, { width: columnPositions.sku.width });
+  doc.text('Cantidad', columnPositions.cantidad.x, currentY, { width: columnPositions.cantidad.width, align: 'right' });
+  doc.text('Unidad', columnPositions.unidad.x, currentY, { width: columnPositions.unidad.width, align: 'center' });
+  doc.text('Precio Unit.', columnPositions.precio.x, currentY, { width: columnPositions.precio.width, align: 'right' });
+  doc.text('Total', columnPositions.total.x, currentY, { width: columnPositions.total.width, align: 'right' });
   doc.moveDown(0.5);
   currentY = doc.y;
   doc.lineCap('butt').moveTo(40, currentY).lineTo(572, currentY).stroke();
@@ -82,7 +91,7 @@ function drawItemsTable(doc, items, startY) {
   // Filas de la tabla
   doc.fontSize(9).font('Helvetica');
   items.forEach(item => {
-    const materialHeight = doc.heightOfString(item.material_nombre, { width: 260 });
+    const materialHeight = doc.heightOfString(item.material_nombre, { width: columnPositions.material.width });
     const rowHeight = materialHeight + 8;
 
     if (currentY + rowHeight > 700) { // <-- Límite para el salto de página
@@ -90,11 +99,12 @@ function drawItemsTable(doc, items, startY) {
       currentY = 40;
     }
 
-    doc.text(item.material_nombre, 40, currentY, { width: 260 });
-    doc.text(Number(item.cantidad).toFixed(2), 300, currentY, { width: 60, align: 'right' });
-    doc.text(item.unidad_simbolo || 'N/A', 370, currentY, { width: 60, align: 'center' });
-    doc.text(`$${Number(item.precio_unitario).toFixed(2)}`, 430, currentY, { width: 70, align: 'right' });
-    doc.text(`$${(Number(item.cantidad) * Number(item.precio_unitario)).toFixed(2)}`, 500, currentY, { width: 70, align: 'right' });
+    doc.text(item.material_nombre, columnPositions.material.x, currentY, { width: columnPositions.material.width });
+    doc.text(item.sku || 'N/A', columnPositions.sku.x, currentY, { width: columnPositions.sku.width });
+    doc.text(Number(item.cantidad).toFixed(2), columnPositions.cantidad.x, currentY, { width: columnPositions.cantidad.width, align: 'right' });
+    doc.text(item.unidad_simbolo || 'N/A', columnPositions.unidad.x, currentY, { width: columnPositions.unidad.width, align: 'center' });
+    doc.text(`$${Number(item.precio_unitario).toFixed(2)}`, columnPositions.precio.x, currentY, { width: columnPositions.precio.width, align: 'right' });
+    doc.text(`$${(Number(item.cantidad) * Number(item.precio_unitario)).toFixed(2)}`, columnPositions.total.x, currentY, { width: columnPositions.total.width, align: 'right' });
     
     currentY += rowHeight;
     doc.lineCap('butt').moveTo(40, currentY - 4).lineTo(572, currentY - 4).dash(1, { space: 2 }).stroke();
