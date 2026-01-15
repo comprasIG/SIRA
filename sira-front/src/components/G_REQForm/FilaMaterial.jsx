@@ -7,7 +7,8 @@ import clsx from 'clsx';
 
 export default function FilaMaterial({
   field, index, control, register, errors, watch,
-  remove, fields, loading, materialesOptions, setSearchTerm, setSkuSearchTerm,
+  remove, fields, loading, materialesOptions, skuOptions, skuLoading,
+  setSearchTerm, setSkuSearchTerm,
   handleMaterialChange, unidadesLoading, duplicateMaterialIds
 }) {
   const {
@@ -25,18 +26,6 @@ export default function FilaMaterial({
     return duplicateMaterialIds.has(String(materialActual.id));
   }, [materialActual, duplicateMaterialIds]);
 
-  const handleSkuSelect = (skuValue) => {
-    if (!skuValue) return;
-    const normalizedSku = skuValue.trim().toLowerCase();
-    if (!normalizedSku) return;
-    const matchedMaterial = materialesOptions.find(
-      (option) => String(option.sku || '').toLowerCase() === normalizedSku
-    );
-    if (matchedMaterial) {
-      handleMaterialChange(matchedMaterial, materialField.onChange, index);
-    }
-  };
-
   return (
     <div
       key={field.id}
@@ -46,8 +35,41 @@ export default function FilaMaterial({
       )}
     >
       <div className="flex-grow grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+        {/* Autocomplete de SKU */}
+        <div className="md:col-span-3">
+          <Autocomplete
+            options={skuOptions}
+            getOptionLabel={(option) => option.sku || ''}
+            filterOptions={(x) => x}
+            loading={skuLoading}
+            onInputChange={(_, newInputValue) => setSkuSearchTerm(newInputValue)}
+            onChange={(_, selectedOption) => handleMaterialChange(selectedOption, materialField.onChange, index)}
+            value={materialField.value}
+            isOptionEqualToValue={(option, val) => option && val && option.id === val.id}
+            renderOption={(props, option) => (
+              <li {...props} key={option.id}>
+                <span className="text-gray-600">{option.nombre}</span>
+              </li>
+            )}
+            renderInput={(params) => (
+              <TextField 
+                {...params} 
+                label={`SKU #${index + 1}`} 
+                variant="outlined" 
+                size="small" 
+                inputProps={{ 
+                  ...params.inputProps, 
+                  autoComplete: 'off',
+                  'data-row-index': index,
+                  'data-field-type': 'sku',
+                  'data-field-index': 0
+                }} 
+              />
+            )}
+          />
+        </div>
         {/* Autocomplete de Material */}
-        <div className="md:col-span-5">
+        <div className="md:col-span-4">
           <Autocomplete
             options={materialesOptions}
             getOptionLabel={(option) => option.nombre || ''}
@@ -57,6 +79,12 @@ export default function FilaMaterial({
             onChange={(_, selectedOption) => handleMaterialChange(selectedOption, materialField.onChange, index)}
             value={materialField.value}
             isOptionEqualToValue={(option, val) => option && val && option.id === val.id}
+            renderOption={(props, option) => (
+              <li {...props} key={option.id}>
+                <span className="font-semibold">{option.sku}</span>
+                <span className="ml-2 text-gray-600">{option.nombre}</span>
+              </li>
+            )}
             renderInput={(params) => (
               <TextField 
                 {...params} 
@@ -70,34 +98,10 @@ export default function FilaMaterial({
                   autoComplete: 'off',
                   'data-row-index': index,
                   'data-field-type': 'material',
-                  // CAMBIO: Se añade un índice de campo para navegación horizontal
-                  'data-field-index': 0
+                  'data-field-index': 1
                 }} 
               />
             )}
-          />
-        </div>
-        {/* SKU */}
-        <div className="md:col-span-2">
-          <TextField
-            label={`SKU #${index + 1}`}
-            variant="outlined"
-            size="small"
-            onChange={(event) => setSkuSearchTerm(event.target.value)}
-            onBlur={(event) => handleSkuSelect(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                handleSkuSelect(event.target.value);
-              }
-            }}
-            inputProps={{
-              autoComplete: 'off',
-              'data-row-index': index,
-              'data-field-type': 'sku',
-              'data-field-index': 1
-            }}
-            fullWidth
           />
         </div>
         {/* Cantidad y Unidad */}
