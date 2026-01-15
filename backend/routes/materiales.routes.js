@@ -11,7 +11,7 @@ router.get('/', async (req, res) => {
         SELECT id, nombre, sku
         FROM catalogo_materiales
         WHERE LOWER(sku) LIKE LOWER($1)
-        ORDER BY nombre ASC
+        ORDER BY sku ASC
         LIMIT 50
       `;
       const result = await pool.query(sql, [`%${sku}%`]);
@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
     let valores = palabras.map(palabra => `\\y${palabra}\\y`);
 
     const sql = `
-      SELECT id, nombre 
+      SELECT id, nombre, sku
       FROM catalogo_materiales
       WHERE ${where}
       ORDER BY nombre ASC

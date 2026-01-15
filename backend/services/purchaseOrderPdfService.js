@@ -67,18 +67,18 @@ function drawInfoSection(doc, oc) {
 function drawItemsTable(doc, items, startY) {
   let currentY = startY;
   const columnPositions = {
-    material: { x: 40, width: 200 },
-    sku: { x: 240, width: 60 },
-    cantidad: { x: 300, width: 60 },
-    unidad: { x: 360, width: 60 },
+    sku: { x: 40, width: 70 },
+    material: { x: 110, width: 200 },
+    cantidad: { x: 310, width: 60 },
+    unidad: { x: 370, width: 50 },
     precio: { x: 420, width: 70 },
     total: { x: 490, width: 82 },
   };
   
   // Cabecera de la tabla
   doc.fontSize(10).font('Helvetica-Bold');
-  doc.text('Material', columnPositions.material.x, currentY, { width: columnPositions.material.width });
   doc.text('SKU', columnPositions.sku.x, currentY, { width: columnPositions.sku.width });
+  doc.text('Material', columnPositions.material.x, currentY, { width: columnPositions.material.width });
   doc.text('Cantidad', columnPositions.cantidad.x, currentY, { width: columnPositions.cantidad.width, align: 'right' });
   doc.text('Unidad', columnPositions.unidad.x, currentY, { width: columnPositions.unidad.width, align: 'center' });
   doc.text('Precio Unit.', columnPositions.precio.x, currentY, { width: columnPositions.precio.width, align: 'right' });
@@ -99,8 +99,8 @@ function drawItemsTable(doc, items, startY) {
       currentY = 40;
     }
 
-    doc.text(item.material_nombre, columnPositions.material.x, currentY, { width: columnPositions.material.width });
     doc.text(item.sku || 'N/A', columnPositions.sku.x, currentY, { width: columnPositions.sku.width });
+    doc.text(item.material_nombre, columnPositions.material.x, currentY, { width: columnPositions.material.width });
     doc.text(Number(item.cantidad).toFixed(2), columnPositions.cantidad.x, currentY, { width: columnPositions.cantidad.width, align: 'right' });
     doc.text(item.unidad_simbolo || 'N/A', columnPositions.unidad.x, currentY, { width: columnPositions.unidad.width, align: 'center' });
     doc.text(`$${Number(item.precio_unitario).toFixed(2)}`, columnPositions.precio.x, currentY, { width: columnPositions.precio.width, align: 'right' });
