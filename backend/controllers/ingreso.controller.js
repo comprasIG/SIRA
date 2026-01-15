@@ -285,6 +285,7 @@ const getOcDetalleParaIngreso = async (req, res) => {
             SELECT 
                 ocd.id AS detalle_id,
                 ocd.material_id,
+                cm.sku AS sku,
                 cm.nombre AS material_nombre,
                 cu.simbolo AS unidad_simbolo,
                 ocd.cantidad AS cantidad_pedida,

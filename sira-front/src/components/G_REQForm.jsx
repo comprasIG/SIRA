@@ -129,8 +129,14 @@ function G_REQForm({ requisicionId, onFinish }) {
 
   // --- Materiales (buscador/unidades) ---
   const {
-    materialesOptions, loading: loadingMaterials, unidadesLoading,
-    setSearchTerm, handleMaterialChange
+    materialesOptions,
+    skuOptions,
+    loading: loadingMaterials,
+    skuLoading,
+    unidadesLoading,
+    setSearchTerm,
+    setSkuSearchTerm,
+    handleMaterialChange
   } = useMaterialLogic(setValue);
 
   // --- Validación (duplicados) ---
@@ -248,7 +254,9 @@ function G_REQForm({ requisicionId, onFinish }) {
         <SeccionMateriales
           control={control} register={register} errors={errors} watch={watch}
           setValue={setValue} loading={loadingMaterials} materialesOptions={materialesOptions}
-          setSearchTerm={setSearchTerm} handleMaterialChange={handleMaterialChange}
+          skuOptions={skuOptions} skuLoading={skuLoading}
+          setSearchTerm={setSearchTerm} setSkuSearchTerm={setSkuSearchTerm}
+          handleMaterialChange={handleMaterialChange}
           unidadesLoading={unidadesLoading} duplicateMaterialIds={duplicateMaterialIds}
         />
         <AccionesFormulario

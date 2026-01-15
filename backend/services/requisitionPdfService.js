@@ -43,9 +43,9 @@ function drawInfoGeneral(doc, data, approverName) {
 function drawTable(doc, materials, startY) {
     let currentY = startY;
     const tableTop = currentY;
-    const tableHeaders = ['Material', 'Cantidad', 'Unidad', 'Comentario'];
-    const tableHeaderPositions = [45, 320, 400, 450];
-    const tableHeaderWidths = [260, 60, 60, 120];
+    const tableHeaders = ['SKU', 'Material', 'Cantidad', 'Unidad', 'Comentario'];
+    const tableHeaderPositions = [45, 125, 335, 395, 455];
+    const tableHeaderWidths = [80, 210, 60, 60, 122];
 
     doc.rect(40, tableTop - 5, 532, 20).fillAndStroke('#F3F4F6', '#F3F4F6');
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#002D62');
@@ -56,8 +56,8 @@ function drawTable(doc, materials, startY) {
     doc.font('Helvetica').fontSize(10).fillColor('black');
 
     materials.forEach(item => {
-        const materialHeight = doc.heightOfString(item.material, { width: tableHeaderWidths[0] });
-        const comentarioHeight = doc.heightOfString(item.comentario || 'N/A', { width: tableHeaderWidths[3] });
+        const materialHeight = doc.heightOfString(item.material, { width: tableHeaderWidths[1] });
+        const comentarioHeight = doc.heightOfString(item.comentario || 'N/A', { width: tableHeaderWidths[4] });
         const rowHeight = Math.max(materialHeight, comentarioHeight) + 10; // +10 for padding
 
         if (currentY + rowHeight > doc.page.height - 70) { // 70 is a safe margin for the footer
@@ -73,10 +73,11 @@ function drawTable(doc, materials, startY) {
             doc.font('Helvetica').fontSize(10).fillColor('black');
         }
 
-        doc.text(item.material, tableHeaderPositions[0], currentY, { width: tableHeaderWidths[0] });
-        doc.text(parseFloat(item.cantidad).toFixed(2), tableHeaderPositions[1], currentY, { width: tableHeaderWidths[1], align: 'center' });
-        doc.text(item.unidad, tableHeaderPositions[2], currentY, { width: tableHeaderWidths[2], align: 'center' });
-        doc.text(item.comentario || 'N/A', tableHeaderPositions[3], currentY, { width: tableHeaderWidths[3] });
+        doc.text(item.sku || 'N/A', tableHeaderPositions[0], currentY, { width: tableHeaderWidths[0] });
+        doc.text(item.material, tableHeaderPositions[1], currentY, { width: tableHeaderWidths[1] });
+        doc.text(parseFloat(item.cantidad).toFixed(2), tableHeaderPositions[2], currentY, { width: tableHeaderWidths[2], align: 'center' });
+        doc.text(item.unidad, tableHeaderPositions[3], currentY, { width: tableHeaderWidths[3], align: 'center' });
+        doc.text(item.comentario || 'N/A', tableHeaderPositions[4], currentY, { width: tableHeaderWidths[4] });
         
         currentY += rowHeight;
         doc.moveTo(40, currentY - 5).lineTo(572, currentY - 5).strokeColor('#EEEEEE').stroke();

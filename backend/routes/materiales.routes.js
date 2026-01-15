@@ -5,17 +5,32 @@ const pool = require('../db/pool'); // Asegúrate de que esta ruta sea correcta
 // --- RUTA ORIGINAL PARA BÚSQUEDA GENERAL (SIN CAMBIOS) ---
 router.get('/', async (req, res) => {
   try {
+    const sku = req.query.sku ? req.query.sku.trim() : '';
+    if (sku) {
+      const sql = `
+        SELECT id, nombre, sku
+        FROM catalogo_materiales
+        WHERE LOWER(sku) LIKE LOWER($1)
+        ORDER BY sku ASC
+        LIMIT 50
+      `;
+      const result = await pool.query(sql, [`%${sku}%`]);
+      return res.json(result.rows);
+    }
+
     const query = req.query.query || '';
     if (!query) {
       return res.json([]);
     }
 
-    const palabras = query.toLowerCase().split(/\s+/).filter(Boolean);
-    let where = palabras.map((_, i) => `unaccent(LOWER(nombre)) ~* $${i + 1}`).join(' AND ');
-    let valores = palabras.map(palabra => `\\y${palabra}\\y`);
+    const palabras = query.split(/\s+/).filter(Boolean);
+    // Usamos ILIKE para búsqueda insensible a mayúsculas y unaccent para ignorar acentos en ambos lados
+    // También envolvemos en % para búsqueda parcial
+    let where = palabras.map((_, i) => `unaccent(nombre) ILIKE unaccent($${i + 1})`).join(' AND ');
+    let valores = palabras.map(palabra => `%${palabra}%`);
 
     const sql = `
-      SELECT id, nombre 
+      SELECT id, nombre, sku
       FROM catalogo_materiales
       WHERE ${where}
       ORDER BY nombre ASC

@@ -43,6 +43,7 @@ const _getRequisicionCompleta = async (id, client) => {
         rd.cantidad,
         rd.comentario,
         cm.nombre AS material,
+        cm.sku AS sku,
         cu.simbolo AS unidad
       FROM requisiciones_detalle rd
       JOIN catalogo_materiales cm ON rd.material_id = cm.id

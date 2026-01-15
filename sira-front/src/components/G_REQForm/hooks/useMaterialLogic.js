@@ -10,10 +10,14 @@ import api from '../../../api/api'; // Asegúrate que la ruta al api.js sea corr
  */
 export function useMaterialLogic(setValue) {
   const [materialesOptions, setMaterialesOptions] = useState([]);
+  const [skuOptions, setSkuOptions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [skuLoading, setSkuLoading] = useState(false);
   const [unidadesLoading, setUnidadesLoading] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [skuSearchTerm, setSkuSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  const debouncedSkuSearchTerm = useDebounce(skuSearchTerm, 500);
 
   useEffect(() => {
     const buscarMateriales = async (query) => {
@@ -36,6 +40,27 @@ export function useMaterialLogic(setValue) {
 
     buscarMateriales(debouncedSearchTerm);
   }, [debouncedSearchTerm]);
+
+  useEffect(() => {
+    const buscarMaterialesPorSku = async (sku) => {
+      if (!sku) {
+        setSkuOptions([]);
+        return;
+      }
+      setSkuLoading(true);
+      try {
+        const data = await api.get(`/api/materiales?sku=${encodeURIComponent(sku)}`);
+        setSkuOptions(data);
+      } catch (err) {
+        console.error("Error en el fetch de materiales por SKU:", err);
+        setSkuOptions([]);
+      } finally {
+        setSkuLoading(false);
+      }
+    };
+
+    buscarMaterialesPorSku(debouncedSkuSearchTerm);
+  }, [debouncedSkuSearchTerm]);
 
   const handleMaterialChange = async (selectedOption, fieldOnChange, index) => {
     // Se actualiza el valor del campo 'material' en el formulario
@@ -63,9 +88,13 @@ export function useMaterialLogic(setValue) {
   return {
     materialesOptions,
     loading,
+    skuOptions,
+    skuLoading,
     unidadesLoading,
     searchTerm,
     setSearchTerm,
+    skuSearchTerm,
+    setSkuSearchTerm,
     handleMaterialChange,
   };
 }
