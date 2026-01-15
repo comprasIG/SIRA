@@ -82,7 +82,8 @@ export default function FilaMaterial({
             isOptionEqualToValue={(option, val) => option && val && option.id === val.id}
             renderOption={(props, option) => (
               <li {...props} key={option.id}>
-                {option.nombre}
+                <span className="font-semibold">{option.sku}</span>
+                <span className="ml-2 text-gray-600">{option.nombre}</span>
               </li>
             )}
             renderInput={(params) => (
