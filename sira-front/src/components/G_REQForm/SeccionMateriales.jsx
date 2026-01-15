@@ -7,12 +7,12 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 
 export default function SeccionMateriales({
   control, register, errors, watch, setValue,
-  loading, materialesOptions, setSearchTerm, handleMaterialChange,
+  loading, materialesOptions, setSearchTerm, setSkuSearchTerm, handleMaterialChange,
   unidadesLoading, duplicateMaterialIds
 }) {
   const { fields, prepend, remove } = useFieldArray({ control, name: "items" });
   const containerRef = useRef(null);
-  const fieldOrder = ['material', 'cantidad', 'comentario'];
+  const fieldOrder = ['material', 'sku', 'cantidad', 'comentario'];
 
   const handleKeyDown = (e) => {
     const activeElement = document.activeElement;
@@ -97,6 +97,7 @@ export default function SeccionMateriales({
             loading={loading}
             materialesOptions={materialesOptions}
             setSearchTerm={setSearchTerm}
+            setSkuSearchTerm={setSkuSearchTerm}
             handleMaterialChange={handleMaterialChange}
             unidadesLoading={unidadesLoading}
             duplicateMaterialIds={duplicateMaterialIds}
