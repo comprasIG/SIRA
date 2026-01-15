@@ -203,7 +203,7 @@ const generarOcsDesdeRfq = async (req, res) => {
             const ocDataParaPdf = ocDataQuery.rows[0];
 
             const itemsDataQuery = await client.query(`
-                SELECT ocd.*, cm.nombre AS material_nombre, cu.simbolo AS unidad_simbolo
+                SELECT ocd.*, cm.nombre AS material_nombre, cm.sku AS sku, cu.simbolo AS unidad_simbolo
             FROM ordenes_compra_detalle ocd
             JOIN catalogo_materiales cm ON ocd.material_id = cm.id
             JOIN catalogo_unidades cu ON cm.unidad_de_compra = cu.id
