@@ -21,6 +21,7 @@ import {
   Typography,
   Grid,
   TextField,
+  Autocomplete,
   MenuItem,
   Button,
   Divider,
@@ -33,6 +34,9 @@ import {
   FormControlLabel,
   Switch,
   Stack,
+  IconButton,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import { toast } from "react-toastify";
 
@@ -40,6 +44,7 @@ import api from "../api/api";
 import { useAuth } from "../context/authContext";
 import { useInventario } from "../hooks/useInventario";
 import FiltrosInventario from "../components/almacen/FiltrosInventario";
+import { useDebounce } from "../components/G_REQForm/utils";
 
 /** Parser tolerante (coma -> punto) */
 const parseNumberInput = (v) => {
@@ -114,12 +119,29 @@ export default function InventarioAjustesPage() {
   const [showOnlyPendings, setShowOnlyPendings] = useState(false);
   const rowsPerPageOptions = [50, 100, 300, 500, 1000];
 
+  /** UI: modos (Batch vs Búsqueda) */
+  const [viewMode, setViewMode] = useState("batch");
+
+  /** Búsqueda de materiales (modo alterno) */
+  const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 400);
+  const [materialSearchOptions, setMaterialSearchOptions] = useState([]);
+  const [materialSearchLoading, setMaterialSearchLoading] = useState(false);
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState([]);
+  const [selectedMaterialOption, setSelectedMaterialOption] = useState(null);
+
   /** Mapa de filas por material_id para validaciones rápidas al guardar */
   const catalogoById = useMemo(() => {
     const m = new Map();
     (catalogoResumen || []).forEach((r) => m.set(r.material_id, r));
     return m;
   }, [catalogoResumen]);
+
+  const selectedRows = useMemo(() => {
+    return selectedMaterialIds
+      .map((id) => catalogoById.get(id))
+      .filter(Boolean);
+  }, [catalogoById, selectedMaterialIds]);
 
   /** Moneda default (MXN si existe) */
   const defaultMoneda = useMemo(() => {
@@ -206,6 +228,82 @@ export default function InventarioAjustesPage() {
     setPendingById({});
     toast.info("Pendientes limpiados.");
   };
+
+  const handleAddMaterial = (option) => {
+    if (!option?.id) return;
+    const materialId = Number(option.id);
+    const row = catalogoById.get(materialId);
+    if (!row) {
+      toast.warn("El material no está en el catálogo visible. Ajusta filtros y vuelve a intentar.");
+      return;
+    }
+    setSelectedMaterialIds((prev) => {
+      if (prev.includes(materialId)) return prev;
+      return [materialId, ...prev];
+    });
+  };
+
+  const handleRemoveSelected = (materialId) => {
+    setSelectedMaterialIds((prev) => prev.filter((id) => id !== materialId));
+  };
+
+  const handleSelectedKeyDown = (e) => {
+    const activeElement = document.activeElement;
+    const rowIndex = Number(activeElement?.getAttribute?.("data-row-index"));
+    const fieldIndex = Number(activeElement?.getAttribute?.("data-field-index"));
+    const fieldType = activeElement?.getAttribute?.("data-field-type");
+
+    if (!Number.isFinite(rowIndex) || !fieldType) return;
+
+    const fieldOrder = ["delta", "observaciones", "precio", "moneda"];
+
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      const nextFieldIndex = e.key === "ArrowLeft" ? fieldIndex - 1 : fieldIndex + 1;
+      if (nextFieldIndex >= 0 && nextFieldIndex < fieldOrder.length) {
+        const nextFieldType = fieldOrder[nextFieldIndex];
+        const nextInput = e.currentTarget.querySelector(
+          `[data-row-index='${rowIndex}'][data-field-type='${nextFieldType}']`
+        );
+        if (nextInput) nextInput.focus();
+      }
+    }
+
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      if (activeElement.closest('[role="combobox"][aria-expanded="true"]')) {
+        return;
+      }
+      e.preventDefault();
+      const nextIndex = e.key === "ArrowUp" ? rowIndex - 1 : rowIndex + 1;
+      if (nextIndex >= 0 && nextIndex < selectedRows.length) {
+        const nextInput = e.currentTarget.querySelector(
+          `[data-row-index='${nextIndex}'][data-field-type='${fieldType}']`
+        );
+        if (nextInput) nextInput.focus();
+      }
+    }
+  };
+
+  useEffect(() => {
+    const buscarMateriales = async (query) => {
+      if (!query) {
+        setMaterialSearchOptions([]);
+        return;
+      }
+      setMaterialSearchLoading(true);
+      try {
+        const data = await api.get(`/api/materiales?query=${encodeURIComponent(query)}`);
+        setMaterialSearchOptions(Array.isArray(data) ? data : []);
+      } catch (e) {
+        toast.error("No se pudo buscar materiales.");
+        setMaterialSearchOptions([]);
+      } finally {
+        setMaterialSearchLoading(false);
+      }
+    };
+
+    buscarMateriales(debouncedSearchTerm);
+  }, [debouncedSearchTerm]);
 
   /** Guardar lote */
   const [guardando, setGuardando] = useState(false);
@@ -317,13 +415,27 @@ export default function InventarioAjustesPage() {
 
   return (
     <Box sx={{ px: 3, pb: 3 }}>
-      <Typography variant="h6" sx={{ mb: 1, fontWeight: "bold" }}>
-        Ajustes de Inventario (Batch)
-      </Typography>
+      <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ xs: "flex-start", md: "center" }}>
+        <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+          Ajustes de Inventario
+        </Typography>
+        <Tabs value={viewMode} onChange={(_, value) => setViewMode(value)}>
+          <Tab label="Batch" value="batch" />
+          <Tab label="Búsqueda" value="busqueda" />
+        </Tabs>
+      </Stack>
 
       <Paper sx={{ p: 2, mb: 2 }}>
         <Typography sx={{ fontSize: 13, opacity: 0.85 }}>
-          Captura <b>delta</b> por fila y guarda en lote.{" "}
+          {viewMode === "batch" ? (
+            <>
+              Captura <b>delta</b> por fila y guarda en lote.{" "}
+            </>
+          ) : (
+            <>
+              Busca materiales, agrégalos a la lista y captura <b>delta</b> por fila.{" "}
+            </>
+          )}
           <b>Precio/moneda</b> se habilita solo si <b>(disponible + asignado) = 0</b> y <b>delta &gt; 0</b>.
         </Typography>
         {!isSuper && (
@@ -416,30 +528,72 @@ export default function InventarioAjustesPage() {
       </Paper>
 
       {/* Filtros */}
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <FiltrosInventario
-          filters={filters}
-          onFilterChange={(newFilters) => setFilters(newFilters)}
-          onReset={resetFilters}
-          filterOptions={filterOptions || { sitios: [], proyectos: [] }}
-        />
+      {viewMode === "batch" ? (
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <FiltrosInventario
+            filters={filters}
+            onFilterChange={(newFilters) => setFilters(newFilters)}
+            onReset={resetFilters}
+            filterOptions={filterOptions || { sitios: [], proyectos: [] }}
+          />
 
-        {error && (
-          <Typography sx={{ color: "error.main", mt: 1 }}>
-            {error}
+          {error && (
+            <Typography sx={{ color: "error.main", mt: 1 }}>
+              {error}
+            </Typography>
+          )}
+        </Paper>
+      ) : (
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }}>
+            <Autocomplete
+              sx={{ flex: 1 }}
+              options={materialSearchOptions}
+              getOptionLabel={(option) => option?.nombre || ""}
+              filterOptions={(x) => x}
+              loading={materialSearchLoading}
+              onInputChange={(_, value) => setSearchTerm(value)}
+              onChange={(_, option) => {
+                setSelectedMaterialOption(null);
+                handleAddMaterial(option);
+              }}
+              value={selectedMaterialOption}
+              isOptionEqualToValue={(option, value) => option?.id === value?.id}
+              renderOption={(props, option) => (
+                <li {...props} key={option.id}>
+                  {option.nombre}
+                </li>
+              )}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Buscar material"
+                  placeholder="Escribe nombre o SKU"
+                />
+              )}
+            />
+            <Button variant="outlined" onClick={() => setSelectedMaterialIds([])}>
+              Limpiar lista
+            </Button>
+          </Stack>
+          <Typography sx={{ fontSize: 12, opacity: 0.7, mt: 1 }}>
+            Se cargarán solo los materiales seleccionados. Usa filtros si necesitas limitar el catálogo visible.
           </Typography>
-        )}
-      </Paper>
+        </Paper>
+      )}
 
       {/* Tabla editable */}
       <Paper sx={{ p: 2 }}>
         <Typography sx={{ fontWeight: "bold", mb: 1 }}>
-          Catálogo activo (edita delta/obs por fila y guarda en lote)
+          {viewMode === "batch"
+            ? "Catálogo activo (edita delta/obs por fila y guarda en lote)"
+            : "Materiales seleccionados (edita delta/obs por fila y guarda en lote)"}
         </Typography>
 
         <Table size="small">
           <TableHead>
             <TableRow>
+              {viewMode === "busqueda" && <TableCell />}
               <TableCell sx={{ fontWeight: "bold" }}>SKU</TableCell>
               <TableCell sx={{ fontWeight: "bold" }}>Material</TableCell>
               <TableCell align="right" sx={{ fontWeight: "bold" }}>
@@ -460,22 +614,37 @@ export default function InventarioAjustesPage() {
             </TableRow>
           </TableHead>
 
-          <TableBody>
+          <TableBody onKeyDown={viewMode === "busqueda" ? handleSelectedKeyDown : undefined}>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={10}>Cargando catálogo...</TableCell>
+                <TableCell colSpan={viewMode === "busqueda" ? 11 : 10}>Cargando catálogo...</TableCell>
               </TableRow>
-            ) : listToRender.length === 0 ? (
+            ) : viewMode === "batch" && listToRender.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={10}>No hay resultados con esos filtros.</TableCell>
               </TableRow>
+            ) : viewMode === "busqueda" && selectedRows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={11}>No hay materiales seleccionados.</TableCell>
+              </TableRow>
             ) : (
-              pagedRows.map((row) => {
+              (viewMode === "batch" ? pagedRows : selectedRows).map((row, index) => {
                 const p = pendingById[row.material_id] || { delta: "", observaciones: "", precio: "", moneda: "" };
                 const allowedPrice = canEditPriceForRow(row, p.delta);
 
                 return (
                   <TableRow key={row.material_id} hover sx={{ verticalAlign: "top" }}>
+                    {viewMode === "busqueda" && (
+                      <TableCell sx={{ width: 48 }}>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleRemoveSelected(row.material_id)}
+                          aria-label={`Quitar ${row.material_nombre}`}
+                        >
+                          ✕
+                        </IconButton>
+                      </TableCell>
+                    )}
                     <TableCell>{row.sku}</TableCell>
 
                     <TableCell>
@@ -497,6 +666,11 @@ export default function InventarioAjustesPage() {
                         fullWidth
                         disabled={!isSuper}
                         placeholder="Ej: 5, -2, 1.5"
+                        inputProps={
+                          viewMode === "busqueda"
+                            ? { "data-row-index": index, "data-field-type": "delta", "data-field-index": 0 }
+                            : undefined
+                        }
                       />
                     </TableCell>
 
@@ -509,6 +683,11 @@ export default function InventarioAjustesPage() {
                         fullWidth
                         disabled={!isSuper}
                         placeholder="(si vacío, usa obs global)"
+                        inputProps={
+                          viewMode === "busqueda"
+                            ? { "data-row-index": index, "data-field-type": "observaciones", "data-field-index": 1 }
+                            : undefined
+                        }
                       />
                     </TableCell>
 
@@ -521,6 +700,11 @@ export default function InventarioAjustesPage() {
                         fullWidth
                         disabled={!isSuper || !allowedPrice}
                         placeholder={allowedPrice ? "Ej: 55.12 ó 55,12" : "No permitido"}
+                        inputProps={
+                          viewMode === "busqueda"
+                            ? { "data-row-index": index, "data-field-type": "precio", "data-field-index": 2 }
+                            : undefined
+                        }
                       />
                       {!allowedPrice && (p.precio || p.moneda) ? (
                         <Typography sx={{ fontSize: 11, color: "error.main", mt: 0.5 }}>
@@ -538,6 +722,11 @@ export default function InventarioAjustesPage() {
                         size="small"
                         fullWidth
                         disabled={!isSuper || !allowedPrice || loadingMonedas}
+                        inputProps={
+                          viewMode === "busqueda"
+                            ? { "data-row-index": index, "data-field-type": "moneda", "data-field-index": 3 }
+                            : undefined
+                        }
                       >
                         <MenuItem value="">---</MenuItem>
                         {monedas.map((m) => (
@@ -555,19 +744,21 @@ export default function InventarioAjustesPage() {
         </Table>
 
         {/* Paginación */}
-        <TablePagination
-          component="div"
-          count={listToRender.length}
-          page={page}
-          onPageChange={(e, newPage) => setPage(newPage)}
-          rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={(e) => {
-            setRowsPerPage(Number(e.target.value));
-            setPage(0);
-          }}
-          rowsPerPageOptions={rowsPerPageOptions}
-          labelRowsPerPage="Filas por página"
-        />
+        {viewMode === "batch" && (
+          <TablePagination
+            component="div"
+            count={listToRender.length}
+            page={page}
+            onPageChange={(e, newPage) => setPage(newPage)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPage(Number(e.target.value));
+              setPage(0);
+            }}
+            rowsPerPageOptions={rowsPerPageOptions}
+            labelRowsPerPage="Filas por página"
+          />
+        )}
       </Paper>
     </Box>
   );
