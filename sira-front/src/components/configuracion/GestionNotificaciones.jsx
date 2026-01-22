@@ -145,7 +145,7 @@ export default function GestionNotificaciones() {
   const handleRemoveUser = async (usuarioId) => {
     if (!grupoActivo || !window.confirm("¿Estás seguro de que quieres remover a este usuario del grupo?")) return;
     try {
-      await api.delete(`/api/configuracion/notificaciones/${grupoActivo.id}/usuarios/${usuarioId}`);
+      await api.del(`/api/configuracion/notificaciones/${grupoActivo.id}/usuarios/${usuarioId}`);
       toast.warn(`Usuario removido del grupo.`);
       handleSelectGrupo(grupoActivo.id);
     } catch (err) {
@@ -173,7 +173,7 @@ export default function GestionNotificaciones() {
   const handleDeleteGrupo = async (id, nombre) => {
     if (window.confirm(`¿Estás seguro de que quieres ELIMINAR el grupo "${nombre}"? Esta acción no se puede deshacer.`)) {
       try {
-        await api.delete(`/api/configuracion/notificaciones/${id}`);
+        await api.del(`/api/configuracion/notificaciones/${id}`);
         toast.warn("Grupo eliminado.");
         setGrupoActivo(null);
         fetchGrupos();
