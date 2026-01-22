@@ -1,3 +1,4 @@
+import ProveedoresPage from "./pages/ProveedoresPage";
 import SitiosPage from "./pages/Sitios";
 import BioTimeRegistrosPage from "./pages/BioTimeRegistrosPage";
 import NuevoProyectoPage from "./pages/NuevoProyectoPage";
@@ -88,6 +89,7 @@ export default function App() {
           <Route path="/empleados" element={<RutaProtegida permiso="empleados"><MainLayout><VerEmpleadosPage /></MainLayout></RutaProtegida>} />
           <Route path="/sitios" element={<RutaProtegida permiso="sitios"><MainLayout><SitiosPage /></MainLayout></RutaProtegida>} />
           <Route path="/FIN_FUENTES_PAGO" element={<RutaProtegida permiso="FIN_FUENTES_PAGO"><MainLayout><FIN_FUENTES_PAGO /></MainLayout></RutaProtegida>} />
+                    <Route path="/Proveedores" element={<RutaProtegida permiso="PROV"><MainLayout><ProveedoresPage /></MainLayout></RutaProtegida>}/>
           {/* --- AÑADIR NUEVAS RUTAS AUTOMÁTICAMENTE AQUÍ --- */}
 
           {/* Redirección y página no encontrada */}
