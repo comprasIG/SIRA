@@ -15,28 +15,11 @@ const initialFilters = {
   contacto: '',
 };
 
-const initialProveedorForm = {
-  marca: '',
-  razon_social: '',
-  rfc: '',
-  contacto: '',
-  telefono: '',
-  correo: '',
-  direccion: '',
-  web: '',
-  comentarios: '',
-  dias_credito: '',
-  whatsapp_notificaciones: '',
-  correo_notificaciones: '',
-};
-
 export default function Proveedores() {
   const [proveedores, setProveedores] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState(initialFilters);
-  const [showModal, setShowModal] = useState(false);
-  const [nuevoProveedor, setNuevoProveedor] = useState(initialProveedorForm);
 
   const fetchProveedores = async (payload = filters) => {
     try {
@@ -77,32 +60,6 @@ export default function Proveedores() {
     fetchProveedores(initialFilters);
   };
 
-  const handleOpenModal = () => {
-    setNuevoProveedor(initialProveedorForm);
-    setShowModal(true);
-  };
-
-  const handleCloseModal = () => {
-    setShowModal(false);
-  };
-
-  const handleProveedorChange = (event) => {
-    const { name, value } = event.target;
-    setNuevoProveedor((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleGuardarProveedor = (event) => {
-    event.preventDefault();
-    alert(`Acción: Guardar proveedor ${nuevoProveedor.marca}`);
-    handleCloseModal();
-  };
-
-  const isFormValid = Boolean(
-    nuevoProveedor.marca.trim()
-      && nuevoProveedor.razon_social.trim()
-      && nuevoProveedor.rfc.trim()
-  );
-
   const totalProveedores = proveedores.length;
 
   const proveedoresVisibles = useMemo(() => proveedores, [proveedores]);
@@ -117,7 +74,7 @@ export default function Proveedores() {
         <button
           type="button"
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors"
-          onClick={handleOpenModal}
+          onClick={() => alert('Acción: Agregar nuevo proveedor')}
         >
           <AddIcon sx={{ fontSize: 20 }} />
           Nuevo proveedor
@@ -141,8 +98,8 @@ export default function Proveedores() {
           <FilterListIcon sx={{ fontSize: 22 }} />
           <h3 className="text-lg font-semibold">Filtros de búsqueda</h3>
         </div>
-        <form onSubmit={handleSubmit} className="flex flex-nowrap gap-4 items-end overflow-x-auto">
-          <div className="min-w-[220px]">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="md:col-span-2">
             <label className="text-sm text-gray-600">Búsqueda general</label>
             <div className="mt-1 flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2">
               <SearchIcon sx={{ fontSize: 18, color: '#6b7280' }} />
@@ -156,7 +113,7 @@ export default function Proveedores() {
               />
             </div>
           </div>
-          <div className="min-w-[180px]">
+          <div>
             <label className="text-sm text-gray-600">Marca</label>
             <input
               type="text"
@@ -167,7 +124,7 @@ export default function Proveedores() {
               className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
             />
           </div>
-          <div className="min-w-[200px]">
+          <div>
             <label className="text-sm text-gray-600">Razón social</label>
             <input
               type="text"
@@ -178,7 +135,7 @@ export default function Proveedores() {
               className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
             />
           </div>
-          <div className="min-w-[160px]">
+          <div>
             <label className="text-sm text-gray-600">RFC</label>
             <input
               type="text"
@@ -189,7 +146,7 @@ export default function Proveedores() {
               className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
             />
           </div>
-          <div className="min-w-[200px]">
+          <div>
             <label className="text-sm text-gray-600">Contacto</label>
             <input
               type="text"
@@ -200,7 +157,7 @@ export default function Proveedores() {
               className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
             />
           </div>
-          <div className="min-w-[220px] flex gap-3 justify-end ml-auto">
+          <div className="md:col-span-5 flex flex-wrap gap-3 justify-end">
             <button
               type="button"
               onClick={handleClear}
@@ -278,171 +235,6 @@ export default function Proveedores() {
           </div>
         )}
       </section>
-
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800">Nuevo proveedor</h3>
-                <p className="text-sm text-gray-500">Completa los campos obligatorios para registrar el proveedor.</p>
-              </div>
-              <button
-                type="button"
-                onClick={handleCloseModal}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleGuardarProveedor} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm text-gray-600">Marca *</label>
-                  <input
-                    type="text"
-                    name="marca"
-                    required
-                    value={nuevoProveedor.marca}
-                    onChange={handleProveedorChange}
-                    className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="text-sm text-gray-600">Razón social *</label>
-                  <input
-                    type="text"
-                    name="razon_social"
-                    required
-                    value={nuevoProveedor.razon_social}
-                    onChange={handleProveedorChange}
-                    className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">RFC *</label>
-                  <input
-                    type="text"
-                    name="rfc"
-                    required
-                    value={nuevoProveedor.rfc}
-                    onChange={handleProveedorChange}
-                    className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Contacto</label>
-                  <input
-                    type="text"
-                    name="contacto"
-                    value={nuevoProveedor.contacto}
-                    onChange={handleProveedorChange}
-                    className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Teléfono</label>
-                  <input
-                    type="text"
-                    name="telefono"
-                    value={nuevoProveedor.telefono}
-                    onChange={handleProveedorChange}
-                    className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Correo</label>
-                  <input
-                    type="email"
-                    name="correo"
-                    value={nuevoProveedor.correo}
-                    onChange={handleProveedorChange}
-                    className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">WhatsApp notificaciones</label>
-                  <input
-                    type="text"
-                    name="whatsapp_notificaciones"
-                    value={nuevoProveedor.whatsapp_notificaciones}
-                    onChange={handleProveedorChange}
-                    className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Correo notificaciones</label>
-                  <input
-                    type="email"
-                    name="correo_notificaciones"
-                    value={nuevoProveedor.correo_notificaciones}
-                    onChange={handleProveedorChange}
-                    className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Días de crédito</label>
-                  <input
-                    type="number"
-                    min="0"
-                    name="dias_credito"
-                    value={nuevoProveedor.dias_credito}
-                    onChange={handleProveedorChange}
-                    className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-                <div className="md:col-span-3">
-                  <label className="text-sm text-gray-600">Dirección</label>
-                  <input
-                    type="text"
-                    name="direccion"
-                    value={nuevoProveedor.direccion}
-                    onChange={handleProveedorChange}
-                    className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-                <div className="md:col-span-3">
-                  <label className="text-sm text-gray-600">Sitio web</label>
-                  <input
-                    type="text"
-                    name="web"
-                    value={nuevoProveedor.web}
-                    onChange={handleProveedorChange}
-                    className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-                <div className="md:col-span-3">
-                  <label className="text-sm text-gray-600">Comentarios</label>
-                  <textarea
-                    name="comentarios"
-                    rows="3"
-                    value={nuevoProveedor.comentarios}
-                    onChange={handleProveedorChange}
-                    className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={!isFormValid}
-                  className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-                >
-                  Guardar proveedor
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
