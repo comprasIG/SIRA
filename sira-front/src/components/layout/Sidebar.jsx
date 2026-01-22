@@ -33,7 +33,7 @@ import FingerprintIcon from '@mui/icons-material/Fingerprint'; // Icono Para Con
 import TrolleyIcon from '@mui/icons-material/Trolley'; // Icono Para Ingresar Oc almacén
 import ForkliftIcon from '@mui/icons-material/Forklift'; // Icono Para Salidas OC almacén
 import LocalShippingIcon from '@mui/icons-material/LocalShipping'; // Icono Para Recolección de Materiales
-
+import ContactPageIcon from '@mui/icons-material/ContactPage'; // Icono Para contacto de proveedores
 
 // Mapa de íconos: Convierte el string de la BD al componente de React.
 // Aqui es donde se hace el mapeo de los iconos para manejarlos desde la base de datos
@@ -64,7 +64,8 @@ const iconMap = {
   FingerprintIcon: <FingerprintIcon sx={{ fontSize: 20 }} />, // Icono Para Control de Acceso
   TrolleyIcon: <TrolleyIcon sx={{ fontSize: 20 }} />, // Icono Para Ingresar Oc almacén
   ForkliftIcon: <ForkliftIcon sx={{ fontSize: 20 }} />, // Icono Para Salidas OC almacén
-  LocalShippingIcon: <LocalShippingIcon sx={{ fontSize: 20 }} /> // Icono Para Recolección de Materiales
+  LocalShippingIcon: <LocalShippingIcon sx={{ fontSize: 20 }} />, // Icono Para Recolección de Materiales
+  ContactPageIcon: <ContactPageIcon sx={{ fontSize: 20 }} /> ,// Icono Para contacto de proveedores
 };
 
 export default function Sidebar({ isOpen, toggleSidebar }) {
