@@ -248,21 +248,65 @@ export default function OpcionProveedorForm({
             <Controller
               name={`materiales.${materialIndex}.opciones.${opcionIndex}.precio_unitario`}
               control={control}
-              rules={{ required: "Req.", min: { value: 0, message: "≥ 0" } }}
+              rules={{
+                required: "Req.",
+                validate: (v) => {
+                  if (v === '' || v === null || v === undefined) return "Req.";
+                  const n = Number(String(v).replace(',', '.'));
+                  if (Number.isNaN(n)) return "Número inválido";
+                  if (n < 0) return "≥ 0";
+                  const s = String(v).replace(',', '.');
+                  if (!/^\d+(\.\d{0,4})?$/.test(s)) return "Máx. 4 decimales";
+                  return true;
+                },
+              }}
+
               render={({ field, fieldState: { error } }) => (
                 <TextField
                   {...field}
-                  value={field.value ?? 0}
-                  onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
-                  type="number"
+                  // Permite dejar el input vacío sin forzar 0
+                  value={field.value ?? ''}
+
+                  // Permite solo números con hasta 4 decimales (y permite borrar)
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const next = raw.replace(',', '.'); // acepta coma
+
+                    // permitir borrar todo
+                    if (next === '') {
+                      field.onChange('');
+                      return;
+                    }
+
+                    // solo números + hasta 4 decimales
+                    if (/^\d+(\.\d{0,4})?$/.test(next)) {
+                      field.onChange(next);
+                    }
+                  }}
+
+                  // Limpieza ligera al salir: "12." -> "12"
+                  onBlur={(e) => {
+                    const v = String(e.target.value ?? '').replace(',', '.');
+                    if (v.endsWith('.')) field.onChange(v.slice(0, -1));
+                    field.onBlur();
+                  }}
+
+                  // Sin flechas
+                  type="text"
+                  inputMode="decimal"
+
                   label="Precio Unitario"
                   size="small"
                   fullWidth
                   error={!!error}
                   helperText={error?.message}
                   InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                  inputProps={{
+                    pattern: '^\\d+(\\.\\d{0,4})?$',
+                  }}
                   sx={{ '& .MuiOutlinedInput-input': { padding: '12.5px 14px' } }}
                 />
+
               )}
             />
           </div>
@@ -270,7 +314,7 @@ export default function OpcionProveedorForm({
           {/* C.2: Opciones Secundarias (Checkboxes y Acciones) */}
           <div className="col-span-12 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              
+
               {/* Entrega Inmediata */}
               <Controller
                 name={`materiales.${materialIndex}.opciones.${opcionIndex}.es_entrega_inmediata`}
