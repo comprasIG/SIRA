@@ -150,9 +150,10 @@ app.use('/api/unidades', unidadesRoutes);
 const dashboardSitiosRoutes = require('./routes/dashboard_sitios.routes');
 app.use('/api/sitios-dashboard', dashboardSitiosRoutes);
 
-// ===============================================
-// --- FIN DE LA CORRECCIÓN 2 ---
-// ===============================================
+// UI Preferencias 
+const uiPreferenciasRoutes = require('./routes/uiPreferencias.routes');
+app.use('/api/ui-preferencias', uiPreferenciasRoutes);
+
 
 
 // Ruta base de prueba

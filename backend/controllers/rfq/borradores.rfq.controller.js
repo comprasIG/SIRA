@@ -1,69 +1,127 @@
 // C:\SIRA\backend\controllers\rfq\borradores.rfq.controller.js
 /**
  * =================================================================================================
- * CONTROLADOR: Borradores de Cotizaciones   (Snapshots de RFQ)
+ * CONTROLADOR: Borradores de Cotizaciones (Snapshots de RFQ) — COMPARTIDO POR REQUISICIÓN
  * =================================================================================================
- * Basado en la lógica de borradores.controller.js
- * pero adaptado para RFQ (usa requisicion_id y usuario_id del token).
+ * Objetivo:
+ * - 1 borrador por requisición (NO por usuario).
+ * - Permite continuidad operativa: si otro usuario abre el RFQ, ve el mismo snapshot.
+ * - Mantiene trazabilidad: guarda actualizado_por_usuario_id.
+ *
+ * Esquema BD esperado (confirmado):
+ *   rfq_borradores (
+ *     requisicion_id PK,
+ *     data jsonb NOT NULL,
+ *     actualizado_en timestamptz NOT NULL default now(),
+ *     actualizado_por_usuario_id int NULL
+ *   )
+ *
+ * Rutas:
+ *  - GET  /api/rfq/:id/borrador  -> Obtiene el snapshot compartido por requisición
+ *  - POST /api/rfq/:id/borrador  -> UPSERT del snapshot compartido por requisición
+ *
+ * Notas:
+ * - El usuario viene del token (middlewares verifyFirebaseToken + loadSiraUser).
+ * - No tocamos nada del front/visual. G_RFQForm ya consume /borrador. :contentReference[oaicite:2]{index=2}
+ * =================================================================================================
  */
+
 const pool = require('../../db/pool');
 
-/**
- * Obtiene el borrador de RFQ del usuario actual para un requisicion_id específico.
- */
+// ================================================================================================
+// Helpers
+// ================================================================================================
+
+const parsePositiveInt = (value) => {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n <= 0) return null;
+  return n;
+};
+
+const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+// ================================================================================================
+// GET /api/rfq/:id/borrador
+// ================================================================================================
 const getMiBorradorRfq = async (req, res) => {
   try {
-    const { id: requisicionId } = req.params;
-    const { id: usuarioId } = req.usuarioSira; // ID de usuario viene del token (loadSiraUser)
+    const requisicionId = parsePositiveInt(req.params.id);
 
-    if (!usuarioId || !requisicionId) {
-      return res.status(400).json({ error: 'Faltan parámetros de requisición o usuario.' });
+    if (!requisicionId) {
+      return res.status(400).json({ error: 'Parámetro requisicion_id inválido.' });
     }
 
+    // Nota: ya NO filtramos por usuario. Snapshot compartido.
     const { rows } = await pool.query(
-      'SELECT data, actualizado_en FROM rfq_borradores WHERE requisicion_id = $1 AND usuario_id = $2',
-      [requisicionId, usuarioId]
+      `
+      SELECT
+        data,
+        actualizado_en,
+        actualizado_por_usuario_id
+      FROM public.rfq_borradores
+      WHERE requisicion_id = $1
+      `,
+      [requisicionId]
     );
 
     if (rows.length === 0) {
-      return res.status(404).json({ error: 'No se encontró un borrador para este RFQ.' });
+      return res.status(404).json({ error: 'No se encontró borrador para este RFQ.' });
     }
-    res.json(rows[0]);
 
+    return res.status(200).json(rows[0]);
   } catch (e) {
-    console.error('getMiBorradorRfq error:', e);
-    res.status(500).json({ error: 'Error interno.' });
+    console.error('[rfq_borradores] getMiBorradorRfq error:', e);
+    return res.status(500).json({ error: 'Error interno.' });
   }
 };
 
-/**
- * Guarda (UPSERT) el borrador de RFQ del usuario actual.
- */
+// ================================================================================================
+// POST /api/rfq/:id/borrador
+// ================================================================================================
 const upsertMiBorradorRfq = async (req, res) => {
   try {
-    const { id: requisicionId } = req.params;
-    const { id: usuarioId } = req.usuarioSira; // ID de usuario viene del token
-    const { data } = req.body; // JSON del formulario: { materiales, providerConfigs }
+    const requisicionId = parsePositiveInt(req.params.id);
+    const usuarioId = req?.usuarioSira?.id ? parsePositiveInt(req.usuarioSira.id) : null;
+    const { data } = req.body;
 
-    if (!usuarioId || !requisicionId || !data) {
-      return res.status(400).json({ error: 'requisicion_id, usuario_id y data son obligatorios' });
+    if (!requisicionId) {
+      return res.status(400).json({ error: 'Parámetro requisicion_id inválido.' });
+    }
+    if (!usuarioId) {
+      // Debe venir del token; si no, hay un problema con middlewares
+      return res.status(401).json({ error: 'Usuario no autenticado o token inválido.' });
+    }
+    if (!data || !isPlainObject(data)) {
+      return res.status(400).json({ error: 'El campo "data" (objeto) es obligatorio.' });
     }
 
+    // UPSERT por requisicion_id (PK)
     const query = `
-      INSERT INTO rfq_borradores (requisicion_id, usuario_id, data)
-      VALUES ($1, $2, $3::jsonb)
-      ON CONFLICT (requisicion_id, usuario_id)
-      DO UPDATE SET data = EXCLUDED.data, actualizado_en = now()
-      RETURNING actualizado_en;
+      INSERT INTO public.rfq_borradores (requisicion_id, data, actualizado_por_usuario_id)
+      VALUES ($1, $2::jsonb, $3)
+      ON CONFLICT (requisicion_id)
+      DO UPDATE SET
+        data = EXCLUDED.data,
+        actualizado_por_usuario_id = EXCLUDED.actualizado_por_usuario_id,
+        actualizado_en = now()
+      RETURNING actualizado_en, actualizado_por_usuario_id;
     `;
-    
-    const { rows } = await pool.query(query, [requisicionId, usuarioId, data]);
-    res.json({ ok: true, ...rows[0] });
 
+    const { rows } = await pool.query(query, [requisicionId, data, usuarioId]);
+
+    return res.status(200).json({
+      ok: true,
+      actualizado_en: rows[0]?.actualizado_en,
+      actualizado_por_usuario_id: rows[0]?.actualizado_por_usuario_id,
+    });
   } catch (e) {
-    console.error('upsertMiBorradorRfq error:', e);
-    res.status(500).json({ error: 'Error interno.' });
+    console.error('[rfq_borradores] upsertMiBorradorRfq error:', e);
+    return res.status(500).json({ error: 'Error interno.' });
   }
 };
 
-module.exports = { getMiBorradorRfq, upsertMiBorradorRfq };
+module.exports = {
+  // Mantengo nombres para no tocar rutas existentes
+  getMiBorradorRfq,
+  upsertMiBorradorRfq,
+};
