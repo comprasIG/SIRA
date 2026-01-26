@@ -2,25 +2,29 @@
 /**
  * =================================================================================================
  * COMPONENTE: OpcionProveedorForm
- * VERSIÓN REESCRITA: 4.0 (Lógica de bloqueo confirmada y documentación mejorada)
+ * VERSIÓN REESCRITA: 4.1 (Agrega "Aplicar ↓" sin afectar UI)
  * =================================================================================================
  * @file OpcionProveedorForm.jsx
  * @description Renderiza el formulario para una única opción de cotización de un material.
  * Gestiona la selección de proveedor, precios, cantidades y opciones (ej. importación).
  * Incluye la lógica visual para "bloquear" la fila si ya se ha generado una OC.
  *
+ * FASE 1:
+ * - Botón discreto "Aplicar ↓": copia configuración hacia abajo desde esta línea (sobrescribe),
+ *   delegando la lógica al callback `onApplyDownFrom(materialIndex, opcionIndex)`.
+ *
  * @props
- * - {object} control: Objeto 'control' de react-hook-form.
- * - {number} materialIndex: El índice del material padre (ej. 0 para el primer material).
- * - {number} opcionIndex: El índice de esta opción (ej. 0 para la primera opción de ese material).
- * - {function} setValue: Función de react-hook-form para setear valores.
- * - {function} removeOpcion: Función de useFieldArray para eliminar esta opción.
- * - {number} totalOpciones: El número total de opciones para este material.
- * - {function} onProviderSelect: Callback para notificar al padre del último proveedor usado.
- * - {object} lastUsedProvider: Objeto del último proveedor usado (para autocompletar).
- * - {string|number|null} fieldId: El ID de la base de datos (de 'requisiciones_opciones.id').
- * Es 'null' si es una opción nueva.
- * - {array<number>} opcionesBloqueadas: Array de IDs de opciones que ya tienen una OC generada.
+ * - {object} control
+ * - {number} materialIndex
+ * - {number} opcionIndex
+ * - {function} setValue
+ * - {function} removeOpcion
+ * - {number} totalOpciones
+ * - {function} onProviderSelect
+ * - {object} lastUsedProvider
+ * - {string|number|null} fieldId (id de BD de requisiciones_opciones)
+ * - {array<number>} opcionesBloqueadas
+ * - {function} onApplyDownFrom (NUEVO)
  */
 
 // --- SECCIÓN 1: IMPORTACIONES ---
@@ -34,6 +38,7 @@ import api from '../../api/api';
 import useDebounce from './useDebounce';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LockIcon from '@mui/icons-material/Lock';
+import SouthIcon from '@mui/icons-material/South'; // ✅ NUEVO: icono "Aplicar ↓"
 
 // --- SECCIÓN 2: COMPONENTE PRINCIPAL ---
 export default function OpcionProveedorForm({
@@ -45,8 +50,10 @@ export default function OpcionProveedorForm({
   totalOpciones,
   onProviderSelect,
   lastUsedProvider,
-  fieldId, // <-- Este es el ID de la BD (ej: 456) o null
-  opcionesBloqueadas = []
+  fieldId,
+  opcionesBloqueadas = [],
+  // ✅ NUEVO
+  onApplyDownFrom,
 }) {
 
   // --- SECCIÓN 2.1: ESTADO INTERNO DEL COMPONENTE ---
@@ -56,31 +63,17 @@ export default function OpcionProveedorForm({
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
   // --- SECCIÓN 2.2: HOOKS DE REACT-HOOK-FORM (Observadores) ---
-  // Observamos campos específicos para reaccionar a sus cambios.
   const formState = useWatch({ control });
   const esEntregaInmediata = useWatch({ control, name: `materiales.${materialIndex}.opciones.${opcionIndex}.es_entrega_inmediata` });
   const allOpciones = useWatch({ control, name: `materiales.${materialIndex}.opciones` });
   const currentPrecio = useWatch({ control, name: `materiales.${materialIndex}.opciones.${opcionIndex}.precio_unitario` });
 
   // --- SECCIÓN 2.3: LÓGICA DE NEGOCIO Y MEMOS ---
-
-  /**
-   * @logic {isLocked}
-   * Determina si esta fila debe estar bloqueada.
-   * Compara el 'fieldId' (que es el id_bd de esta opción) con la lista
-   * 'opcionesBloqueadas' recibida del backend.
-   */
-  // (Esta lógica ya estaba correcta en el archivo que subiste)
   const isLocked = useMemo(() => {
-    if (!fieldId) return false; // Una opción nueva (fieldId es null) no puede estar bloqueada.
+    if (!fieldId) return false;
     return (opcionesBloqueadas || []).map(Number).includes(Number(fieldId));
   }, [fieldId, opcionesBloqueadas]);
 
-  /**
-   * @logic {esPrecioMasBajo}
-   * Determina si esta opción tiene el precio más bajo entre todas
-   * las opciones de este material para resaltarla en verde.
-   */
   const esPrecioMasBajo = useMemo(() => {
     if (!currentPrecio) return false;
     const preciosValidos = allOpciones
@@ -91,12 +84,6 @@ export default function OpcionProveedorForm({
   }, [allOpciones, currentPrecio]);
 
   // --- SECCIÓN 2.4: EFECTOS (API CALLS) ---
-
-  /**
-   * @effect
-   * Busca proveedores de forma asíncrona cuando el término de búsqueda
-   * (con debounce) cambia.
-   */
   useEffect(() => {
     const buscarProveedores = async () => {
       if (debouncedSearchTerm.length < 3) {
@@ -117,27 +104,25 @@ export default function OpcionProveedorForm({
   }, [debouncedSearchTerm]);
 
   // --- SECCIÓN 2.5: MANEJADORES DE EVENTOS ---
-
-  /**
-   * @handler
-   * Autocompleta el proveedor si se marca "Elegir" y no hay uno
-   * seleccionado, usando el último proveedor utilizado.
-   */
   const handleSeleccionadoChange = (onChange) => (event) => {
     const isChecked = event.target.checked;
-    const currentOption = formState.materiales[materialIndex].opciones[opcionIndex];
-    if (isChecked && !currentOption.proveedor && lastUsedProvider) {
+    const currentOption = formState.materiales?.[materialIndex]?.opciones?.[opcionIndex];
+    if (isChecked && !currentOption?.proveedor && lastUsedProvider) {
       const path = `materiales.${materialIndex}.opciones.${opcionIndex}`;
       setValue(`${path}.proveedor`, lastUsedProvider);
       setValue(`${path}.proveedor_id`, lastUsedProvider.id);
-      if (onProviderSelect) {
-        onProviderSelect(lastUsedProvider);
-      }
+      if (onProviderSelect) onProviderSelect(lastUsedProvider);
     }
-    onChange(isChecked); // Propaga el cambio a react-hook-form
+    onChange(isChecked);
   };
 
-  // --- SECCIÓN 2.6: RENDERIZADO DEL COMPONENTE ---
+  const handleApplyDown = () => {
+    if (isLocked) return; // por seguridad extra
+    if (typeof onApplyDownFrom !== 'function') return;
+    onApplyDownFrom(materialIndex, opcionIndex);
+  };
+
+  // --- SECCIÓN 2.6: RENDERIZADO ---
   return (
     <Paper
       elevation={0}
@@ -145,17 +130,13 @@ export default function OpcionProveedorForm({
       className="p-4 rounded-md transition-all"
       sx={{ ...(esPrecioMasBajo && !isLocked && { backgroundColor: '#f0fdf4', borderColor: '#4ade80' }) }}
     >
-      {/* --- A: Alerta de Bloqueo (Solo si 'isLocked' es true) --- */}
       {isLocked && (
         <Alert severity="info" sx={{ mb: 2 }}>
           Esta opción ya generó una Orden de Compra y no puede ser editada.
         </Alert>
       )}
 
-      {/* Contenedor relativo para el overlay de bloqueo */}
       <Box sx={{ position: 'relative', borderRadius: 2, overflow: 'visible' }}>
-
-        {/* --- B: Overlay de Bloqueo (Solo si 'isLocked' es true) --- */}
         {isLocked && (
           <Box
             sx={{
@@ -180,14 +161,12 @@ export default function OpcionProveedorForm({
           </Box>
         )}
 
-        {/* --- C: Formulario (Fieldset) --- */}
-        {/* El fieldset se deshabilita completo si 'isLocked' es true */}
         <fieldset
           disabled={isLocked}
           className="grid grid-cols-12 gap-x-4 gap-y-2"
           style={{ transition: 'opacity 0.3s', opacity: isLocked ? 0.5 : 1 }}
         >
-          {/* C.1: Campos Principales (Proveedor, Cantidad, Precio) */}
+          {/* Proveedor */}
           <div className="col-span-12 md:col-span-6">
             <Controller
               name={`materiales.${materialIndex}.opciones.${opcionIndex}.proveedor`}
@@ -199,7 +178,7 @@ export default function OpcionProveedorForm({
                   fullWidth
                   options={proveedorOptions}
                   getOptionLabel={(option) => option.nombre || ''}
-                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                  isOptionEqualToValue={(option, value) => option?.id === value?.id}
                   loading={loadingProveedores}
                   onInputChange={(_, val) => setSearchTerm(val)}
                   onChange={(_, data) => {
@@ -222,6 +201,7 @@ export default function OpcionProveedorForm({
             />
           </div>
 
+          {/* Cantidad */}
           <div className="col-span-6 md:col-span-3">
             <Controller
               name={`materiales.${materialIndex}.opciones.${opcionIndex}.cantidad_cotizada`}
@@ -244,6 +224,7 @@ export default function OpcionProveedorForm({
             />
           </div>
 
+          {/* Precio Unitario (sin flechas, hasta 4 decimales, permite vacío) */}
           <div className="col-span-6 md:col-span-3">
             <Controller
               name={`materiales.${materialIndex}.opciones.${opcionIndex}.precio_unitario`}
@@ -260,80 +241,57 @@ export default function OpcionProveedorForm({
                   return true;
                 },
               }}
-
               render={({ field, fieldState: { error } }) => (
                 <TextField
                   {...field}
-                  // Permite dejar el input vacío sin forzar 0
                   value={field.value ?? ''}
-
-                  // Permite solo números con hasta 4 decimales (y permite borrar)
                   onChange={(e) => {
                     const raw = e.target.value;
-                    const next = raw.replace(',', '.'); // acepta coma
-
-                    // permitir borrar todo
+                    const next = raw.replace(',', '.');
                     if (next === '') {
                       field.onChange('');
                       return;
                     }
-
-                    // solo números + hasta 4 decimales
                     if (/^\d+(\.\d{0,4})?$/.test(next)) {
                       field.onChange(next);
                     }
                   }}
-
-                  // Limpieza ligera al salir: "12." -> "12"
                   onBlur={(e) => {
                     const v = String(e.target.value ?? '').replace(',', '.');
                     if (v.endsWith('.')) field.onChange(v.slice(0, -1));
                     field.onBlur();
                   }}
-
-                  // Sin flechas
                   type="text"
                   inputMode="decimal"
-
                   label="Precio Unitario"
                   size="small"
                   fullWidth
                   error={!!error}
                   helperText={error?.message}
                   InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
-                  inputProps={{
-                    pattern: '^\\d+(\\.\\d{0,4})?$',
-                  }}
+                  inputProps={{ pattern: '^\\d+(\\.\\d{0,4})?$' }}
                   sx={{ '& .MuiOutlinedInput-input': { padding: '12.5px 14px' } }}
                 />
-
               )}
             />
           </div>
 
-          {/* C.2: Opciones Secundarias (Checkboxes y Acciones) */}
+          {/* Opciones + acciones */}
           <div className="col-span-12 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-
-              {/* Entrega Inmediata */}
+              {/* Entrega inmediata */}
               <Controller
                 name={`materiales.${materialIndex}.opciones.${opcionIndex}.es_entrega_inmediata`}
                 control={control}
                 render={({ field }) => (
                   <FormControlLabel
-                    control={
-                      <Checkbox
-                        {...field}
-                        checked={!!field.value}
-                        onChange={field.onChange}
-                      />
-                    }
+                    control={<Checkbox {...field} checked={!!field.value} onChange={field.onChange} />}
                     label="Entrega Inmediata"
                   />
                 )}
               />
 
-              {/* Tiempo de Entrega (Condicional) */}
+              {/* Tiempo de entrega (si NO es inmediata) */}
               {!esEntregaInmediata && (
                 <div className="flex items-center gap-2">
                   <Controller
@@ -362,19 +320,13 @@ export default function OpcionProveedorForm({
                 </div>
               )}
 
-              {/* Precio Neto */}
+              {/* Precio neto */}
               <Controller
                 name={`materiales.${materialIndex}.opciones.${opcionIndex}.es_precio_neto`}
                 control={control}
                 render={({ field }) => (
                   <FormControlLabel
-                    control={
-                      <Checkbox
-                        {...field}
-                        checked={!!field.value}
-                        onChange={field.onChange}
-                      />
-                    }
+                    control={<Checkbox {...field} checked={!!field.value} onChange={field.onChange} />}
                     label="Precio Neto (IVA Incluido)"
                   />
                 )}
@@ -386,20 +338,14 @@ export default function OpcionProveedorForm({
                 control={control}
                 render={({ field }) => (
                   <FormControlLabel
-                    control={
-                      <Checkbox
-                        {...field}
-                        checked={!!field.value}
-                        onChange={field.onChange}
-                      />
-                    }
+                    control={<Checkbox {...field} checked={!!field.value} onChange={field.onChange} />}
                     label="Importación"
                   />
                 )}
               />
             </div>
 
-            {/* C.3: Acciones de Fila (Elegir, Borrar) */}
+            {/* Acciones: Elegir + Aplicar ↓ + Eliminar */}
             <div className="flex items-center">
               <Controller
                 name={`materiales.${materialIndex}.opciones.${opcionIndex}.seleccionado`}
@@ -419,9 +365,30 @@ export default function OpcionProveedorForm({
                   </Tooltip>
                 )}
               />
+
+              {/* ✅ NUEVO: Aplicar hacia abajo */}
+              <Tooltip title="Aplicar a todos ↓ (desde esta línea hacia abajo)">
+                <span>
+                  <IconButton
+                    onClick={handleApplyDown}
+                    size="small"
+                    color="primary"
+                    disabled={isLocked || typeof onApplyDownFrom !== 'function'}
+                    sx={{ ml: 0.5 }}
+                  >
+                    <SouthIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+
               <Tooltip title="Eliminar esta opción">
                 <span>
-                  <IconButton onClick={() => removeOpcion(opcionIndex)} size="small" color="error" disabled={totalOpciones <= 1}>
+                  <IconButton
+                    onClick={() => removeOpcion(opcionIndex)}
+                    size="small"
+                    color="error"
+                    disabled={isLocked || totalOpciones <= 1}
+                  >
                     <DeleteIcon />
                   </IconButton>
                 </span>

@@ -1,15 +1,13 @@
 // C:\SIRA\sira-front\src\components\rfq\MaterialCotizacionRow.jsx
 /**
  * =================================================================================================
- * COMPONENTE: MaterialCotizacionRow (v2.2)
+ * COMPONENTE: MaterialCotizacionRow
  * =================================================================================================
- * @file MaterialCotizacionRow.jsx
- * @description Contenedor para un material específico. Gestiona el array de sus
- * opciones de cotización y pasa la información de bloqueo a cada opción individual.
+ * - Contenedor para un material específico y sus opciones.
  *
- * CAMBIOS v2.2
- * - Soporte para mostrar SKU de forma discreta debajo del nombre del material (controlado por `showSku`)
- *   sin alterar el resto del comportamiento.
+ * FASE 1:
+ * - showSku: mostrar SKU (solo UI, preferencia por usuario)
+ * - onApplyDownFrom: aplicar configuración desde esta fila hacia abajo (sobrescribe)
  */
 
 import React from 'react';
@@ -27,39 +25,35 @@ export default function MaterialCotizacionRow({
   lastUsedProvider,
   setLastUsedProvider,
   opcionesBloqueadas = [],
-  showSku = false, // <-- NUEVO (no rompe nada si no se pasa)
+  showSku = false,
+  // ✅ NUEVO
+  onApplyDownFrom,
 }) {
-  // --- Hooks ---
   const { fields, append, remove } = useFieldArray({
     control,
     name: `materiales.${materialIndex}.opciones`,
-    keyName: 'key', // Usar 'key' para el ID de RHF, deja 'id' libre
+    keyName: 'key',
   });
 
-  // Observamos el material por su ÍNDICE, no por el ID de la BD
   const material = useWatch({
     control,
     name: `materiales.${materialIndex}`,
   });
 
-  // Si el material aún no se carga (ej. durante el replace), no renderizar
   if (!material) return null;
 
-  // --- Lógica de Negocio ---
   const cantidadAsignada = (material.opciones || []).reduce((acc, opt) => {
     return opt?.seleccionado ? acc + Number(opt.cantidad_cotizada || 0) : acc;
   }, 0);
 
   const cantidadRestante = Number(material.cantidad || 0) - cantidadAsignada;
 
-  // SKU puede venir como `sku` desde el API; dejamos fallback por compatibilidad
   const skuValue = material.sku ?? material.material_sku ?? material.sku_material ?? null;
 
-  // --- Manejadores de Eventos ---
   const handleSplitPurchase = () => {
     if (fields.length < 3) {
       append({
-        id_bd: null, // Nuevo, no tiene ID de BD
+        id_bd: null,
         proveedor: null,
         proveedor_id: null,
         precio_unitario: '',
@@ -74,23 +68,16 @@ export default function MaterialCotizacionRow({
     }
   };
 
-  // --- Renderizado ---
   return (
     <Paper elevation={1} sx={{ bgcolor: 'grey.50', p: 2, borderRadius: 2 }}>
-      {/* Encabezado del Material */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Box>
           <Typography variant="h6" component="h3" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
             {material.material}
           </Typography>
 
-          {/* SKU (discreto) */}
           {showSku && skuValue && (
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ display: 'block', mt: 0.25 }}
-            >
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
               SKU: <span style={{ fontWeight: 600 }}>{skuValue}</span>
             </Typography>
           )}
@@ -101,12 +88,7 @@ export default function MaterialCotizacionRow({
               {material.cantidad} {material.unidad}
             </span>{' '}
             | Restante por asignar:{' '}
-            <span
-              className={clsx(
-                'font-bold',
-                cantidadRestante < 0 ? 'text-red-500' : 'text-green-600'
-              )}
-            >
+            <span className={clsx('font-bold', cantidadRestante < 0 ? 'text-red-500' : 'text-green-600')}>
               {Number.isFinite(cantidadRestante) ? cantidadRestante.toFixed(2) : '0.00'}
             </span>
           </Typography>
@@ -132,12 +114,11 @@ export default function MaterialCotizacionRow({
         </Tooltip>
       </Box>
 
-      {/* Contenedor para las Opciones de Proveedor */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {fields.map((field, index) => (
           <OpcionProveedorForm
-            key={field.key} // <-- Usar 'key' para React
-            fieldId={field.id_bd} // <-- ID de la BD para la lógica de bloqueo
+            key={field.key}
+            fieldId={field.id_bd}
             materialIndex={materialIndex}
             opcionIndex={index}
             control={control}
@@ -147,6 +128,8 @@ export default function MaterialCotizacionRow({
             lastUsedProvider={lastUsedProvider}
             onProviderSelect={setLastUsedProvider}
             opcionesBloqueadas={opcionesBloqueadas}
+            // ✅ NUEVO: callback para aplicar ↓ desde esta línea
+            onApplyDownFrom={onApplyDownFrom}
           />
         ))}
       </Box>
