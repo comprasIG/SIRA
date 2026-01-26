@@ -1,22 +1,28 @@
 /**
  * =================================================================================================
  * CONTROLADOR: Generación y Gestión de Cotizaciones (G-RFQ)
- * VERSIÓN REFACTORIZADA: 3.0 (Con carpetas de Drive anidadas)
  * -------------------------------------------------------------------------------------------------
- * FIX (VB_RFQ): Permitir actualizar proveedor_id al editar una opción existente.
- *   - Antes: El UPDATE de requisiciones_opciones no incluía proveedor_id (solo se insertaba en INSERT).
- *   - Ahora: El UPDATE incluye proveedor_id, conservando el resto de comportamiento.
+ * Incluye:
+ * - Detalle de RFQ (GET /api/rfq/:id)
+ * - Guardado de opciones (POST /api/rfq/:id/opciones)
+ * - Enviar a aprobación / cancelar
  *
- * FIX (FASE 1 - SKU UI):
- * - El detalle de RFQ ahora incluye `cm.sku AS sku` para que el front pueda mostrarlo (opcional).
- *
- * FIX (BUG CRÍTICO):
- * - Se corrigió el parámetro del query de materiales: antes usaba `rfqId` (undefined), ahora usa `id`.
+ * FASE 1 (Reordenamiento de materiales):
+ * - Los materiales se ordenan por rd.rfq_sort_index (y fallback rd.id)
+ * - Nuevo endpoint para persistir orden en BD:
+ *     PUT /api/rfq/:id/materiales/orden
+ *     Body: { orderedDetalleIds: number[] }
  * =================================================================================================
  */
+
 const pool = require('../../db/pool');
+
 // --- Importar funciones de Drive ---
 const { uploadQuoteToReqFolder, deleteFile } = require('../../services/googleDrive');
+
+/* =================================================================================================
+ * SECCIÓN 1: Listados
+ * ===============================================================================================*/
 
 /**
  * GET /api/rfq/pendientes
@@ -29,7 +35,8 @@ const getRequisicionesCotizando = async (req, res) => {
       JOIN usuarios u ON r.usuario_id = u.id
       JOIN proyectos p ON r.proyecto_id = p.id
       JOIN sitios s ON r.sitio_id = s.id
-      WHERE r.status = 'COTIZANDO' ORDER BY r.fecha_creacion ASC;
+      WHERE r.status = 'COTIZANDO'
+      ORDER BY r.fecha_creacion ASC;
     `;
     const result = await pool.query(query);
     res.json(result.rows);
@@ -38,6 +45,11 @@ const getRequisicionesCotizando = async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor." });
   }
 };
+
+
+/* =================================================================================================
+ * SECCIÓN 2: Detalle RFQ (incluye materiales + opciones)
+ * ===============================================================================================*/
 
 /**
  * GET /api/rfq/:id
@@ -66,8 +78,7 @@ const getRfqDetalle = async (req, res) => {
       return res.status(404).json({ error: 'Requisición no encontrada.' });
     }
 
-    // ✅ FIX: se incluye cm.sku AS sku
-    // ✅ FIX CRÍTICO: el parámetro debe ser [id], NO [rfqId]
+    // ✅ Materiales: ahora ordenados por rfq_sort_index
     const materialesResult = await pool.query(
       `
       SELECT
@@ -82,7 +93,7 @@ const getRfqDetalle = async (req, res) => {
       FROM requisiciones_detalle rd
       JOIN catalogo_materiales cm ON cm.id = rd.material_id
       WHERE rd.requisicion_id = $1
-      ORDER BY rd.id
+      ORDER BY rd.rfq_sort_index ASC, rd.id ASC
       `,
       [id]
     );
@@ -144,6 +155,85 @@ const getRfqDetalle = async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor." });
   }
 };
+
+
+/* =================================================================================================
+ * SECCIÓN 3: Persistir orden de materiales (FASE 1)
+ * ===============================================================================================*/
+
+/**
+ * PUT /api/rfq/:id/materiales/orden
+ * Body: { orderedDetalleIds: number[] }
+ *
+ * - orderedDetalleIds debe contener IDs (requisiciones_detalle.id) en el orden final
+ * - Se escribe rfq_sort_index = index (0..n-1)
+ */
+const updateRfqMaterialOrder = async (req, res) => {
+  const { id: requisicionId } = req.params;
+  const { orderedDetalleIds } = req.body;
+
+  if (!Array.isArray(orderedDetalleIds) || orderedDetalleIds.length === 0) {
+    return res.status(400).json({ error: "orderedDetalleIds debe ser un arreglo con al menos 1 elemento." });
+  }
+
+  // Sanitiza y valida ints
+  const ids = orderedDetalleIds
+    .map((v) => Number(v))
+    .filter((n) => Number.isInteger(n) && n > 0);
+
+  if (ids.length !== orderedDetalleIds.length) {
+    return res.status(400).json({ error: "orderedDetalleIds contiene valores inválidos." });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1) Verificar que todos pertenezcan a la requisición
+    const belongs = await client.query(
+      `SELECT id FROM requisiciones_detalle WHERE requisicion_id = $1 AND id = ANY($2::int[])`,
+      [requisicionId, ids]
+    );
+
+    if (belongs.rowCount !== ids.length) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error: "Algunos IDs no pertenecen a esta requisición (o ya no existen). Refresca la página e intenta de nuevo."
+      });
+    }
+
+    // 2) Bulk update con index basado en la posición del array
+    // generate_subscripts devuelve 1..n, por eso restamos 1 para tener 0..n-1.
+    await client.query(
+      `
+      UPDATE requisiciones_detalle rd
+      SET rfq_sort_index = v.idx
+      FROM (
+        SELECT
+          unnest($1::int[]) AS id,
+          (generate_subscripts($1::int[], 1) - 1) AS idx
+      ) v
+      WHERE rd.id = v.id
+        AND rd.requisicion_id = $2;
+      `,
+      [ids, requisicionId]
+    );
+
+    await client.query('COMMIT');
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(`Error al actualizar orden RFQ ${requisicionId}:`, error);
+    res.status(500).json({ error: "Error interno al guardar el orden." });
+  } finally {
+    client.release();
+  }
+};
+
+
+/* =================================================================================================
+ * SECCIÓN 4: Guardado de cotizaciones (sin cambios funcionales)
+ * ===============================================================================================*/
 
 /**
  * POST /api/rfq/:id/opciones
@@ -284,13 +374,11 @@ const guardarOpcionesRfq = async (req, res) => {
     // UPSERT de Opciones
     // =================================================================
     for (const opt of opciones) {
-      // Solo procesa opciones con proveedor y que pertenezcan a una línea PENDIENTE
       if (!opt.proveedor_id || !idsPendientes.includes(opt.requisicion_detalle_id)) continue;
 
       const resumenProveedor = resumenMap.get(opt.proveedor_id);
 
       if (opt.id) {
-        // UPDATE (solo si no está bloqueada por una OC)
         if (!opcionesBloqueadas.includes(opt.id)) {
           await client.query(
             `UPDATE requisiciones_opciones
@@ -335,7 +423,6 @@ const guardarOpcionesRfq = async (req, res) => {
           );
         }
       } else {
-        // INSERT
         await client.query(
           `INSERT INTO requisiciones_opciones
           (requisicion_id, requisicion_detalle_id, proveedor_id, precio_unitario, cantidad_cotizada, moneda, seleccionado,
@@ -377,6 +464,11 @@ const guardarOpcionesRfq = async (req, res) => {
     client.release();
   }
 };
+
+
+/* =================================================================================================
+ * SECCIÓN 5: Estados
+ * ===============================================================================================*/
 
 /**
  * POST /api/rfq/:id/enviar-a-aprobacion
@@ -420,9 +512,11 @@ const cancelarRfq = async (req, res) => {
   }
 };
 
+
 module.exports = {
   getRequisicionesCotizando,
   getRfqDetalle,
+  updateRfqMaterialOrder, // ✅ NUEVO
   guardarOpcionesRfq,
   enviarRfqAprobacion,
   cancelarRfq,
