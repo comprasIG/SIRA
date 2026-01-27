@@ -1,5 +1,5 @@
 // C:\SIRA\backend\services\purchaseOrderPdfService.js
-/**
+/** este archiovo dibuja el pdf de las OC
  * =================================================================================================
  * SERVICIO: Generación de PDFs
  * Fix PRO:
