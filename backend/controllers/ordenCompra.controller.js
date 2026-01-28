@@ -84,27 +84,27 @@ const descargarOcPdf = async (req, res) => {
     //    + lugar_entrega_nombre (sitios) a partir de oc.lugar_entrega (id)
     const ocDataQuery = await pool.query(
       `
-      SELECT
-        oc.*,
-        p.razon_social AS proveedor_razon_social,
-        p.marca        AS proveedor_marca,
-        p.rfc          AS proveedor_rfc,
-        proy.nombre    AS proyecto_nombre,
-        s.nombre       AS sitio_nombre,
-        s_entrega.nombre AS lugar_entrega_nombre,
-        u.nombre       AS usuario_nombre,
-        u.correo       AS usuario_correo,
-        r.rfq_code     AS rfq_code,
-        (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) AS moneda,
-        COALESCE(oc.fecha_aprobacion, oc.fecha_creacion, NOW()) AS fecha_aprobacion
-      FROM ordenes_compra oc
-      JOIN proveedores p ON oc.proveedor_id = p.id
-      JOIN proyectos proy ON oc.proyecto_id = proy.id
-      JOIN sitios s ON oc.sitio_id = s.id
-      LEFT JOIN sitios s_entrega ON s_entrega.id = oc.lugar_entrega::int
-      JOIN usuarios u ON oc.usuario_id = u.id
-      LEFT JOIN requisiciones r ON oc.rfq_id = r.id
-      WHERE oc.id = $1;
+SELECT
+  oc.*,
+  p.razon_social AS proveedor_razon_social,
+  p.marca        AS proveedor_marca,
+  p.rfc          AS proveedor_rfc,
+  proy.nombre    AS proyecto_nombre,
+  s.nombre       AS sitio_nombre,
+  s_entrega.nombre AS lugar_entrega_nombre,
+  u.nombre       AS usuario_nombre,
+  u.correo       AS usuario_correo,
+  r.rfq_code     AS rfq_code,
+  (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) AS moneda,
+  COALESCE(oc.fecha_creacion, NOW()) AS fecha_aprobacion
+FROM ordenes_compra oc
+JOIN proveedores p ON oc.proveedor_id = p.id
+JOIN proyectos proy ON oc.proyecto_id = proy.id
+JOIN sitios s ON oc.sitio_id = s.id
+LEFT JOIN sitios s_entrega ON s_entrega.id = oc.lugar_entrega::int
+JOIN usuarios u ON oc.usuario_id = u.id
+LEFT JOIN requisiciones r ON oc.rfq_id = r.id
+WHERE oc.id = $1;
       `,
       [idNum]
     );
