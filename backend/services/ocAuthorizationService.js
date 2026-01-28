@@ -64,8 +64,9 @@ const sanitizeFileName = (s) => {
   return String(s ?? '')
     .trim()
     .replace(/[\/\\?%*:|"<>]/g, '-') // inválidos en Windows
-    .replace(/\s+/g, '_')
-    .replace(/_+/g, '_');
+    .replace(/\s+/g, ' ')
+    .replace(/\s-\s/g, ' - ')
+    .trim();
 };
 
 const getProveedorNombre = (marca, razon) => {
@@ -340,12 +341,14 @@ const createAndAuthorizeOC = async ({
         u.nombre       AS usuario_nombre,
         u.correo       AS usuario_correo,
         r.rfq_code     AS rfq_code,
+        s_entrega.nombre AS lugar_entrega_nombre,
         (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) AS moneda,
         COALESCE(oc.fecha_aprobacion, oc.fecha_creacion, NOW()) AS fecha_aprobacion
       FROM ordenes_compra oc
       JOIN proveedores p ON oc.proveedor_id = p.id
       JOIN proyectos proy ON oc.proyecto_id = proy.id
       JOIN sitios s ON oc.sitio_id = s.id
+      LEFT JOIN sitios s_entrega ON s_entrega.id = oc.lugar_entrega::int
       JOIN usuarios u ON oc.usuario_id = u.id
       LEFT JOIN requisiciones r ON oc.rfq_id = r.id
       WHERE oc.id = $1;
@@ -381,8 +384,10 @@ const createAndAuthorizeOC = async ({
     const sitioNombre = safeText(ocData.sitio_nombre, '');
     const proyectoNombre = safeText(ocData.proyecto_nombre, '');
 
-    const subjectBase = `${numeroOcDisplay} - ${sitioNombre} - ${proyectoNombre} - ${proveedorNombre}`;
-    const subject = ocData.es_urgente === true ? `URGENTE - ${subjectBase}` : subjectBase;
+    const subject = ocData.es_urgente === true
+     ? `${numeroOcDisplay} - URGENTE - ${sitioNombre} - ${proyectoNombre} - ${proveedorNombre}`
+     : `${numeroOcDisplay} - ${sitioNombre} - ${proyectoNombre} - ${proveedorNombre}`;
+
     const fileName = `${sanitizeFileName(subject)}.pdf`;
 
     // 9) Subir a Drive (estructura por requisición)
@@ -437,7 +442,7 @@ const createAndAuthorizeOC = async ({
           <b>Sitio:</b> ${sitioNombre}<br/>
           <b>Proyecto:</b> ${proyectoNombre}<br/>
           <b>RFQ:</b> ${safeText(ocData.rfq_code, 'N/D')}<br/>
-          <b>Lugar de entrega:</b> ${safeText(ocData.lugar_entrega, 'N/D')}
+          <b>Lugar de entrega:</b> ${safeText(ocData.lugar_entrega_nombre, safeText(ocData.lugar_entrega, 'N/D'))}
         </p>
         ${notesHtml}
         <p>Link a Carpeta de Drive: <a href="${driveFile.folderLink}">Ver Archivos</a></p>

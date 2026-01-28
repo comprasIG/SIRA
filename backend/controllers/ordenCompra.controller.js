@@ -8,11 +8,16 @@
  *
  * Reglas clave:
  * - numero_oc se guarda en BD como "OC-19" (NO se modifica).
- * - Presentación (nombre de archivo y PDF): "OC-0019" (padding 4) y sin duplicados tipo "OC OC-19".
- * - El nombre del archivo debe coincidir con el formato del subject:
- *     "[URGENTE - ]OC-0019 - {SITIO} - {PROYECTO} - {PROVEEDOR}.pdf"
- * - La OC NO puede tener múltiples monedas en su detalle (validación).
- * - El correo del usuario (usuarios.correo) solo se muestra en el PDF, no en emails aquí.
+ * - Presentación (PDF / nombre de archivo): padding 4 => "OC-0019", y no duplicar "OC OC-19".
+ * - Nombre de archivo requerido (sin underscores):
+ *     "OC-0019 - [URGENTE - ]{SITIO} - {PROYECTO} - {PROVEEDOR}.pdf"
+ * - Una OC NO puede tener múltiples monedas en su detalle (validación).
+ * - El correo del usuario (usuarios.correo) solo se muestra en el PDF.
+ *
+ * Cambios en esta versión:
+ * - lugar_entrega es ID de sitios => se resuelve a nombre (sitios.nombre) como lugar_entrega_nombre
+ * - filename con espacios y guiones (sin "_") y sanitizado solo para caracteres inválidos en Windows
+ * - URGENTE va después del consecutivo: "OC-0019 - URGENTE - ..."
  * =================================================================================================
  */
 
@@ -41,12 +46,18 @@ const formatOcForDisplay = (numeroOcRaw, padDigits = 4) => {
   return `OC-${padded}`;
 };
 
+/**
+ * Sanitizado mínimo:
+ * - Mantiene espacios y " - " tal cual
+ * - Solo reemplaza caracteres inválidos en Windows: / \ : * ? " < > |
+ */
 const sanitizeFileName = (s) => {
   return String(s ?? '')
     .trim()
-    .replace(/[\/\\?%*:|"<>]/g, '-') // inválidos en Windows
-    .replace(/\s+/g, '_')
-    .replace(/_+/g, '_');
+    .replace(/[\/\\?%*:|"<>]/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/\s-\s/g, ' - ')
+    .trim();
 };
 
 const getProveedorNombre = (oc) => {
@@ -70,6 +81,7 @@ const descargarOcPdf = async (req, res) => {
 
   try {
     // 1) Traer cabecera OC + joins requeridos para PDF (incluye correo usuario y rfq_code)
+    //    + lugar_entrega_nombre (sitios) a partir de oc.lugar_entrega (id)
     const ocDataQuery = await pool.query(
       `
       SELECT
@@ -79,6 +91,7 @@ const descargarOcPdf = async (req, res) => {
         p.rfc          AS proveedor_rfc,
         proy.nombre    AS proyecto_nombre,
         s.nombre       AS sitio_nombre,
+        s_entrega.nombre AS lugar_entrega_nombre,
         u.nombre       AS usuario_nombre,
         u.correo       AS usuario_correo,
         r.rfq_code     AS rfq_code,
@@ -88,6 +101,7 @@ const descargarOcPdf = async (req, res) => {
       JOIN proveedores p ON oc.proveedor_id = p.id
       JOIN proyectos proy ON oc.proyecto_id = proy.id
       JOIN sitios s ON oc.sitio_id = s.id
+      LEFT JOIN sitios s_entrega ON s_entrega.id = oc.lugar_entrega::int
       JOIN usuarios u ON oc.usuario_id = u.id
       LEFT JOIN requisiciones r ON oc.rfq_id = r.id
       WHERE oc.id = $1;
@@ -137,16 +151,17 @@ const descargarOcPdf = async (req, res) => {
     // 4) Generar PDF (servicio maneja fondo, urgente, notas, etc.)
     const pdfBuffer = await generatePurchaseOrderPdf(ocData, itemsData, pool);
 
-    // 5) Construir nombre de archivo (igual que el subject)
+    // 5) Nombre de archivo requerido (sin "_", con guiones y espacios)
     const ocDisplay = formatOcForDisplay(ocData.numero_oc);
     const sitio = safeText(ocData.sitio_nombre, '');
     const proyecto = safeText(ocData.proyecto_nombre, '');
     const proveedor = getProveedorNombre(ocData);
 
-    const subjectBase = `${ocDisplay} - ${sitio} - ${proyecto} - ${proveedor}`;
-    const subject = ocData.es_urgente === true ? `URGENTE - ${subjectBase}` : subjectBase;
+    // URGENTE después del consecutivo
+    const base = `${ocDisplay} - ${sitio} - ${proyecto} - ${proveedor}`;
+    const name = ocData.es_urgente === true ? `${ocDisplay} - URGENTE - ${sitio} - ${proyecto} - ${proveedor}` : base;
 
-    const fileName = `${sanitizeFileName(subject)}.pdf`;
+    const fileName = `${sanitizeFileName(name)}.pdf`;
 
     // 6) Respuesta
     res.set({
@@ -156,7 +171,6 @@ const descargarOcPdf = async (req, res) => {
     });
 
     res.send(pdfBuffer);
-
   } catch (error) {
     console.error('[ordenCompra.controller] Error al generar/servir PDF:', error);
     res.status(500).json({ error: error.message || 'Error interno del servidor.' });

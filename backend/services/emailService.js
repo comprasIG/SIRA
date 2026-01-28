@@ -1,104 +1,172 @@
 // C:\SIRA\backend\services\emailService.js
 /**
  * =================================================================================================
- * SERVICIO: Envío de Correo (Versión con Firma)
+ * SERVICIO: Envío de Correo (Versión con Firma + Deduplicación de Adjuntos)
  * =================================================================================================
- * @description Envía correos electrónicos con soporte para múltiples archivos adjuntos
- * y una firma de imagen incrustada.
+ * Objetivo:
+ * - Enviar correos con múltiples adjuntos
+ * - Incluir firma embebida (imagen con CID)
+ * - Evitar adjuntos duplicados (ej. PDF repetido 2 veces)
+ * =================================================================================================
  */
-const nodemailer = require('nodemailer');
-const path = require('path'); // Necesario para la ruta de la firma
-const fs = require('fs'); // Necesario para leer la firma
-require('dotenv').config(); 
 
-// --- Configuración del Transportador de Correo (sin cambios) ---
+const nodemailer = require('nodemailer');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+require('dotenv').config();
+
+// ================================================================================================
+// Transporter (sin cambios)
+// ================================================================================================
+
 const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT,
-    secure: true, // true para 465, false para otros puertos
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASSWORD,
-    },
+  host: process.env.SMTP_HOST,
+  port: process.env.SMTP_PORT,
+  secure: true, // true para 465
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASSWORD,
+  },
 });
 
-// =================================================================
-// --- ¡NUEVO: Lógica de Firma Incrustada! ---
-// =================================================================
+// ================================================================================================
+// Firma embebida (sin cambios funcionales)
+// ================================================================================================
+
 const signaturePath = path.join(__dirname, '..', 'assets', 'firmas electronicas-GrupoIG.jpg');
-const signatureCid = 'sira-firma-ig@grupoig.com'; // ID único para la imagen
+const signatureCid = 'sira-firma-ig@grupoig.com';
 let signatureAttachment = null;
 let signatureHtml = '';
 
-// Leer la imagen de firma solo una vez al iniciar el servidor
 if (fs.existsSync(signaturePath)) {
-    signatureAttachment = {
-        filename: 'firmas electronicas-GrupoIG.jpg',
-        path: signaturePath,
-        cid: signatureCid // El Content-ID que usará el HTML
-    };
-    signatureHtml = `<br><br><img src="cid:${signatureCid}" alt="Firma Grupo IG" />`;
+  signatureAttachment = {
+    filename: 'firmas electronicas-GrupoIG.jpg',
+    path: signaturePath,
+    cid: signatureCid,
+  };
+  signatureHtml = `<br><br><img src="cid:${signatureCid}" alt="Firma Grupo IG" />`;
 } else {
-    console.warn(`[EmailService] Archivo de firma no encontrado. Se omitirá. Ruta esperada: ${signaturePath}`);
+  console.warn(`[EmailService] Archivo de firma no encontrado. Se omitirá. Ruta esperada: ${signaturePath}`);
 }
-// =================================================================
 
-/**
- * =================================================================================================
- * --- FUNCIÓN PRINCIPAL (Modificada) ---
- * =================================================================================================
- * @description Envía un correo electrónico con múltiples archivos adjuntos y la firma.
- */
-const sendEmailWithAttachments = async (recipients, subject, htmlBody, attachments = []) => {
-    // Filtramos para asegurarnos de que solo se incluyan adjuntos válidos.
-    const validAttachments = attachments.filter(att => att && att.filename && att.content);
+// ================================================================================================
+// Helpers: dedupe adjuntos
+// ================================================================================================
 
-    // --- CAMBIO: Añadir la firma a los adjuntos ---
-    if (signatureAttachment) {
-        validAttachments.push(signatureAttachment);
-    }
+const _isValidAttachment = (att) => {
+  if (!att) return false;
+  if (!att.filename) return false;
 
-    const mailOptions = {
-        from: `"SIRA PROJECT" <${process.env.SMTP_USER}>`,
-        to: recipients.join(', '),
-        subject: subject,
-        // --- CAMBIO: Añadir el HTML de la firma al cuerpo ---
-        html: htmlBody + signatureHtml, 
-        attachments: validAttachments,
-    };
+  // nodemailer acepta attachments con `content` (Buffer/string) o con `path`
+  const hasContent = att.content != null;
+  const hasPath = typeof att.path === 'string' && att.path.trim().length > 0;
 
-    console.log(`Preparando para enviar correo a [${recipients.join(', ')}] con ${validAttachments.length} archivo(s) adjunto(s).`);
-
-    try {
-        const info = await transporter.sendMail(mailOptions);
-        console.log('Correo de notificación enviado con éxito:', info.messageId);
-        return info;
-    } catch (error) {
-        console.error('Error CRÍTICO al intentar enviar el correo:', error);
-        throw new Error("Fallo en el envío del correo de notificación."); 
-    }
+  return hasContent || hasPath || att.cid; // la firma por CID puede venir con path
 };
 
+const _hashContent = (content) => {
+  try {
+    const buf = Buffer.isBuffer(content) ? content : Buffer.from(String(content));
+    return crypto.createHash('sha1').update(buf).digest('hex');
+  } catch {
+    return null;
+  }
+};
 
 /**
- * =================================================================================================
- * --- FUNCIÓN ANTIGUA (Sin cambios, depende de la principal) ---
- * =================================================================================================
+ * Dedup:
+ * - Si tiene `cid` => clave por cid (evita duplicar firma)
+ * - Si tiene `content` => filename + size + sha1
+ * - Si tiene `path` => filename + path
+ */
+const _dedupeAttachments = (attachments = []) => {
+  const seen = new Set();
+  const result = [];
+
+  for (const att of attachments) {
+    if (!_isValidAttachment(att)) continue;
+
+    let key = null;
+
+    if (att.cid) {
+      key = `cid:${att.cid}`;
+    } else if (att.content != null) {
+      const buf = Buffer.isBuffer(att.content) ? att.content : Buffer.from(String(att.content));
+      const sha1 = _hashContent(buf) || 'nohash';
+      key = `content:${att.filename}:${buf.length}:${sha1}`;
+    } else if (att.path) {
+      key = `path:${att.filename}:${String(att.path)}`;
+    } else {
+      key = `unknown:${att.filename}`;
+    }
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(att);
+  }
+
+  return result;
+};
+
+// ================================================================================================
+// API pública
+// ================================================================================================
+
+/**
+ * Envía correo con múltiples adjuntos y firma embebida.
+ * - recipients: array de correos
+ * - subject: string
+ * - htmlBody: string
+ * - attachments: [{ filename, content|path, ... }]
+ */
+const sendEmailWithAttachments = async (recipients, subject, htmlBody, attachments = []) => {
+  const base = Array.isArray(attachments) ? attachments : [];
+
+  // Agregar firma (si existe)
+  const withSignature = signatureAttachment ? [...base, signatureAttachment] : [...base];
+
+  // Deduplicar
+  const finalAttachments = _dedupeAttachments(withSignature);
+
+  const mailOptions = {
+    from: `"SIRA PROJECT" <${process.env.SMTP_USER}>`,
+    to: recipients.join(', '),
+    subject,
+    html: String(htmlBody ?? '') + signatureHtml,
+    attachments: finalAttachments,
+  };
+
+  console.log(
+    `[EmailService] Enviando correo a [${recipients.join(', ')}] con ${finalAttachments.length} adjunto(s).`
+  );
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('[EmailService] Correo enviado con éxito:', info.messageId);
+    return info;
+  } catch (error) {
+    console.error('[EmailService] Error CRÍTICO al enviar correo:', error);
+    throw new Error('Fallo en el envío del correo de notificación.');
+  }
+};
+
+/**
+ * Compatibilidad con función antigua (requisición)
  */
 const sendRequisitionEmail = async (recipients, subject, htmlBody, pdfBuffer, fileName) => {
-    const attachments = [];
-    if (pdfBuffer && fileName) {
-        attachments.push({
-            filename: fileName,
-            content: pdfBuffer,
-            contentType: 'application/pdf',
-        });
-    }
-    // Llama a la nueva función principal para hacer el trabajo.
-    return sendEmailWithAttachments(recipients, subject, htmlBody, attachments);
+  const attachments = [];
+  if (pdfBuffer && fileName) {
+    attachments.push({
+      filename: fileName,
+      content: pdfBuffer,
+      contentType: 'application/pdf',
+    });
+  }
+  return sendEmailWithAttachments(recipients, subject, htmlBody, attachments);
 };
 
 module.exports = {
-    sendRequisitionEmail,
-    sendEmailWithAttachments,
+  sendRequisitionEmail,
+  sendEmailWithAttachments,
 };

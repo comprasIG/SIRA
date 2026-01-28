@@ -4,19 +4,13 @@
  * =================================================================================================
  * @file RfqApprovalModal.jsx
  *
- * Objetivo:
- * - Permitir generar Órdenes de Compra (OC) desde VB_RFQ.
- * - Agrupa por proveedor las líneas seleccionadas pendientes por generar OC.
- * - Muestra también las líneas seleccionadas ya bloqueadas (ya tienen OC).
+ * Incluye:
+ * - URGENTE + Comentarios finanzas (por OC / por ejecución)
+ * - Descarga automática del PDF al generar OC
  *
- * Mejoras en esta versión (sin romper flujos actuales):
- * - Captura por OC (por ejecución del botón "Generar OC"):
- *    - URGENTE (checkbox)
- *    - Comentarios finanzas (textarea)
- * - Envía esos campos al backend en: POST /api/rfq/:rfqId/generar-ocs
- * - Mantiene:
- *    - Descarga automática del PDF al generar
- *    - UI de adjuntos / resumen financiero / bloqueadas
+ * Fix (v2):
+ * - Compatibilidad con wrapper api.js (no Axios puro) cuando responseType = 'blob'
+ *   Evita error "No se pudo descargar el PDF" aunque el backend responda correctamente.
  * =================================================================================================
  */
 
@@ -56,14 +50,8 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
   const [loading, setLoading] = useState(false);
 
   /**
-   * Draft por bloque/proveedor (aplica a la OC que se generará en esta ejecución)
-   * - Se reinicia al cerrar el modal.
-   * - Se inicializa cuando se detectan grupos pendientes.
-   *
-   * Estructura:
-   * {
-   *    [proveedorId]: { esUrgente: boolean, comentariosFinanzas: string }
-   * }
+   * Draft por proveedor (aplica a la OC que se generará en esa ejecución)
+   * { [proveedorId]: { esUrgente: boolean, comentariosFinanzas: string } }
    */
   const [ocDraftByProveedor, setOcDraftByProveedor] = useState({});
 
@@ -125,7 +113,7 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
     details.materiales.forEach((material) => {
       const opciones = material?.opciones || [];
 
-      // --- PENDIENTES (seleccionadas y NO bloqueadas) ---
+      // PENDIENTES (seleccionadas y NO bloqueadas)
       opciones
         .filter((op) => op?.seleccionado === true && !opcionesBloqueadasSet.has(Number(op?.id)))
         .forEach((op) => {
@@ -143,7 +131,7 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
           agrupadosPendientes[provId].opciones.push({ ...op, materialNombre: material.material });
         });
 
-      // --- BLOQUEADAS (seleccionadas y YA tienen OC) ---
+      // BLOQUEADAS (seleccionadas y YA tienen OC)
       opciones
         .filter((op) => op?.seleccionado === true && opcionesBloqueadasSet.has(Number(op?.id)))
         .forEach((op) => {
@@ -176,7 +164,7 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
   }, [details, opcionesBloqueadasSet]);
 
   // =============================================================================================
-  // INICIALIZACIÓN DEL DRAFT (por bloque pendiente)
+  // INICIALIZACIÓN DEL DRAFT (por proveedor pendiente)
   // =============================================================================================
   useEffect(() => {
     if (!open) return;
@@ -184,7 +172,7 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
     setOcDraftByProveedor((prev) => {
       const next = { ...prev };
 
-      // Agregar claves nuevas para proveedores pendientes detectados
+      // Agregar claves nuevas
       proveedoresBloques.pendientes.forEach((grupo) => {
         const provId = grupo?.opciones?.[0]?.proveedor_id;
         if (!provId) return;
@@ -194,7 +182,7 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
         }
       });
 
-      // Limpiar claves que ya no existan en pendientes (por refresh)
+      // Limpiar claves que ya no existan (por refresh)
       const pendientesIds = new Set(
         proveedoresBloques.pendientes
           .map((g) => g?.opciones?.[0]?.proveedor_id)
@@ -211,29 +199,74 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
   }, [open, proveedoresBloques.pendientes]);
 
   // =============================================================================================
-  // ACCIONES: Descargar PDF
+  // HELPERS: Descargar PDF (compat Axios + wrapper api.js)
   // =============================================================================================
+  const extractBlobResponse = (resp) => {
+    // Axios típico: { data, headers, status }
+    // Wrapper tuyo: puede regresar { data, headers, status } o ya regresar data directo
+    if (!resp) return { blob: null, headers: {} };
+
+    // Si es Axios-like
+    if (resp.data instanceof Blob) return { blob: resp.data, headers: resp.headers || {} };
+
+    // Si es wrapper y data es ArrayBuffer / Blob
+    if (resp.data && (resp.data instanceof ArrayBuffer)) {
+      return { blob: new Blob([resp.data]), headers: resp.headers || {} };
+    }
+
+    // Si la función api.get devuelve directo el data (raro para blob, pero por compat)
+    if (resp instanceof Blob) return { blob: resp, headers: {} };
+
+    return { blob: null, headers: resp.headers || {} };
+  };
+
+  const parseFilenameFromContentDisposition = (contentDisposition) => {
+    if (!contentDisposition) return null;
+
+    // Soporta filename="..." y filename*=UTF-8''...
+    const utf8Match = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+      try { return decodeURIComponent(utf8Match[1]); } catch { return utf8Match[1]; }
+    }
+
+    const match = contentDisposition.match(/filename="(.+?)"/i);
+    if (match?.[1]) return match[1];
+
+    return null;
+  };
+
   const handleDownloadPdf = async (ocId) => {
     try {
       toast.info('Preparando descarga del PDF...');
-      const response = await api.get(`/api/ocs/${ocId}/pdf`, { responseType: 'blob' });
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      // IMPORTANTE: api.js tuyo recibe el config como segundo parámetro (fetch/axios wrapper)
+      const resp = await api.get(`/api/ocs/${ocId}/pdf`, { responseType: 'blob' });
+
+      const { blob, headers } = extractBlobResponse(resp);
+      if (!blob) {
+        console.error('[PDF Download] Respuesta inválida:', resp);
+        toast.error('La respuesta del PDF no es válida.');
+        return;
+      }
+
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
 
-      let fileName = `OC-${ocId}.pdf`;
-      const contentDisposition = response.headers?.['content-disposition'];
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="(.+)"/);
-        if (match && match[1]) fileName = match[1];
-      }
+      // filename desde headers (Axios: headers['content-disposition'], Fetch: headers.get('content-disposition'))
+      const cd =
+        (headers && (headers['content-disposition'] || headers['Content-Disposition'])) ||
+        (typeof headers?.get === 'function' ? headers.get('content-disposition') : null);
 
-      link.setAttribute('download', fileName);
+      const headerFileName = parseFilenameFromContentDisposition(cd);
+
+      link.setAttribute('download', headerFileName || `OC-${ocId}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+
+      toast.success('PDF descargado.');
     } catch (err) {
       console.error(err);
       toast.error('No se pudo descargar el PDF.');
@@ -241,7 +274,7 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
   };
 
   // =============================================================================================
-  // ACCIONES: Generar OC por proveedor (solo pendientes)
+  // ACCIONES: Generar OC por proveedor
   // =============================================================================================
   const handleGenerateOC = async (proveedorId) => {
     setLoading(true);
@@ -260,12 +293,10 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
 
       toast.success(response?.mensaje || 'OC generada correctamente.');
 
-      // Backend regresa { ocs: [{ id, numero_oc }] }
       if (response?.ocs?.length > 0) {
         await handleDownloadPdf(response.ocs[0].id);
       }
 
-      // Refresh modal + lista principal
       await fetchDetails();
       refreshList?.();
     } catch (err) {
@@ -278,7 +309,7 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
   };
 
   // =============================================================================================
-  // UI: RENDER
+  // UI
   // =============================================================================================
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -293,10 +324,6 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
           </div>
         ) : (
           <Box>
-            {/* =========================
-                MENSAJES DE ESTADO
-               ========================= */}
-
             {!details && !loading && (
               <Alert severity="error" sx={{ mb: 2 }}>
                 No se pudo cargar el detalle del RFQ. Intenta cerrar y volver a abrir este modal.
@@ -310,9 +337,6 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
               </Alert>
             )}
 
-            {/* =========================
-                BLOQUES PENDIENTES DE OC
-               ========================= */}
             {proveedoresBloques.pendientes.length > 0 && (
               <>
                 <Typography variant="h6" gutterBottom>
@@ -340,9 +364,6 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
                         ))}
                       </List>
 
-                      {/* =========================
-                          CAMPOS POR OC (por ejecución)
-                         ========================= */}
                       <Divider sx={{ my: 1 }} />
 
                       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
@@ -384,9 +405,6 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
                         />
                       </Box>
 
-                      {/* =========================
-                          ADJUNTOS
-                         ========================= */}
                       {grupo.adjuntos.length > 0 && (
                         <>
                           <Divider sx={{ my: 1 }} />
@@ -411,9 +429,6 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
                         </>
                       )}
 
-                      {/* =========================
-                          RESUMEN FINANCIERO
-                         ========================= */}
                       <Divider sx={{ my: 1 }} />
 
                       <Box sx={{ p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
@@ -446,9 +461,6 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
                         </Box>
                       </Box>
 
-                      {/* =========================
-                          ACCIÓN: GENERAR OC
-                         ========================= */}
                       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
                         <Button
                           variant="contained"
@@ -464,9 +476,6 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
               </>
             )}
 
-            {/* =========================
-                BLOQUES BLOQUEADOS (YA CON OC)
-               ========================= */}
             {proveedoresBloques.bloqueadas.length > 0 && (
               <>
                 <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
@@ -492,79 +501,9 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
                         </ListItem>
                       ))}
                     </List>
-
-                    {grupo.adjuntos.length > 0 && (
-                      <>
-                        <Divider sx={{ my: 1 }} />
-                        <Typography variant="caption">Archivos de Cotización:</Typography>
-                        <List dense disablePadding>
-                          {grupo.adjuntos.map((file) => (
-                            <ListItem
-                              key={file.id}
-                              component={Link}
-                              href={file.ruta_archivo}
-                              target="_blank"
-                              button
-                              dense
-                            >
-                              <ListItemIcon sx={{ minWidth: 32 }}>
-                                <AttachFileIcon fontSize="small" />
-                              </ListItemIcon>
-                              <ListItemText primary={file.nombre_archivo} primaryTypographyProps={{ variant: 'body2' }} />
-                            </ListItem>
-                          ))}
-                        </List>
-                      </>
-                    )}
-
-                    <Divider sx={{ my: 1 }} />
-                    <Box sx={{ p: 1 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography variant="body2">Subtotal:</Typography>
-                        <Typography variant="body2">${grupo.resumenFinanciero.subTotal.toFixed(2)}</Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography variant="body2">IVA:</Typography>
-                        <Typography variant="body2">${grupo.resumenFinanciero.iva.toFixed(2)}</Typography>
-                      </Box>
-                      {grupo.resumenFinanciero.retIsr > 0 && (
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="body2" color="error">
-                            Ret. ISR:
-                          </Typography>
-                          <Typography variant="body2" color="error">
-                            -${grupo.resumenFinanciero.retIsr.toFixed(2)}
-                          </Typography>
-                        </Box>
-                      )}
-                      <Divider sx={{ my: 1 }} />
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                          Total ({grupo.resumenFinanciero.moneda}):
-                        </Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                          ${grupo.resumenFinanciero.total.toFixed(2)}
-                        </Typography>
-                      </Box>
-                    </Box>
                   </Paper>
                 ))}
               </>
-            )}
-
-            {/* =========================
-                MENSAJES FINALES
-               ========================= */}
-            {details && selectedCount > 0 && proveedoresBloques.pendientes.length === 0 && proveedoresBloques.bloqueadas.length === 0 && !loading && (
-              <Alert severity="info" sx={{ mt: 2 }}>
-                No hay bloques pendientes para generar. Revisa la selección de proveedores en G_RFQ.
-              </Alert>
-            )}
-
-            {details && selectedCount > 0 && proveedoresBloques.pendientes.length === 0 && proveedoresBloques.bloqueadas.length > 0 && !loading && (
-              <Alert severity="success" sx={{ mt: 2 }}>
-                ¡Listo! Todas las líneas seleccionadas ya tienen una Orden de Compra generada.
-              </Alert>
             )}
           </Box>
         )}

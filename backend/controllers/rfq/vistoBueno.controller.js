@@ -8,19 +8,19 @@
  * - Rechazar RFQ (regresar a cotizando)
  * - Generar Órdenes de Compra desde un RFQ (por proveedor o por filtro proveedorId)
  *
- * Reglas clave de esta versión:
- * - Mantiene tu numeración en BD: `ordenes_compra.numero_oc` se guarda como "OC-<id>" (ej. "OC-19")
- * - Presentación (PDF / Email / Nombre de archivo): padding de 4 dígitos => "OC-0019"
- *   (si supera 4 dígitos, se muestra tal cual "OC-12345")
- * - IVA / ISR:
- *   - Respeta `es_precio_neto` + `config_calculo` + importación
- *   - En detalle OC se guarda `precio_unitario` como BASE (para que cuadre con subtotal/IVA/ISR)
- * - Campos adicionales por OC:
- *   - `es_urgente` (bool)
- *   - `comentarios_finanzas` (text)
- * - Email de notificación (grupo OC_GENERADA_NOTIFICAR):
- *   - Subject: "[URGENTE - ]OC-0019 - {SITIO} - {PROYECTO} - {PROVEEDOR}"
- *   - Body: incluye datos clave + notas de finanzas + link Drive + adjuntos
+ * Reglas clave:
+ * - Mantiene numeración BD: ordenes_compra.numero_oc = "OC-<id>" (ej. "OC-19")
+ * - Presentación (PDF/Email/Archivo): padding 4 => "OC-0019" (si >4 dígitos: "OC-12345")
+ * - IVA/ISR respeta es_precio_neto + config_calculo + importación
+ * - Nuevos campos por OC:
+ *   - es_urgente (bool)
+ *   - comentarios_finanzas (text)
+ *
+ * Cambios en esta versión:
+ * - lugar_entrega es ID de sitios => se resuelve a nombre (sitios.nombre) como lugar_entrega_nombre
+ * - Subject y filename: "OC-0019 - [URGENTE - ]{SITIO} - {PROYECTO} - {PROVEEDOR}"
+ *   (sin underscores, con espacios y guiones)
+ * - Email body muestra nombre de lugar de entrega (no el ID)
  * =================================================================================================
  */
 
@@ -58,12 +58,18 @@ const formatOcForDisplay = (numeroOcRaw, padDigits = 4) => {
   return `OC-${padded}`;
 };
 
+/**
+ * Sanitizado mínimo:
+ * - Mantiene espacios y " - " tal cual
+ * - Solo reemplaza caracteres inválidos en Windows: / \ : * ? " < > |
+ */
 const sanitizeFileName = (s) => {
   return String(s ?? '')
     .trim()
-    .replace(/[\/\\?%*:|"<>]/g, '-') // caracteres inválidos en Windows
-    .replace(/\s+/g, '_')
-    .replace(/_+/g, '_');
+    .replace(/[\/\\?%*:|"<>]/g, '-') // inválidos en Windows
+    .replace(/\s+/g, ' ')
+    .replace(/\s-\s/g, ' - ')
+    .trim();
 };
 
 const getProveedorNombre = (proveedorMarca, proveedorRazon) => {
@@ -77,9 +83,6 @@ const getProveedorNombre = (proveedorMarca, proveedorRazon) => {
  * Helpers: cálculo de totales (IVA/ISR)
  * ==============================================================================================*/
 
-/**
- * Normaliza config_calculo (jsonb) para uso consistente.
- */
 const normalizeConfig = (raw) => {
   let cfg = raw;
 
@@ -100,11 +103,6 @@ const normalizeConfig = (raw) => {
   };
 };
 
-/**
- * Convierte precio unitario capturado a base si el precio fue capturado "con IVA incluido".
- * Si `es_precio_neto` = true, entonces:
- *   precioCapturado = base * (1 + ivaRate)  => base = precioCapturado / (1 + ivaRate)
- */
 const getBaseUnitPrice = ({ precioUnitario, esPrecioNeto, ivaRate, ivaActive }) => {
   const pu = toNum(precioUnitario);
   if (!ivaActive || ivaRate <= 0) return pu;
@@ -112,11 +110,6 @@ const getBaseUnitPrice = ({ precioUnitario, esPrecioNeto, ivaRate, ivaActive }) 
   return pu / (1 + ivaRate);
 };
 
-/**
- * Calcula subtotal (base), IVA, ret ISR y total para una OC.
- * - Si es importación: IVA/ISR se desactivan.
- * - Si hay total forzado, se respeta.
- */
 const calcularTotalesOc = (items) => {
   if (!items || items.length === 0) {
     return { subTotal: 0, iva: 0, retIsr: 0, total: 0, ivaRate: 0, isrRate: 0, moneda: 'MXN', esImportacion: false };
@@ -229,14 +222,6 @@ const rechazarRfq = async (req, res) => {
 
 /**
  * POST /api/rfq/:id/generar-ocs
- *
- * Este endpoint se ejecuta típicamente por proveedor (vía `proveedorId` desde el modal),
- * lo cual permite que un mismo proveedor pueda terminar con 2+ OCs en distintos momentos.
- *
- * Body (compat):
- * - proveedorId (opcional)
- * - esUrgente / es_urgente (opcional)
- * - comentariosFinanzas / comentarios_finanzas (opcional)
  */
 const generarOcsDesdeRfq = async (req, res) => {
   const { id: rfqId } = req.params;
@@ -244,7 +229,6 @@ const generarOcsDesdeRfq = async (req, res) => {
 
   const { proveedorId } = req.body;
 
-  // Campos nuevos (compat con distintos nombres)
   const esUrgenteRaw = req.body.esUrgente ?? req.body.es_urgente ?? false;
   const comentariosRaw = req.body.comentariosFinanzas ?? req.body.comentarios_finanzas ?? null;
 
@@ -256,7 +240,7 @@ const generarOcsDesdeRfq = async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // 1) Validar RFQ (bloqueo por transacción para consistencia)
+    // 1) Validar RFQ
     const rfqQuery = await client.query(
       `SELECT r.*, d.codigo as depto_codigo
        FROM requisiciones r
@@ -272,7 +256,16 @@ const generarOcsDesdeRfq = async (req, res) => {
 
     const rfqData = rfqQuery.rows[0];
 
-    // 2) Opciones seleccionadas NO bloqueadas (ya incluidas en alguna OC previa)
+    // Resolver nombre de lugar de entrega (sitios) para email
+    const lugarEntregaNombreQuery = await client.query(
+      `SELECT nombre FROM sitios WHERE id = $1`,
+      [Number(rfqData.lugar_entrega)]
+    );
+    const lugarEntregaNombre = lugarEntregaNombreQuery.rowCount > 0
+      ? lugarEntregaNombreQuery.rows[0].nombre
+      : null;
+
+    // 2) Opciones bloqueadas
     const opcionesBloqueadasQuery = await client.query(
       `SELECT comparativa_precio_id
        FROM ordenes_compra_detalle
@@ -282,7 +275,7 @@ const generarOcsDesdeRfq = async (req, res) => {
 
     const opcionesBloqueadas = opcionesBloqueadasQuery.rows.map(row => Number(row.comparativa_precio_id));
 
-    // 3) Traer opciones seleccionadas, con filtro opcional por proveedor
+    // 3) Opciones seleccionadas
     let opcionesQueryString = `
       SELECT ro.*,
              p.marca        as proveedor_marca,
@@ -311,7 +304,7 @@ const generarOcsDesdeRfq = async (req, res) => {
       throw new Error('No hay opciones pendientes para generar OC para este proveedor.');
     }
 
-    // 4) Agrupar por proveedor (normalmente será 1 grupo si proveedorId viene en body)
+    // 4) Agrupar por proveedor
     const comprasPorProveedor = opcionesQuery.rows.reduce((acc, opt) => {
       (acc[opt.proveedor_id] = acc[opt.proveedor_id] || []).push(opt);
       return acc;
@@ -319,21 +312,17 @@ const generarOcsDesdeRfq = async (req, res) => {
 
     const ocsGeneradasInfo = [];
 
-    // 5) Generación por proveedor (una OC por proveedor en esta ejecución)
     for (const provId in comprasPorProveedor) {
       const items = comprasPorProveedor[provId];
       const primerItem = items[0];
 
-      // 5.1 Totales correctos (base/IVA/ISR)
       const tot = calcularTotalesOc(items);
 
-      // 5.2 Numeración OC (mantener BD como "OC-<id>")
       const seqResult = await client.query(`SELECT nextval('ordenes_compra_id_seq') AS id`);
       const nuevaOcId = seqResult.rows[0].id;
-      const numeroOcDb = `OC-${nuevaOcId}`;                 // valor guardado en BD
-      const numeroOcDisplay = formatOcForDisplay(numeroOcDb); // valor mostrado en PDF/Email/Archivos
+      const numeroOcDb = `OC-${nuevaOcId}`;
+      const numeroOcDisplay = formatOcForDisplay(numeroOcDb);
 
-      // 5.3 Insert header OC (incluye campos nuevos)
       await client.query(
         `INSERT INTO ordenes_compra
           (id, numero_oc, usuario_id, rfq_id, sitio_id, proyecto_id, lugar_entrega,
@@ -366,7 +355,6 @@ const generarOcsDesdeRfq = async (req, res) => {
         ]
       );
 
-      // 5.4 Insert detalle OC (precio_unitario BASE para coherencia PDF)
       for (const item of items) {
         const cfg = normalizeConfig(item.config_calculo);
         const esImportacion = item.es_importacion === true;
@@ -397,7 +385,6 @@ const generarOcsDesdeRfq = async (req, res) => {
           ]
         );
 
-        // Actualizar cantidad procesada y status_compra
         await client.query(
           `UPDATE requisiciones_detalle
            SET cantidad_procesada = cantidad_procesada + $1
@@ -413,7 +400,7 @@ const generarOcsDesdeRfq = async (req, res) => {
         );
       }
 
-      // 5.5 Preparar data para PDF (incluye correo usuario + rfq_code + campos nuevos)
+      // ========= PDF data con lugar_entrega_nombre =========
       const ocDataQuery = await client.query(
         `
         SELECT
@@ -423,6 +410,7 @@ const generarOcsDesdeRfq = async (req, res) => {
           p.rfc          AS proveedor_rfc,
           proy.nombre    AS proyecto_nombre,
           s.nombre       AS sitio_nombre,
+          s_entrega.nombre AS lugar_entrega_nombre,
           u.nombre       AS usuario_nombre,
           u.correo       AS usuario_correo,
           r.rfq_code     AS rfq_code,
@@ -432,6 +420,7 @@ const generarOcsDesdeRfq = async (req, res) => {
         JOIN proveedores p ON oc.proveedor_id = p.id
         JOIN proyectos proy ON oc.proyecto_id = proy.id
         JOIN sitios s ON oc.sitio_id = s.id
+        LEFT JOIN sitios s_entrega ON s_entrega.id = oc.lugar_entrega::int
         JOIN usuarios u ON oc.usuario_id = u.id
         JOIN requisiciones r ON oc.rfq_id = r.id
         WHERE oc.id = $1;
@@ -441,7 +430,6 @@ const generarOcsDesdeRfq = async (req, res) => {
 
       const ocDataParaPdf = ocDataQuery.rows[0];
 
-      // Validación de moneda: una OC debe tener una sola moneda
       const monedaDistinct = await client.query(
         `SELECT COUNT(DISTINCT moneda)::int AS cnt
          FROM ordenes_compra_detalle
@@ -468,20 +456,20 @@ const generarOcsDesdeRfq = async (req, res) => {
 
       const pdfItems = itemsDataQuery.rows;
 
-      // 5.6 Generar PDF
       const pdfBuffer = await generatePurchaseOrderPdf(ocDataParaPdf, pdfItems, client);
 
-      // 5.7 Nombre de archivo + subject (email)
+      // ========= Subject / filename requerido =========
       const proveedorNombre = getProveedorNombre(primerItem.proveedor_marca, primerItem.proveedor_razon_social);
       const sitioNombre = safeText(ocDataParaPdf.sitio_nombre, '');
       const proyectoNombre = safeText(ocDataParaPdf.proyecto_nombre, '');
 
-      const subjectBase = `${numeroOcDisplay} - ${sitioNombre} - ${proyectoNombre} - ${proveedorNombre}`;
-      const subject = esUrgente ? `URGENTE - ${subjectBase}` : subjectBase;
+      // URGENTE después del consecutivo
+      const subject = esUrgente
+        ? `${numeroOcDisplay} - URGENTE - ${sitioNombre} - ${proyectoNombre} - ${proveedorNombre}`
+        : `${numeroOcDisplay} - ${sitioNombre} - ${proyectoNombre} - ${proveedorNombre}`;
 
       const pdfFileName = `${sanitizeFileName(subject)}.pdf`;
 
-      // 5.8 Subir PDF a Drive
       const driveFile = await uploadOcPdfBuffer(
         pdfBuffer,
         pdfFileName,
@@ -494,7 +482,6 @@ const generarOcsDesdeRfq = async (req, res) => {
         throw new Error('Falló la subida del archivo PDF a Google Drive o no se recibió el link de vuelta.');
       }
 
-      // 5.9 Adjuntar cotizaciones (Drive)
       const attachments = [{ filename: pdfFileName, content: pdfBuffer }];
 
       const quoteFilesQuery = await client.query(
@@ -512,12 +499,16 @@ const generarOcsDesdeRfq = async (req, res) => {
         }
       }
 
-      // 5.10 Notificar email (grupo configurado)
       const recipients = await _getRecipientEmailsByGroup('OC_GENERADA_NOTIFICAR', client);
 
       if (recipients.length > 0) {
-        const notesHtml = comentariosFinanzas ? `<p><b>Notas de finanzas:</b><br/>${comentariosFinanzas.replace(/\n/g, '<br/>')}</p>` : '';
-        const urgentHtml = esUrgente ? `<p style="color:#C62828;font-weight:bold;font-size:14px;">URGENTE</p>` : '';
+        const notesHtml = comentariosFinanzas
+          ? `<p><b>Notas de finanzas:</b><br/>${comentariosFinanzas.replace(/\n/g, '<br/>')}</p>`
+          : '';
+
+        const urgentHtml = esUrgente
+          ? `<p style="color:#C62828;font-weight:bold;font-size:14px;">URGENTE</p>`
+          : '';
 
         const htmlBody = `
           ${urgentHtml}
@@ -528,7 +519,7 @@ const generarOcsDesdeRfq = async (req, res) => {
             <b>Sitio:</b> ${sitioNombre}<br/>
             <b>Proyecto:</b> ${proyectoNombre}<br/>
             <b>RFQ:</b> ${safeText(rfqData.rfq_code, 'N/D')}<br/>
-            <b>Lugar de entrega:</b> ${safeText(rfqData.lugar_entrega, 'N/D')}
+            <b>Lugar de entrega:</b> ${safeText(lugarEntregaNombre, safeText(rfqData.lugar_entrega, 'N/D'))}
           </p>
           ${notesHtml}
           <p>Link a Drive: <a href="${driveFile.webViewLink}">Ver Archivo</a></p>
@@ -541,7 +532,6 @@ const generarOcsDesdeRfq = async (req, res) => {
       ocsGeneradasInfo.push({ numero_oc: numeroOcDb, id: nuevaOcId });
     }
 
-    // 6) Actualizar status del RFQ si ya no hay líneas pendientes
     const checkCompletion = await client.query(
       `SELECT COUNT(*) FROM requisiciones_detalle
        WHERE requisicion_id = $1 AND status_compra = 'PENDIENTE'`,
