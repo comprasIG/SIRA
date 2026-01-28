@@ -12,6 +12,12 @@
  * - Nuevo endpoint para persistir orden en BD:
  *     PUT /api/rfq/:id/materiales/orden
  *     Body: { orderedDetalleIds: number[] }
+ *
+ * Reglas nuevas (operación real):
+ * - Un RFQ entra a VB_RFQ cuando existe al menos 1 opción seleccionada con cantidad > 0
+ * - Si NO hay selecciones y NO existe ninguna OC (no cancelada), el RFQ puede regresar a COTIZANDO
+ * - Si ya existe al menos 1 OC (no cancelada), el RFQ NO debe regresar a COTIZANDO automáticamente
+ * - RFQs en estado CANCELADA nunca deben "revivir" por este endpoint
  * =================================================================================================
  */
 
@@ -133,7 +139,8 @@ const getRfqDetalle = async (req, res) => {
     const adjuntosOriginalesResult = await pool.query(
       `SELECT id, nombre_archivo, ruta_archivo
        FROM requisiciones_adjuntos
-       WHERE requisicion_id = $1`,
+       WHERE requisicion_id = $1`
+    ,
       [id]
     );
 
@@ -161,13 +168,6 @@ const getRfqDetalle = async (req, res) => {
  * SECCIÓN 3: Persistir orden de materiales (FASE 1)
  * ===============================================================================================*/
 
-/**
- * PUT /api/rfq/:id/materiales/orden
- * Body: { orderedDetalleIds: number[] }
- *
- * - orderedDetalleIds debe contener IDs (requisiciones_detalle.id) en el orden final
- * - Se escribe rfq_sort_index = index (0..n-1)
- */
 const updateRfqMaterialOrder = async (req, res) => {
   const { id: requisicionId } = req.params;
   const { orderedDetalleIds } = req.body;
@@ -203,7 +203,6 @@ const updateRfqMaterialOrder = async (req, res) => {
     }
 
     // 2) Bulk update con index basado en la posición del array
-    // generate_subscripts devuelve 1..n, por eso restamos 1 para tener 0..n-1.
     await client.query(
       `
       UPDATE requisiciones_detalle rd
@@ -235,10 +234,6 @@ const updateRfqMaterialOrder = async (req, res) => {
  * SECCIÓN 4: Guardado de cotizaciones (sin cambios funcionales)
  * ===============================================================================================*/
 
-/**
- * POST /api/rfq/:id/opciones
- * (Guardado de cotizaciones)
- */
 const guardarOpcionesRfq = async (req, res) => {
   const { id: requisicion_id } = req.params;
   let { opciones, resumenes, rfq_code, archivos_existentes_por_proveedor } = req.body;
@@ -472,20 +467,93 @@ const guardarOpcionesRfq = async (req, res) => {
 
 /**
  * POST /api/rfq/:id/enviar-a-aprobacion
+ *
+ * Nuevo comportamiento: SYNC de estatus administrativo.
+ * - RFQ CANCELADA: no se modifica.
+ * - Si existe al menos 1 opción seleccionada con cantidad > 0 => POR_APROBAR
+ * - Si NO hay selecciones:
+ *    - si NO existe OC (no cancelada) => COTIZANDO
+ *    - si SÍ existe OC (no cancelada) => NO regresa a COTIZANDO (se queda igual)
  */
 const enviarRfqAprobacion = async (req, res) => {
   const { id } = req.params;
+
   try {
-    const result = await pool.query(
-      `UPDATE requisiciones SET status = 'POR_APROBAR'
-       WHERE id = $1 AND (status = 'COTIZANDO' OR status = 'POR_APROBAR')
-       RETURNING id, status`,
+    const rfqActual = await pool.query(
+      `SELECT id, status FROM requisiciones WHERE id = $1`,
       [id]
     );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'La requisición no se encontró o está en un estado no válido.' });
-    res.status(200).json({ mensaje: `La RFQ ha sido enviada a aprobación.`, requisicion: result.rows[0] });
+
+    if (rfqActual.rowCount === 0) {
+      return res.status(404).json({ error: 'El RFQ no existe.' });
+    }
+
+    const statusActual = rfqActual.rows[0].status;
+
+    if (statusActual === 'CANCELADA') {
+      return res.status(409).json({ error: "El RFQ está CANCELADO y no puede cambiar de estado." });
+    }
+
+    const ocExistente = await pool.query(
+      `SELECT 1
+       FROM ordenes_compra
+       WHERE rfq_id = $1
+         AND status <> 'CANCELADA'
+       LIMIT 1`,
+      [id]
+    );
+    const hayOcNoCancelada = ocExistente.rowCount > 0;
+
+    const seleccionExistente = await pool.query(
+      `SELECT 1
+       FROM requisiciones_opciones
+       WHERE requisicion_id = $1
+         AND seleccionado = TRUE
+         AND COALESCE(cantidad_cotizada, 0) > 0
+       LIMIT 1`,
+      [id]
+    );
+    const haySeleccionAsignada = seleccionExistente.rowCount > 0;
+
+    let nuevoStatus = statusActual;
+
+    if (haySeleccionAsignada) {
+      nuevoStatus = 'POR_APROBAR';
+    } else {
+      if (!hayOcNoCancelada) {
+        nuevoStatus = 'COTIZANDO';
+      } else {
+        // Si ya hay OC(s), no regresamos a G_RFQ aunque ya no haya selecciones
+        nuevoStatus = statusActual;
+      }
+    }
+
+    if (nuevoStatus === statusActual) {
+      return res.status(200).json({
+        mensaje: `Sin cambios. El RFQ permanece en '${statusActual}'.`,
+        requisicion: { id: Number(id), status: statusActual },
+        hayOcNoCancelada,
+        haySeleccionAsignada
+      });
+    }
+
+    const upd = await pool.query(
+      `UPDATE requisiciones
+       SET status = $2
+       WHERE id = $1
+       RETURNING id, status`,
+      [id, nuevoStatus]
+    );
+
+    return res.status(200).json({
+      mensaje: `Estatus actualizado a '${upd.rows[0].status}'.`,
+      requisicion: upd.rows[0],
+      hayOcNoCancelada,
+      haySeleccionAsignada
+    });
+
   } catch (error) {
-    console.error(`Error al enviar a aprobación la RFQ ${id}:`, error);
+    console.error(`Error al sincronizar estado RFQ ${id}:`, error);
     res.status(500).json({ error: 'Error interno del servidor.' });
   }
 };
@@ -516,7 +584,7 @@ const cancelarRfq = async (req, res) => {
 module.exports = {
   getRequisicionesCotizando,
   getRfqDetalle,
-  updateRfqMaterialOrder, // ✅ NUEVO
+  updateRfqMaterialOrder,
   guardarOpcionesRfq,
   enviarRfqAprobacion,
   cancelarRfq,
