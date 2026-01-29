@@ -176,7 +176,7 @@ const _getRecipientEmailsByGroup = async (codigoGrupo, client) => {
  * Nota: Una opción se considera "bloqueada" cuando existe en ordenes_compra_detalle.comparativa_precio_id
  *       de una OC NO cancelada.
  */
-const getRfqsPorAprobar = async (_req, res) => {
+const getRfqsPorAprobar = async (req, res) => {
   try {
     const query = `
       SELECT
@@ -206,17 +206,12 @@ const getRfqsPorAprobar = async (_req, res) => {
         )
       ORDER BY r.fecha_creacion ASC;
     `;
-
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (error) {
-    console.error('[VB_RFQ] Error al obtener RFQs por aprobar:', error);
-    res.status(500).json({ error: 'Error interno del servidor.' });
+    console.error("[VB_RFQ] Error al obtener RFQs por aprobar:", error);
+    res.status(500).json({ error: "Error interno del servidor." });
   }
-};
-
-module.exports = {
-  getRfqsPorAprobar,
 };
 
 const rechazarRfq = async (req, res) => {
