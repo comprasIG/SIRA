@@ -61,10 +61,10 @@ const sanitizeFileName = (s) => {
 };
 
 const getProveedorNombre = (oc) => {
-  const marca = String(oc?.proveedor_marca ?? '').trim();
-  if (marca) return marca;
   const razon = String(oc?.proveedor_razon_social ?? '').trim();
-  return razon || 'PROVEEDOR';
+  if (razon) return razon;
+  const marca = String(oc?.proveedor_marca ?? '').trim();
+  return marca || 'PROVEEDOR';
 };
 
 /* ================================================================================================

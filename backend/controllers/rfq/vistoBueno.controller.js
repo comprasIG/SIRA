@@ -3,24 +3,17 @@
  * =================================================================================================
  * CONTROLADOR: VB_RFQ (Visto Bueno de Cotizaciones)
  * =================================================================================================
- * Responsabilidades:
- * - Listar RFQs pendientes por aprobar
- * - Rechazar RFQ (regresar a cotizando)
- * - Generar Órdenes de Compra desde un RFQ (por proveedor o por filtro proveedorId)
+ * Objetivo funcional (operación real):
+ * - Un RFQ debe aparecer en VB_RFQ cuando existe al menos 1 opción "asignada/seleccionada" pendiente
+ *   de generar OC, aunque el RFQ siga en COTIZANDO y aunque sea una asignación parcial.
+ * - Un RFQ debe salir de VB_RFQ solamente cuando:
+ *    (1) Todas sus líneas cumplieron cantidad_procesada >= cantidad
+ *    (2) NO hay opciones seleccionadas pendientes por generar OC
  *
- * Reglas clave:
- * - Mantiene numeración BD: ordenes_compra.numero_oc = "OC-<id>" (ej. "OC-19")
- * - Presentación (PDF/Email/Archivo): padding 4 => "OC-0019" (si >4 dígitos: "OC-12345")
- * - IVA/ISR respeta es_precio_neto + config_calculo + importación
- * - Nuevos campos por OC:
- *   - es_urgente (bool)
- *   - comentarios_finanzas (text)
- *
- * Cambios en esta versión:
- * - lugar_entrega es ID de sitios => se resuelve a nombre (sitios.nombre) como lugar_entrega_nombre
- * - Subject y filename: "OC-0019 - [URGENTE - ]{SITIO} - {PROYECTO} - {PROVEEDOR}"
- *   (sin underscores, con espacios y guiones)
- * - Email body muestra nombre de lugar de entrega (no el ID)
+ * Reglas adicionales:
+ * - Una opción se considera "bloqueada" cuando existe en ordenes_compra_detalle.comparativa_precio_id
+ *   de una OC NO cancelada.
+ * - Si una OC se cancela, sus opciones deben dejar de bloquearse, permitiendo generar otra OC.
  * =================================================================================================
  */
 
@@ -73,10 +66,10 @@ const sanitizeFileName = (s) => {
 };
 
 const getProveedorNombre = (proveedorMarca, proveedorRazon) => {
-  const marca = String(proveedorMarca ?? '').trim();
-  if (marca) return marca;
   const razon = String(proveedorRazon ?? '').trim();
-  return razon || 'PROVEEDOR';
+  if (razon) return razon;
+  const marca = String(proveedorMarca ?? '').trim();
+  return marca || 'PROVEEDOR';
 };
 
 /* ================================================================================================
@@ -175,25 +168,49 @@ const _getRecipientEmailsByGroup = async (codigoGrupo, client) => {
  * Endpoints
  * ==============================================================================================*/
 
-const getRfqsPorAprobar = async (_req, res) => {
+/**
+ * VB_RFQ debe mostrar RFQs con trabajo ejecutable:
+ * - Existe al menos 1 opción seleccionada (asignada) con cantidad > 0
+ * - Y esa opción aún NO ha sido convertida en OC (no está bloqueada)
+ *
+ * Nota: Una opción se considera "bloqueada" cuando existe en ordenes_compra_detalle.comparativa_precio_id
+ *       de una OC NO cancelada.
+ */
+const getRfqsPorAprobar = async (req, res) => {
   try {
     const query = `
-      SELECT r.id, r.rfq_code, r.fecha_creacion,
-             u.nombre AS usuario_creador,
-             p.nombre AS proyecto,
-             s.nombre AS sitio
+      SELECT
+        r.id,
+        r.rfq_code,
+        r.fecha_creacion,
+        u.nombre AS usuario_creador,
+        p.nombre AS proyecto,
+        s.nombre AS sitio
       FROM requisiciones r
       JOIN usuarios u ON r.usuario_id = u.id
       JOIN proyectos p ON r.proyecto_id = p.id
       JOIN sitios s ON r.sitio_id = s.id
-      WHERE r.status = 'POR_APROBAR'
+      WHERE r.status <> 'CANCELADA'
+        AND EXISTS (
+          SELECT 1
+          FROM requisiciones_opciones ro
+          LEFT JOIN ordenes_compra_detalle ocd
+            ON ocd.comparativa_precio_id = ro.id
+          LEFT JOIN ordenes_compra oc
+            ON oc.id = ocd.orden_compra_id
+            AND oc.status <> 'CANCELADA'
+          WHERE ro.requisicion_id = r.id
+            AND ro.seleccionado = TRUE
+            AND COALESCE(ro.cantidad_cotizada, 0) > 0
+            AND oc.id IS NULL
+        )
       ORDER BY r.fecha_creacion ASC;
     `;
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (error) {
-    console.error('[VB_RFQ] Error al obtener RFQs por aprobar:', error);
-    res.status(500).json({ error: 'Error interno del servidor.' });
+    console.error("[VB_RFQ] Error al obtener RFQs por aprobar:", error);
+    res.status(500).json({ error: "Error interno del servidor." });
   }
 };
 
@@ -245,16 +262,22 @@ const generarOcsDesdeRfq = async (req, res) => {
       `SELECT r.*, d.codigo as depto_codigo
        FROM requisiciones r
        JOIN departamentos d ON r.departamento_id = d.id
-       WHERE r.id = $1 AND r.status = 'POR_APROBAR'
+       WHERE r.id = $1 AND r.status IN ('ABIERTA','COTIZANDO','POR_APROBAR','ESPERANDO_ENTREGA','ENTREGADA')
        FOR UPDATE`,
       [rfqId]
     );
 
     if (rfqQuery.rowCount === 0) {
-      throw new Error('El RFQ no existe, ya fue procesado o no está para aprobación.');
+      throw new Error('El RFQ no existe o está en un estado que no permite generar OCs.');
     }
 
     const rfqData = rfqQuery.rows[0];
+
+    // Si el RFQ aún estaba en COTIZANDO/ABIERTA o ya estaba "cerrado" pero se está generando una nueva OC
+    // (por ejemplo, porque se canceló una OC y ahora hay pendientes), lo movemos a POR_APROBAR para reflejar
+    // que hay trabajo de VB en curso. Esto evita que el RFQ "regrese" a G_RFQ mientras existan OCs en juego.
+    const rfqStatusOriginal = rfqData.status;
+    let statusActualizadoAVb = false;
 
     // Resolver nombre de lugar de entrega (sitios) para email
     const lugarEntregaNombreQuery = await client.query(
@@ -265,11 +288,13 @@ const generarOcsDesdeRfq = async (req, res) => {
       ? lugarEntregaNombreQuery.rows[0].nombre
       : null;
 
-    // 2) Opciones bloqueadas
+    // 2) Opciones bloqueadas (solo por OCs NO canceladas)
     const opcionesBloqueadasQuery = await client.query(
-      `SELECT comparativa_precio_id
-       FROM ordenes_compra_detalle
-       WHERE orden_compra_id IN (SELECT id FROM ordenes_compra WHERE rfq_id = $1)`,
+      `SELECT ocd.comparativa_precio_id
+       FROM ordenes_compra_detalle ocd
+       JOIN ordenes_compra oc ON oc.id = ocd.orden_compra_id
+       WHERE oc.rfq_id = $1
+         AND oc.status <> 'CANCELADA'`,
       [rfqId]
     );
 
@@ -354,6 +379,17 @@ const generarOcsDesdeRfq = async (req, res) => {
           comentariosFinanzas
         ]
       );
+
+      // Una vez que existe al menos una OC para este RFQ, el RFQ ya no debe "regresar" a G_RFQ.
+      // Por eso, si venía en ABIERTA/COTIZANDO o estaba cerrado pero se está reactivando (OC cancelada),
+      // lo movemos a POR_APROBAR (solo una vez).
+      if (!statusActualizadoAVb && rfqStatusOriginal !== 'POR_APROBAR') {
+        await client.query(
+          `UPDATE requisiciones SET status = 'POR_APROBAR' WHERE id = $1`,
+          [rfqId]
+        );
+        statusActualizadoAVb = true;
+      }
 
       for (const item of items) {
         const cfg = normalizeConfig(item.config_calculo);
@@ -532,14 +568,46 @@ const generarOcsDesdeRfq = async (req, res) => {
       ocsGeneradasInfo.push({ numero_oc: numeroOcDb, id: nuevaOcId });
     }
 
-    const checkCompletion = await client.query(
-      `SELECT COUNT(*) FROM requisiciones_detalle
-       WHERE requisicion_id = $1 AND status_compra = 'PENDIENTE'`,
+    /**
+     * Cierre automático (salida de VB_RFQ)
+     * Un RFQ solo se considera "cerrado" cuando:
+     *  1) Todas sus líneas cumplieron cantidad_procesada >= cantidad
+     *  2) NO existen opciones seleccionadas (asignadas) pendientes por generar OC
+     *     (opciones seleccionadas que no están bloqueadas por una OC NO cancelada)
+     */
+    const qtyPendiente = await client.query(
+      `SELECT COUNT(*)::int AS cnt
+       FROM requisiciones_detalle
+       WHERE requisicion_id = $1
+         AND COALESCE(cantidad_procesada, 0) < COALESCE(cantidad, 0)`,
       [rfqId]
     );
 
-    if (checkCompletion.rows[0].count === '0') {
-      await client.query(`UPDATE requisiciones SET status = 'ESPERANDO_ENTREGA' WHERE id = $1`, [rfqId]);
+    const pendientesSeleccionadas = await client.query(
+      `SELECT COUNT(*)::int AS cnt
+       FROM requisiciones_opciones ro
+       LEFT JOIN ordenes_compra_detalle ocd
+         ON ocd.comparativa_precio_id = ro.id
+       LEFT JOIN ordenes_compra oc
+         ON oc.id = ocd.orden_compra_id
+         AND oc.status <> 'CANCELADA'
+       WHERE ro.requisicion_id = $1
+         AND ro.seleccionado = TRUE
+         AND COALESCE(ro.cantidad_cotizada, 0) > 0
+         AND oc.id IS NULL`,
+      [rfqId]
+    );
+
+    const faltanCantidades = (qtyPendiente.rows[0]?.cnt ?? 0) > 0;
+    const hayPendientesAsignadas = (pendientesSeleccionadas.rows[0]?.cnt ?? 0) > 0;
+
+    if (!faltanCantidades && !hayPendientesAsignadas) {
+      await client.query(
+        `UPDATE requisiciones
+         SET status = 'ESPERANDO_ENTREGA'
+         WHERE id = $1`,
+        [rfqId]
+      );
     }
 
     await client.query('COMMIT');

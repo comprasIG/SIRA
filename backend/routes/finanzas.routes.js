@@ -18,6 +18,7 @@ const {
   ponerHoldOC,
   reanudarDesdeHold,
   getOcPreview,
+  cancelarOC,
 } = require('../controllers/finanzas/autorizacionOC.controller');
 
 router.use(verifyFirebaseToken, loadSiraUser);
@@ -40,6 +41,7 @@ router.post('/oc/:id/aprobar-credito', aprobarCredito);
 router.post('/oc/:id/rechazar', rechazarOC);
 router.post('/oc/:id/hold', ponerHoldOC);
 router.post('/oc/:id/reanudar', reanudarDesdeHold);
+router.post('/oc/:id/cancelar', cancelarOC);
 router.get('/oc/:id/preview', getOcPreview);
 
 module.exports = router;
