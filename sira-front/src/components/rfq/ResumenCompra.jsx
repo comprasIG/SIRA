@@ -316,10 +316,15 @@ export default function ResumenCompra({
                     component="label"
                     startIcon={<AttachFileIcon />}
                     disabled={totalArchivos >= 3}
-                    onChange={e => onFileChange(e, bloque.proveedorId)}
                   >
                     Adjuntar Cotización
-                    <input type="file" multiple hidden accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.doc,.docx,.xml" />
+                    <input
+                      type="file"
+                      multiple
+                      hidden
+                      accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.doc,.docx,.xml"
+                      onChange={e => onFileChange(bloque.proveedorId, e)}
+                    />
                   </Button>
                   <Typography variant="caption" display="block" sx={{ mt: 1 }}>
                     Máx. 3 archivos, 50MB c/u. ({totalArchivos} / 3)

@@ -221,6 +221,7 @@ const aprobarCredito = async (req, res) => {
        WHERE oc.id = $1 FOR UPDATE`,
       [ordenCompraId]
     );
+   
     if (ocQuery.rowCount === 0) return res.status(404).json({ error: 'OC no encontrada.' });
 
     const ocData = ocQuery.rows[0];
@@ -405,6 +406,178 @@ const reanudarDesdeHold = async (req, res) => {
 };
 
 /** =========================
+ *  CANCELAR OC (NUEVO)
+ *  - Cambia status a CANCELADA
+ *  - Reversa cantidades procesadas en requisiciones_detalle
+ *  - Recalcula status_compra por cada requisicion_detalle afectado
+ *
+ * Regla:
+ * - NO se permite cancelar si la OC está ENTREGADA
+ * - Si ya estaba cancelada, responde 409
+ * ========================== */
+const cancelarOC = async (req, res) => {
+  const { id: ordenCompraId } = req.params;
+  const { motivo } = req.body || {};
+  const { id: usuarioId } = req.usuarioSira;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1) Lock OC
+    const ocQ = await client.query(
+      `SELECT id, status, rfq_id
+       FROM ordenes_compra
+       WHERE id = $1
+       FOR UPDATE`,
+      [ordenCompraId]
+    );
+
+    if (ocQ.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'OC no encontrada.' });
+    }
+
+    const oc = ocQ.rows[0];
+
+    if (oc.status === 'CANCELADA') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'La OC ya está CANCELADA.' });
+    }
+
+    if (oc.status === 'ENTREGADA') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'No se puede cancelar una OC ENTREGADA.' });
+    }
+
+    // 2) Obtener detalle OC (para revertir cantidades)
+    const detQ = await client.query(
+      `SELECT id, requisicion_detalle_id, cantidad
+       FROM ordenes_compra_detalle
+       WHERE orden_compra_id = $1`,
+      [ordenCompraId]
+    );
+
+    // 3) Marcar OC como CANCELADA
+    const updOc = await client.query(
+      `UPDATE ordenes_compra
+       SET status = 'CANCELADA', actualizado_en = now()
+       WHERE id = $1
+       RETURNING id, status`,
+      [ordenCompraId]
+    );
+
+    // 4) Revertir cantidades en requisiciones_detalle (si aplica)
+    // Nota: mantenemos ordenes_compra_detalle para auditoría, solo revertimos el efecto en requisición.
+    const affectedRdIds = new Set();
+
+    for (const row of detQ.rows) {
+      const rdId = row.requisicion_detalle_id;
+      const qty = Number(row.cantidad || 0);
+      if (!rdId || qty <= 0) continue;
+
+      affectedRdIds.add(rdId);
+
+      // Restar y no permitir negativos
+      await client.query(
+        `
+        UPDATE requisiciones_detalle
+        SET cantidad_procesada = GREATEST(COALESCE(cantidad_procesada, 0) - $1, 0)
+        WHERE id = $2
+        `,
+        [qty, rdId]
+      );
+    }
+
+    // 5) Recalcular status_compra por cada requisicion_detalle afectado
+    //    - Si con la nueva cantidad_procesada ya no cumple la cantidad -> PENDIENTE
+    //    - Si aún cumple, dejar status_compra como el último OC no cancelado que tenga esa línea (si existe)
+    for (const rdId of affectedRdIds) {
+      const rdQ = await client.query(
+        `SELECT id, cantidad, COALESCE(cantidad_procesada, 0) AS cantidad_procesada
+         FROM requisiciones_detalle
+         WHERE id = $1`,
+        [rdId]
+      );
+
+      if (rdQ.rowCount === 0) continue;
+      const rd = rdQ.rows[0];
+
+      const cumple = Number(rd.cantidad_procesada) >= Number(rd.cantidad || 0);
+
+      if (!cumple) {
+        await client.query(
+          `UPDATE requisiciones_detalle
+           SET status_compra = 'PENDIENTE'
+           WHERE id = $1`,
+          [rdId]
+        );
+      } else {
+        // Buscar alguna OC no cancelada relacionada con esta línea
+        const lastOcQ = await client.query(
+          `
+          SELECT oc.id
+          FROM ordenes_compra_detalle ocd
+          JOIN ordenes_compra oc ON oc.id = ocd.orden_compra_id
+          WHERE ocd.requisicion_detalle_id = $1
+            AND oc.status <> 'CANCELADA'
+          ORDER BY oc.id DESC
+          LIMIT 1
+          `,
+          [rdId]
+        );
+
+        if (lastOcQ.rowCount > 0) {
+          await client.query(
+            `UPDATE requisiciones_detalle
+             SET status_compra = $2
+             WHERE id = $1`,
+            [rdId, String(lastOcQ.rows[0].id)]
+          );
+        } else {
+          await client.query(
+            `UPDATE requisiciones_detalle
+             SET status_compra = 'PENDIENTE'
+             WHERE id = $1`,
+            [rdId]
+          );
+        }
+      }
+    }
+
+    // 6) Historial
+    await client.query(
+      `INSERT INTO ordenes_compra_historial (orden_compra_id, usuario_id, accion_realizada, detalles)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        ordenCompraId,
+        usuarioId,
+        'CANCELACIÓN OC',
+        JSON.stringify({
+          motivo: motivo ? String(motivo).trim() : null,
+          rfq_id: oc.rfq_id ?? null
+        })
+      ]
+    );
+
+    await client.query('COMMIT');
+
+    res.status(200).json({
+      mensaje: 'OC cancelada correctamente. Si existían opciones seleccionadas pendientes, el RFQ volverá a aparecer en VB_RFQ.',
+      ordenCompra: updOc.rows[0],
+      requisicion_detalle_afectado: Array.from(affectedRdIds),
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error al cancelar OC:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  } finally {
+    client.release();
+  }
+};
+
+/** =========================
  *  PREVIEW OC (encabezado + detalle)
  * ========================== */
 const getOcPreview = async (req, res) => {
@@ -469,5 +642,6 @@ module.exports = {
   rechazarOC,
   ponerHoldOC,
   reanudarDesdeHold,
+  cancelarOC, // ✅ NUEVO
   getOcPreview,
 };
