@@ -70,10 +70,10 @@ const sanitizeFileName = (s) => {
 };
 
 const getProveedorNombre = (marca, razon) => {
-  const m = String(marca ?? '').trim();
-  if (m) return m;
   const r = String(razon ?? '').trim();
-  return r || 'PROVEEDOR';
+  if (r) return r;
+  const m = String(marca ?? '').trim();
+  return m || 'PROVEEDOR';
 };
 
 /* ================================================================================================

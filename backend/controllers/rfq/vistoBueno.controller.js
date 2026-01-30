@@ -66,10 +66,10 @@ const sanitizeFileName = (s) => {
 };
 
 const getProveedorNombre = (proveedorMarca, proveedorRazon) => {
-  const marca = String(proveedorMarca ?? '').trim();
-  if (marca) return marca;
   const razon = String(proveedorRazon ?? '').trim();
-  return razon || 'PROVEEDOR';
+  if (razon) return razon;
+  const marca = String(proveedorMarca ?? '').trim();
+  return marca || 'PROVEEDOR';
 };
 
 /* ================================================================================================
