@@ -24,8 +24,26 @@ const agregarProducto = async (req, res) => {
 };
 
 const obtenerProductos = async (req, res) => {
-  const result = await pool.query("SELECT * FROM catalogo_materiales ORDER BY id DESC");
-  res.json(result.rows);
+  try {
+    // Usamos 'cm' como alias para catalogo_materiales
+    // Usamos 'inv' como alias para inventario_actual
+    const query = `
+      SELECT 
+        cm.*, 
+        inv.ultimo_precio_entrada, 
+        inv.moneda
+      FROM catalogo_materiales cm
+      LEFT JOIN inventario_actual inv ON cm.id = inv.material_id
+      ORDER BY cm.id DESC
+    `;
+
+    const result = await pool.query(query);
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error("Error al obtener productos:", error);
+    res.status(500).json({ error: "Error al cargar el catálogo" });
+  }
 };
 
 const eliminarProducto = async (req, res) => {
