@@ -5,6 +5,8 @@
  */
 
 const pool = require('../db/pool');
+const { sendEmailWithAttachments } = require('../services/emailService');
+const { generateProjectAuthorizationPdf } = require('../services/projectPdfService');
 
 const ALLOWED_STATUS = new Set([
   'POR_APROBAR',
@@ -52,6 +54,17 @@ function parseOptionalDecimalNonNeg(v, fieldName) {
   return Math.round(n * 10000) / 10000;
 }
 
+function parseOptionalDecimal(v, fieldName) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) {
+    const err = new Error(`Campo invalido (numerico): ${fieldName}`);
+    err.statusCode = 400;
+    throw err;
+  }
+  return Math.round(n * 10000) / 10000;
+}
+
 function parseOptionalDateISO(v, fieldName) {
   if (v === null || v === undefined || v === '') return null;
   const s = asTrimString(v);
@@ -87,6 +100,98 @@ function pickHitosArray(body) {
   if (Array.isArray(body?.hitos)) return body.hitos;
   if (Array.isArray(body?.milestones)) return body.milestones;
   return [];
+}
+
+function safeText(v, fallback = 'N/D') {
+  const s = asTrimString(v);
+  return s || fallback;
+}
+
+function sanitizeFileName(s) {
+  return String(s ?? '')
+    .trim()
+    .replace(/[\/\\?%*:|"<>]/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/\s-\s/g, ' - ')
+    .trim();
+}
+
+function formatProjectCode(id, pad = 4) {
+  const n = Number(id);
+  if (!Number.isInteger(n) || n <= 0) return 'PROY-S/N';
+  return `PROY-${String(n).padStart(pad, '0')}`;
+}
+
+function shouldNotifyFlag(v) {
+  const raw = String(v ?? '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes';
+}
+
+async function getNotificationEmails(groupCode, clientOrPool = pool) {
+  const q = `
+    SELECT COALESCE(u.correo_google, u.correo) AS correo
+    FROM usuarios u
+    JOIN notificacion_grupo_usuarios ngu ON u.id = ngu.usuario_id
+    JOIN notificacion_grupos ng ON ngu.grupo_id = ng.id
+    WHERE ng.codigo = $1 AND u.activo = true;
+  `;
+  const result = await clientOrPool.query(q, [groupCode]);
+  return [...new Set(result.rows.map((r) => r.correo).filter(Boolean))];
+}
+
+async function getProyectoDataForPdf(client, proyectoId) {
+  const proyectoQ = await client.query(
+    `
+    SELECT
+      p.id,
+      p.nombre,
+      p.descripcion,
+      p.status,
+      p.fecha_inicio,
+      p.fecha_cierre,
+      p.total_facturado,
+      p.total_facturado_moneda,
+      p.costo_total,
+      p.costo_total_moneda,
+      p.margen_estimado,
+      p.margen_moneda,
+      p.margen_es_forzado,
+      s.nombre AS sitio_nombre,
+      c.razon_social AS cliente_nombre,
+      u.nombre AS responsable_nombre,
+      COALESCE(u.correo_google, u.correo) AS responsable_correo
+    FROM public.proyectos p
+    LEFT JOIN public.sitios s ON s.id = p.sitio_id
+    LEFT JOIN public.clientes c ON c.id = p.cliente_id
+    LEFT JOIN public.usuarios u ON u.id = p.responsable_id
+    WHERE p.id = $1
+    LIMIT 1;
+    `,
+    [proyectoId]
+  );
+
+  if (proyectoQ.rowCount === 0) return null;
+
+  const hitosQ = await client.query(
+    `
+    SELECT
+      id,
+      proyecto_id,
+      nombre,
+      descripcion,
+      target_date,
+      fecha_realizacion
+    FROM public.proyectos_hitos
+    WHERE proyecto_id = $1
+    ORDER BY target_date ASC NULLS LAST, id ASC;
+    `,
+    [proyectoId]
+  );
+
+  return {
+    proyecto: proyectoQ.rows[0],
+    hitos: hitosQ.rows || [],
+  };
 }
 
 const crearProyecto = async (req, res) => {
@@ -131,7 +236,7 @@ const crearProyecto = async (req, res) => {
     const costo_total = parseOptionalDecimalNonNeg(req.body?.costo_total, 'costo_total');
     let costo_total_moneda = normalizeMonedaCode(req.body?.costo_total_moneda);
 
-    let margen_estimado = parseOptionalDecimalNonNeg(req.body?.margen_estimado, 'margen_estimado');
+    let margen_estimado = parseOptionalDecimal(req.body?.margen_estimado, 'margen_estimado');
     let margen_moneda = normalizeMonedaCode(req.body?.margen_moneda);
     let margen_es_forzado = Boolean(req.body?.margen_es_forzado);
 
@@ -172,12 +277,9 @@ const crearProyecto = async (req, res) => {
         total_facturado_moneda === costo_total_moneda
       ) {
         const calc = Math.round((total_facturado - costo_total) * 10000) / 10000;
-        // Por constraints, no guardamos negativo
-        if (calc >= 0) {
-          margen_estimado = calc;
-          margen_moneda = total_facturado_moneda;
-          margen_es_forzado = false;
-        }
+        margen_estimado = calc;
+        margen_moneda = total_facturado_moneda;
+        margen_es_forzado = false;
       }
     }
 
@@ -356,6 +458,84 @@ const crearProyecto = async (req, res) => {
   }
 };
 
+const descargarProyectoPdf = async (req, res) => {
+  const proyectoId = Number(req.params?.id);
+  if (!Number.isInteger(proyectoId) || proyectoId <= 0) {
+    return res.status(400).json({ error: 'Parametro de proyecto invalido.' });
+  }
+
+  const notify = shouldNotifyFlag(req.query?.notify);
+  const client = await pool.connect();
+
+  try {
+    const data = await getProyectoDataForPdf(client, proyectoId);
+    if (!data) {
+      return res.status(404).json({ error: 'Proyecto no encontrado.' });
+    }
+
+    const actorNombre = safeText(req.usuarioSira?.nombre || req.usuario?.nombre, 'Usuario SIRA');
+    const actorCorreo = asTrimString(req.usuario?.correo_google);
+
+    const pdfBuffer = await generateProjectAuthorizationPdf({
+      proyecto: data.proyecto,
+      hitos: data.hitos,
+      generadoPor: { nombre: actorNombre, correo: actorCorreo || 'N/D' },
+      generatedAt: new Date(),
+    });
+
+    const projectCode = formatProjectCode(data.proyecto.id);
+    const fileBase = `${projectCode} - ${safeText(data.proyecto.sitio_nombre, 'SITIO')} - ${safeText(data.proyecto.nombre, 'PROYECTO')}`;
+    const fileName = `${sanitizeFileName(fileBase)}.pdf`;
+
+    if (notify) {
+      const recipients = await getNotificationEmails('NOT_GEN_PROY', client);
+      if (recipients.length > 0) {
+        const subject = `Nuevo proyecto para autorizacion | ${projectCode} - ${safeText(data.proyecto.nombre, 'Proyecto')}`;
+        const htmlBody = `
+          <p>El usuario <b>${actorNombre}</b> ha generado un nuevo proyecto para autorizacion.</p>
+          <ul>
+            <li><b>Proyecto:</b> ${safeText(data.proyecto.nombre)}</li>
+            <li><b>Codigo:</b> ${projectCode}</li>
+            <li><b>Sitio:</b> ${safeText(data.proyecto.sitio_nombre)}</li>
+            <li><b>Cliente:</b> ${safeText(data.proyecto.cliente_nombre)}</li>
+            <li><b>Responsable:</b> ${safeText(data.proyecto.responsable_nombre)}</li>
+            <li><b>Estado:</b> ${safeText(data.proyecto.status)}</li>
+          </ul>
+          <p>Se adjunta el PDF del proyecto para revision y autorizacion.</p>
+        `;
+
+        await sendEmailWithAttachments(recipients, subject, htmlBody, [
+          {
+            filename: fileName,
+            content: pdfBuffer,
+            contentType: 'application/pdf',
+          },
+        ]);
+      } else {
+        console.warn(`[G_PROJ] Grupo NOT_GEN_PROY sin destinatarios activos para proyecto ${proyectoId}.`);
+      }
+    }
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Length': pdfBuffer.length,
+      'Content-Disposition': `attachment; filename="${fileName}"`,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
+    });
+    return res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Error al generar/enviar PDF de proyecto:', error);
+    return res.status(500).json({
+      error: error?.message || 'Error interno al generar el PDF del proyecto.',
+    });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   crearProyecto,
+  descargarProyectoPdf,
 };

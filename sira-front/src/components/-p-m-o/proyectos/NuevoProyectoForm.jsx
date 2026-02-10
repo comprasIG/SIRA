@@ -8,6 +8,33 @@ const INPUT_CLASS =
 const DISABLED_INPUT_CLASS =
   'w-full rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2.5 text-sm text-slate-500 shadow-sm cursor-not-allowed';
 
+function extractBlobResponse(resp) {
+  if (!resp) return { blob: null, headers: {} };
+  if (resp.data instanceof Blob) return { blob: resp.data, headers: resp.headers || {} };
+  if (resp instanceof Blob) return { blob: resp, headers: {} };
+  if (resp.data && resp.data instanceof ArrayBuffer) {
+    return { blob: new Blob([resp.data]), headers: resp.headers || {} };
+  }
+  return { blob: null, headers: resp.headers || {} };
+}
+
+function parseFilenameFromContentDisposition(contentDisposition) {
+  if (!contentDisposition) return null;
+
+  const utf8Match = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
+
+  const stdMatch = contentDisposition.match(/filename="(.+?)"/i);
+  if (stdMatch?.[1]) return stdMatch[1];
+  return null;
+}
+
 function GlobalStyles() {
   return (
     <style>{`
@@ -375,6 +402,28 @@ export default function NuevoProyectoForm() {
     setMargenEsForzado(false);
   };
 
+  const descargarPdfProyecto = async (proyectoId, notify = true) => {
+    const suffix = notify ? '?notify=true' : '';
+    const resp = await api.get(`/api/proyectos/${proyectoId}/pdf${suffix}`, { responseType: 'blob' });
+    const { blob, headers } = extractBlobResponse(resp);
+    if (!blob) throw new Error('La respuesta del PDF no es valida.');
+
+    const contentDisposition =
+      (headers && (headers['content-disposition'] || headers['Content-Disposition'])) ||
+      (typeof headers?.get === 'function' ? headers.get('content-disposition') : null);
+
+    const fileName = parseFilenameFromContentDisposition(contentDisposition) || `PROY-${proyectoId}.pdf`;
+
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -442,12 +491,30 @@ export default function NuevoProyectoForm() {
 
     setSaving(true);
     try {
-      await api.post('/api/proyectos', payload);
-      setSuccessMsg('Proyecto creado correctamente.');
+      const createResp = await api.post('/api/proyectos', payload);
+      const proyectoId = Number(createResp?.proyecto?.id);
+      if (!Number.isInteger(proyectoId) || proyectoId <= 0) {
+        throw new Error('Proyecto creado sin ID valido para generar PDF.');
+      }
+
+      let notified = false;
+      try {
+        await descargarPdfProyecto(proyectoId, true);
+        notified = true;
+      } catch (notifyErr) {
+        console.error('No se pudo notificar con PDF, intentando descarga local sin notificar:', notifyErr);
+        await descargarPdfProyecto(proyectoId, false);
+      }
+
+      if (notified) {
+        setSuccessMsg('Proyecto creado correctamente. PDF descargado y notificacion enviada.');
+      } else {
+        setSuccessMsg('Proyecto creado correctamente. PDF descargado; no se pudo enviar la notificacion por correo.');
+      }
       resetForm();
     } catch (err) {
       console.error('Error al crear proyecto:', err);
-      setError(err?.message || 'Ocurrio un error al crear el proyecto.');
+      setError(err?.error || err?.message || 'Ocurrio un error al crear el proyecto.');
     } finally {
       setSaving(false);
     }
