@@ -5,7 +5,7 @@ const pool = require('../db/pool'); // Ajusta el path si tu pool está en otro l
 
 const verifyFirebaseToken = require('../middleware/verifyFirebaseToken');
 const loadSiraUser = require('../middleware/loadSiraUser');
-const { crearProyecto } = require('../controllers/g_proj.controller');
+const { crearProyecto, descargarProyectoPdf } = require('../controllers/g_proj.controller');
 
 // GET /api/proyectos  - lista proyectos activos
 router.get('/', async (req, res) => {
@@ -51,6 +51,14 @@ router.get('/buscar', async (req, res) => {
 // =========================================
 //          NUEVO ENDPOINT G_PROJ
 // =========================================
+
+// GET /api/proyectos/:id/pdf - generar/descargar pdf (opcionalmente notificar por correo)
+router.get(
+  '/:id/pdf',
+  verifyFirebaseToken,
+  loadSiraUser,
+  descargarProyectoPdf
+);
 
 // POST /api/proyectos  - crear nuevo proyecto
 router.post(
