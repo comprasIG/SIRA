@@ -15,7 +15,9 @@ const PAGE_HEIGHT = 792;
 const MARGIN_LEFT = 50;
 const MARGIN_RIGHT = 50;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
-const CONTENT_BOTTOM = 690;
+const TOP_TEXT_OFFSET = 36; // ~3 renglones para despegar del area de logos
+const SIGNATURE_Y = 585; // Alineado al estilo de OC (VB_OC)
+const CONTENT_BOTTOM = 560; // reserva espacio para firma + footer
 
 const ASSETS_DIR = path.join(__dirname, '..', 'assets');
 const BG_PATH = path.join(ASSETS_DIR, 'DOCS_background_grupoIG.jpg');
@@ -98,6 +100,22 @@ function drawFooter(doc) {
   doc.restore();
 }
 
+function drawAuthorizationSignature(doc) {
+  const x = MARGIN_LEFT;
+  const y = SIGNATURE_Y;
+
+  doc.save();
+  doc.font('Helvetica').fontSize(10).fillColor('#111111');
+  doc.text('CFO - Lic. Juan Mario Galan', x, y, { width: 260 });
+
+  doc.strokeColor('#111111').lineWidth(1);
+  doc.moveTo(x, y + 26).lineTo(x + 260, y + 26).stroke();
+
+  doc.font('Helvetica-Oblique').fontSize(8).fillColor('#555555');
+  doc.text('Firma', x, y + 30, { width: 260 });
+  doc.restore();
+}
+
 function drawHeader(doc, payload, isContinuation = false) {
   const projectCode = formatProjectCode(payload?.proyecto?.id);
   const generatedAt = payload?.generatedAt || new Date();
@@ -109,21 +127,21 @@ function drawHeader(doc, payload, isContinuation = false) {
       ? `NUEVO PROYECTO - AUTORIZACION (CONT.)`
       : `NUEVO PROYECTO - SOLICITUD DE AUTORIZACION`,
     MARGIN_LEFT,
-    54,
+    54 + TOP_TEXT_OFFSET,
     { width: CONTENT_WIDTH, align: 'center' }
   );
 
   const rightX = PAGE_WIDTH - MARGIN_RIGHT - 220;
   doc.font('Helvetica').fontSize(10).fillColor('#111111');
-  doc.text(`Codigo: ${projectCode}`, rightX, 58, { width: 220, align: 'right' });
-  doc.text(`Fecha: ${formatDate(generatedAt)}`, rightX, 72, { width: 220, align: 'right' });
+  doc.text(`Codigo: ${projectCode}`, rightX, 58 + TOP_TEXT_OFFSET, { width: 220, align: 'right' });
+  doc.text(`Fecha: ${formatDate(generatedAt)}`, rightX, 72 + TOP_TEXT_OFFSET, { width: 220, align: 'right' });
 
-  const sepY = 98;
+  const sepY = 98 + TOP_TEXT_OFFSET;
   doc.lineWidth(1).strokeColor('#333333');
   doc.moveTo(MARGIN_LEFT, sepY).lineTo(PAGE_WIDTH - MARGIN_RIGHT, sepY).stroke();
   doc.restore();
 
-  return 112;
+  return 112 + TOP_TEXT_OFFSET;
 }
 
 function ensureSpace(doc, currentY, requiredHeight, payload) {
@@ -339,6 +357,12 @@ async function generateProjectAuthorizationPdf({
       drawMilestonesSection(doc, payload, y);
 
       const pages = doc.bufferedPageRange();
+      if (pages.count > 0) {
+        const lastPage = pages.start + pages.count - 1;
+        doc.switchToPage(lastPage);
+        drawAuthorizationSignature(doc);
+      }
+
       for (let i = 0; i < pages.count; i += 1) {
         doc.switchToPage(i);
         drawFooter(doc);
@@ -354,4 +378,3 @@ async function generateProjectAuthorizationPdf({
 module.exports = {
   generateProjectAuthorizationPdf,
 };
-
