@@ -17,6 +17,10 @@ router.post("/", verifyFirebaseToken, crearUsuario);
 
 router.get("/self", verifyFirebaseToken, getUsuarioActual);
 
+// eliminar usuario
+router.delete('/:id', usuariosController.eliminarUsuario);
 
+// actualizar usuario
+router.put('/:id', verifyFirebaseToken, usuariosController.actualizarUsuario);
 
 module.exports = router;

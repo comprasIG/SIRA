@@ -1,9 +1,9 @@
 // C:\SIRA\backend\controllers\usuarios.controller.js
-
 const pool = require("../db/pool");
 
 /**
  * Devuelve todos los usuarios junto con sus funciones permitidas.
+ * CORREGIDO: Ahora incluye correo, whatsapp, role_id y activo para que la edición funcione.
  */
 const getUsuariosConFunciones = async (req, res) => {
   try {
@@ -11,11 +11,15 @@ const getUsuariosConFunciones = async (req, res) => {
   SELECT 
     u.id,
     u.nombre AS nombre_completo,
+    u.correo,          -- AGREGADO: Necesario para editar
     u.correo_google,
+    u.whatsapp,        -- AGREGADO: Necesario para editar
+    u.role_id,         -- AGREGADO: Para que el select de rol cargue directo
     r.nombre AS rol,
     u.es_superusuario,
     u.departamento_id,
-    d.nombre AS departamento
+    d.nombre AS departamento,
+    u.activo           -- AGREGADO: Para el switch de activo
   FROM usuarios u
   JOIN roles r ON u.role_id = r.id
   LEFT JOIN departamentos d ON u.departamento_id = d.id
@@ -38,11 +42,10 @@ const getUsuariosConFunciones = async (req, res) => {
           SELECT f.codigo
           FROM rol_funcion rf
           JOIN funciones f ON f.id = rf.funcion_id
-          WHERE rf.rol_id = (
-            SELECT role_id FROM usuarios WHERE id = $1
-          )
+          WHERE rf.rol_id = $1
           ORDER BY f.codigo
-        `, [u.id]);
+        `, [u.role_id]); // Usamos u.role_id que ahora sí viene en el query
+        
         return {
           ...u,
           funciones: funcionesPorRol.rows.map(f => f.codigo),
@@ -58,12 +61,8 @@ const getUsuariosConFunciones = async (req, res) => {
 };
 
 /**
- * =================================================================================================
- * ¡FUNCIÓN MODIFICADA!
- * =================================================================================================
- * Endpoint seguro: Devuelve el usuario autenticado con sus datos SIRA
+ * Devuelve el usuario autenticado con sus datos SIRA
  * y una lista de OBJETOS de función completos para el sidebar dinámico.
- * (CORREGIDO: Ahora usa UNION para incluir siempre el Dashboard)
  */
 const getUsuarioActual = async (req, res) => {
   const correo_google = req.usuario?.correo_google;
@@ -102,14 +101,8 @@ const getUsuarioActual = async (req, res) => {
     const camposDeFuncion = 'f.codigo, f.nombre, f.modulo, f.icono, f.ruta';
 
     if (usuario.es_superusuario) {
-      // Superusuario obtiene TODAS las funciones.
       funcionesResult = await pool.query(`SELECT ${camposDeFuncion} FROM funciones f ORDER BY f.modulo, f.nombre`);
     } else {
-      // ===============================================
-      // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-      // Usuario normal obtiene las funciones de su rol
-      // MÁS (UNION) las funciones del módulo 'Dashboard'.
-      // ===============================================
       funcionesResult = await pool.query(`
         (
           SELECT ${camposDeFuncion}
@@ -125,10 +118,8 @@ const getUsuarioActual = async (req, res) => {
         )
         ORDER BY modulo, nombre
       `, [usuario.role_id]);
-      // ===============================================
     }
 
-    // El payload final ahora incluye la lista de objetos 'funciones'.
     usuario.funciones = funcionesResult.rows;
 
     res.set('Cache-Control', 'no-store');
@@ -140,15 +131,6 @@ const getUsuarioActual = async (req, res) => {
   }
 };
 
-
-/**
- * =================================================================================================
- * ¡NUEVA FUNCIÓN!
- * =================================================================================================
- * @route   GET /api/usuarios/search
- * @desc    Busca usuarios por nombre para el componente Autocomplete.
- * @access  Privado (requiere autenticación)
- */
 const searchUsuarios = async (req, res) => {
     const { query } = req.query; 
 
@@ -169,17 +151,10 @@ const searchUsuarios = async (req, res) => {
     }
 };
 
-
 const crearUsuario = async (req, res) => {
   const {
-    nombre,
-    correo,
-    correo_google,
-    whatsapp,
-    role_id,
-    departamento_id,
-    activo = true,
-    es_superusuario = false,
+    nombre, correo, correo_google, whatsapp,
+    role_id, departamento_id, activo = true, es_superusuario = false,
   } = req.body;
 
   try {
@@ -201,16 +176,7 @@ const crearUsuario = async (req, res) => {
         role_id, departamento_id, activo, es_superusuario
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id, nombre, correo, correo_google, es_superusuario
-    `, [
-      nombre,
-      correo,
-      correo_google,
-      whatsapp || null,
-      role_id,
-      departamento_id,
-      activo,
-      es_superusuario
-    ]);
+    `, [nombre, correo, correo_google, whatsapp || null, role_id, departamento_id, activo, es_superusuario]);
 
     return res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -219,9 +185,70 @@ const crearUsuario = async (req, res) => {
   }
 };
 
+const actualizarUsuario = async (req, res) => {
+  const { id } = req.params;
+  const {
+    nombre, correo, correo_google, whatsapp,
+    role_id, departamento_id, activo, es_superusuario
+  } = req.body;
+
+  try {
+    const exist = await pool.query(
+      `SELECT id FROM usuarios WHERE (correo_google = $1 OR correo = $2) AND id != $3`,
+      [correo_google, correo, id]
+    );
+
+    if (exist.rows.length > 0) {
+      return res.status(409).json({ error: "Ya existe otro usuario con ese correo" });
+    }
+
+    const result = await pool.query(`
+      UPDATE usuarios
+      SET nombre = $1, 
+          correo = $2, 
+          correo_google = $3, 
+          whatsapp = $4,
+          role_id = $5, 
+          departamento_id = $6, 
+          activo = $7, 
+          es_superusuario = $8
+      WHERE id = $9
+      RETURNING *
+    `, [nombre, correo, correo_google, whatsapp || null, role_id, departamento_id, activo, es_superusuario, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    return res.json(result.rows[0]);
+  } catch (error) {
+    console.error("Error al actualizar usuario:", error);
+    return res.status(500).json({ error: "Error al actualizar usuario" });
+  }
+};
+
+const eliminarUsuario = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(`DELETE FROM usuarios WHERE id = $1`, [id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    return res.status(204).send(); 
+  } catch (error) {
+    console.error("Error al eliminar usuario:", error);
+    return res.status(500).json({ error: "Error al eliminar usuario" });
+  }
+};
+
 module.exports = {
   getUsuariosConFunciones,
   crearUsuario,
   getUsuarioActual, 
   searchUsuarios,
+  actualizarUsuario,
+  eliminarUsuario,
 };
