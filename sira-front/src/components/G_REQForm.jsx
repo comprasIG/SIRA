@@ -1,7 +1,9 @@
 // C:\SIRA\sira-front\src\components\G_REQForm.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { toast } from 'react-toastify';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography } from '@mui/material';
 import api from "../api/api";
 import { useAuth } from "../context/authContext";
 import { useAutoSave } from "./G_REQForm/hooks/useAutoSave";
@@ -51,9 +53,11 @@ function G_REQForm({ requisicionId, onFinish }) {
   // --- Contexto / Navegación ---
   const { usuario } = useAuth();
   const isEditMode = !!requisicionId;
+  const navigate = useNavigate();
 
   // --- Estado local ---
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const defaultFechaRequerida = useMemo(() => {
     if (isEditMode) return "";
@@ -88,18 +92,7 @@ function G_REQForm({ requisicionId, onFinish }) {
     return diffInDays >= 0 && diffInDays <= 1;
   }, [fechaRequerida]);
 
-  useEffect(() => {
-    if (!isUrgent) {
-      if (comentarioActual === DEFAULT_URGENCY_MESSAGE) {
-        setValue("comentario", "", { shouldDirty: false, shouldValidate: true });
-      }
-      return;
-    }
-
-    if (!comentarioActual || comentarioActual.trim() === "") {
-      setValue("comentario", DEFAULT_URGENCY_MESSAGE, { shouldDirty: false, shouldValidate: true });
-    }
-  }, [comentarioActual, isUrgent, setValue]);
+  // ELIMINADO: useEffect que forzaba el valor del comentario. Ahora se maneja con placeholder y validación.
 
   // --- Adjuntos (debe ir antes de autosave e initialData para exponer setters) ---
   const {
@@ -130,12 +123,12 @@ function G_REQForm({ requisicionId, onFinish }) {
   // --- Materiales (buscador/unidades) ---
   const {
     materialesOptions,
-    skuOptions,
+    // skuOptions, (Eliminado)
     loading: loadingMaterials,
-    skuLoading,
+    // skuLoading, (Eliminado)
     unidadesLoading,
     setSearchTerm,
-    setSkuSearchTerm,
+    // setSkuSearchTerm, (Eliminado)
     handleMaterialChange
   } = useMaterialLogic(setValue);
 
@@ -144,6 +137,8 @@ function G_REQForm({ requisicionId, onFinish }) {
 
   // --- Render helpers ---
   const selectedSitioId = watch("sitio_id");
+  const selectedProyectoId = watch("proyecto_id"); // Obtenemos el ID del proyecto seleccionado
+
   const proyectosFiltrados = useMemo(() => {
     if (!selectedSitioId) return proyectos;
     return proyectos.filter(p => String(p.sitio_id) === String(selectedSitioId));
@@ -223,13 +218,14 @@ function G_REQForm({ requisicionId, onFinish }) {
       if (isEditMode) {
         await api.put(`/api/requisiciones/${requisicionId}`, formData);
         toast.success('¡Requisición actualizada con éxito!');
+        onFinish?.();
       } else {
         await api.post('/api/requisiciones', formData);
-        toast.success('¡Requisición creada con éxito!');
+        // toast.success('¡Requisición creada con éxito!');
         await clearDraft();   // limpiar borrador al crear
         onClean();
+        setShowSuccessModal(true);
       }
-      onFinish?.();
     } catch (err) {
       console.error("Error en onSubmit:", err);
       toast.error(err?.error || 'Ocurrió un error al guardar la requisición.');
@@ -241,30 +237,59 @@ function G_REQForm({ requisicionId, onFinish }) {
   if (isLoading) return <div className="text-center p-8">Cargando datos del formulario...</div>;
 
   return (
-    <fieldset disabled={isSubmitting}>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 p-4 md:p-6 bg-gray-50" autoComplete="off">
-        <DatosGenerales
-          register={register} errors={errors} watch={watch} sitios={sitios}
-          proyectosFiltrados={proyectosFiltrados} handleSitioChange={handleSitioChange}
-          handleProyectoChange={handleProyectoChange} archivosAdjuntos={archivosAdjuntos}
-          archivosExistentes={archivosExistentes} handleFileChange={handleFileChange}
-          handleRemoveFile={handleRemoveFile} handleRemoveExistingFile={handleRemoveExistingFile}
-          isUrgent={isUrgent} urgencyMessage={DEFAULT_URGENCY_MESSAGE}
-        />
-        <SeccionMateriales
-          control={control} register={register} errors={errors} watch={watch}
-          setValue={setValue} loading={loadingMaterials} materialesOptions={materialesOptions}
-          skuOptions={skuOptions} skuLoading={skuLoading}
-          setSearchTerm={setSearchTerm} setSkuSearchTerm={setSkuSearchTerm}
-          handleMaterialChange={handleMaterialChange}
-          unidadesLoading={unidadesLoading} duplicateMaterialIds={duplicateMaterialIds}
-        />
-        <AccionesFormulario
-          isSubmitting={isSubmitting} isEditMode={isEditMode}
-          onFinish={onFinish} onClean={onClean}
-        />
-      </form>
-    </fieldset>
+    <>
+      <fieldset disabled={isSubmitting || showSuccessModal}>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 p-4 md:p-6 bg-gray-50" autoComplete="off">
+          <DatosGenerales
+            register={register} errors={errors} watch={watch} sitios={sitios}
+            proyectosFiltrados={proyectosFiltrados} handleSitioChange={handleSitioChange}
+            handleProyectoChange={handleProyectoChange} archivosAdjuntos={archivosAdjuntos}
+            archivosExistentes={archivosExistentes} handleFileChange={handleFileChange}
+            handleRemoveFile={handleRemoveFile} handleRemoveExistingFile={handleRemoveExistingFile}
+            isUrgent={isUrgent} urgencyMessage={DEFAULT_URGENCY_MESSAGE}
+          />
+          <SeccionMateriales
+            control={control} register={register} errors={errors} watch={watch}
+            setValue={setValue} loading={loadingMaterials} materialesOptions={materialesOptions}
+            // skuOptions={skuOptions} (Eliminado)
+            // skuLoading={skuLoading} (Eliminado)
+            setSearchTerm={setSearchTerm}
+            // setSkuSearchTerm={setSkuSearchTerm} (Eliminado)
+            handleMaterialChange={handleMaterialChange}
+            unidadesLoading={unidadesLoading} duplicateMaterialIds={duplicateMaterialIds}
+            proyectoId={selectedProyectoId} // Pasamos el proyecto seleccionado
+          />
+          <AccionesFormulario
+            isSubmitting={isSubmitting} isEditMode={isEditMode}
+            onFinish={onFinish} onClean={onClean}
+          />
+        </form>
+      </fieldset>
+
+      <Dialog
+        open={showSuccessModal}
+        onClose={() => { }} // No permitir cerrar con click afuera obligatoriamente, o si? Mejor obligar elección.
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
+      >
+        <DialogTitle id="alert-dialog-title">
+          {"¡Requisición Creada Exitosamente!"}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1">
+            Tu requisición ha sido guardada. ¿A dónde deseas ir ahora?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => navigate('/')} color="inherit">
+            Ir a Dashboard
+          </Button>
+          <Button onClick={() => navigate('/VB_REQ')} variant="contained" color="primary" autoFocus>
+            Ir a Aprobar (VB_REQ)
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 }
 

@@ -3,42 +3,55 @@ const router = express.Router();
 const pool = require('../db/pool'); // Asegúrate de que esta ruta sea correcta
 
 // --- RUTA ORIGINAL PARA BÚSQUEDA GENERAL (SIN CAMBIOS) ---
+// --- RUTA MODIFICADA PARA BÚSQUEDA UNIFICADA (SKU O NOMBRE) Y FILTRO DE ACTIVOS ---
 router.get('/', async (req, res) => {
   try {
-    const sku = req.query.sku ? req.query.sku.trim() : '';
-    if (sku) {
-      const sql = `
-        SELECT id, nombre, sku
-        FROM catalogo_materiales
-        WHERE LOWER(sku) LIKE LOWER($1)
-        ORDER BY sku ASC
-        LIMIT 50
-      `;
-      const result = await pool.query(sql, [`%${sku}%`]);
-      return res.json(result.rows);
-    }
-
-    const query = req.query.query || '';
+    const query = req.query.query ? req.query.query.trim() : '';
+    
+    // Si no hay query, retornamos vacío (o podríamos retornar los primeros 50 activos)
     if (!query) {
       return res.json([]);
     }
 
-    const palabras = query.split(/\s+/).filter(Boolean);
-    // Usamos ILIKE para búsqueda insensible a mayúsculas y unaccent para ignorar acentos en ambos lados
-    // También envolvemos en % para búsqueda parcial
-    let where = palabras.map((_, i) => `unaccent(nombre) ILIKE unaccent($${i + 1})`).join(' AND ');
-    let valores = palabras.map(palabra => `%${palabra}%`);
-
+    // Búsqueda unificada: Si el query machea SKU o Nombre, y el material está activo.
+    // Usamos ILIKE para case-insensitive.
+    // unaccent para ignorar tildes.
+    
     const sql = `
       SELECT id, nombre, sku
       FROM catalogo_materiales
-      WHERE ${where}
-      ORDER BY nombre ASC
+      WHERE 
+        activo = true AND (
+          sku ILIKE $1 OR
+          unaccent(nombre) ILIKE unaccent($2)
+        )
+      ORDER BY 
+        CASE 
+          WHEN sku ILIKE $1 THEN 1  -- Prioridad exacta al SKU
+          ELSE 2 
+        END,
+        nombre ASC
       LIMIT 50
     `;
     
-    const result = await pool.query(sql, valores);
-    res.json(result.rows);
+    // Preparamos los parámetros para busqueda parcial
+    const searchParam = `%${query}%`;
+    
+    const result = await pool.query(sql, [query, searchParam]); // El primero es para la prioridad exacta de SKU (opcional) o usas searchParam n ambos
+    // Corrección para query params:
+     const resultFixed = await pool.query(`
+      SELECT id, nombre, sku
+      FROM catalogo_materiales
+      WHERE 
+        activo = true AND (
+          sku ILIKE $1 OR
+          unaccent(nombre) ILIKE unaccent($1)
+        )
+      ORDER BY nombre ASC
+      LIMIT 50
+    `, [`%${query}%`]);
+
+    res.json(resultFixed.rows);
     
   } catch (error) {
     console.error('ERROR EN LA BÚSQUEDA DE MATERIALES:', error);
@@ -46,35 +59,60 @@ router.get('/', async (req, res) => {
   }
 });
 
-// --- RUTA CORREGIDA PARA OBTENER UN MATERIAL POR SU ID ---
-// Responde a peticiones como GET /api/materiales/76
+// --- RUTA MODIFICADA PARA OBTENER UN MATERIAL POR ID CON STOCK ---
+// Responde a peticiones como GET /api/materiales/76?proyecto_id=123
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
+  const { proyecto_id } = req.query;
 
   if (isNaN(id)) {
     return res.status(400).json({ error: 'El ID del material debe ser un número.' });
   }
 
   try {
-    // --- MEJORA CLAVE: Se usa un JOIN para obtener el símbolo de la unidad ---
-    const sql = `
+    // 1. Obtener datos básicos del material + unidad
+    const materialSql = `
       SELECT
         m.id,
         m.nombre,
+        m.sku,
         u.simbolo AS unidad 
       FROM public.catalogo_materiales AS m
       JOIN public.catalogo_unidades AS u ON m.unidad_de_compra = u.id
       WHERE m.id = $1
     `;
-    
-    const result = await pool.query(sql, [id]);
+    const materialResult = await pool.query(materialSql, [id]);
 
-    if (result.rows.length === 0) {
+    if (materialResult.rows.length === 0) {
       return res.status(404).json({ error: `Material con ID ${id} no encontrado.` });
     }
 
-    // Devuelve el material con la propiedad 'unidad' conteniendo el símbolo (ej. 'PZA')
-    res.json(result.rows[0]);
+    const material = materialResult.rows[0];
+
+    // 2. Calcular Stock General (Suma de inventario_actual en todas las ubicaciones)
+    const stockSql = `
+      SELECT COALESCE(SUM(stock_actual), 0) as stock_general
+      FROM inventario_actual
+      WHERE material_id = $1
+    `;
+    const stockResult = await pool.query(stockSql, [id]);
+    material.stock_general = parseFloat(stockResult.rows[0].stock_general);
+
+    // 3. Calcular Apartado para el Proyecto (Si se envía proyecto_id)
+    if (proyecto_id && !isNaN(proyecto_id)) {
+      const apartadoSql = `
+        SELECT COALESCE(SUM(ia.cantidad), 0) as apartado_proyecto
+        FROM inventario_asignado ia
+        JOIN inventario_actual inv ON ia.inventario_id = inv.id
+        WHERE inv.material_id = $1 AND ia.proyecto_id = $2
+      `;
+      const apartadoResult = await pool.query(apartadoSql, [id, proyecto_id]);
+      material.apartado_proyecto = parseFloat(apartadoResult.rows[0].apartado_proyecto);
+    } else {
+      material.apartado_proyecto = 0;
+    }
+
+    res.json(material);
 
   } catch (error) {
     console.error(`ERROR AL OBTENER MATERIAL CON ID ${id}:`, error);

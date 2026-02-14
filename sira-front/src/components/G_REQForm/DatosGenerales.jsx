@@ -7,20 +7,20 @@ const inputStyle = "mt-1 block w-full border border-gray-300 rounded-md shadow-s
 const ALMACEN_ID = "21";
 
 export default function DatosGenerales({
-    register, errors, watch, sitios, proyectosFiltrados, handleSitioChange, handleProyectoChange,
-    archivosAdjuntos, handleFileChange, handleRemoveFile,
-    archivosExistentes, handleRemoveExistingFile, isUrgent, urgencyMessage
+  register, errors, watch, sitios, proyectosFiltrados, handleSitioChange, handleProyectoChange,
+  archivosAdjuntos, handleFileChange, handleRemoveFile,
+  archivosExistentes, handleRemoveExistingFile, isUrgent, urgencyMessage
 }) {
-  
+
   const selectedSitioId = watch("sitio_id");
 
   const lugarEntregaOptions = useMemo(() => {
     const options = [{ id: ALMACEN_ID, nombre: 'ALMACÉN IG' }];
     if (selectedSitioId && String(selectedSitioId) !== ALMACEN_ID) {
-        const sitioSeleccionado = sitios.find(s => String(s.id) === String(selectedSitioId));
-        if (sitioSeleccionado) {
-            options.push({ id: sitioSeleccionado.id, nombre: sitioSeleccionado.nombre });
-        }
+      const sitioSeleccionado = sitios.find(s => String(s.id) === String(selectedSitioId));
+      if (sitioSeleccionado) {
+        options.push({ id: sitioSeleccionado.id, nombre: sitioSeleccionado.nombre });
+      }
     }
     return options;
   }, [selectedSitioId, sitios]);
@@ -69,7 +69,7 @@ export default function DatosGenerales({
           </label>
           <input
             id="comentario"
-            placeholder="Instrucciones especiales de la requisición..."
+            placeholder={isUrgent ? urgencyMessage : "Instrucciones especiales de la requisición..."}
             {...register("comentario", {
               validate: (value) => {
                 if (isUrgent && (!value || value.trim() === "")) {
@@ -94,9 +94,9 @@ export default function DatosGenerales({
               Seleccionar Archivos
               <input type="file" multiple hidden onChange={handleFileChange} />
             </Button>
-            
+
             {/* Mostrar archivos */}
-            {( (archivosExistentes?.length || 0) > 0 || archivosAdjuntos.length > 0) && (
+            {((archivosExistentes?.length || 0) > 0 || archivosAdjuntos.length > 0) && (
               <div className="w-full p-3 border border-gray-200 rounded-md bg-gray-50">
                 {/* Archivos existentes */}
                 {archivosExistentes && archivosExistentes.length > 0 && (
@@ -104,12 +104,12 @@ export default function DatosGenerales({
                     <p className="text-sm font-semibold mb-2">Archivos actuales:</p>
                     <div className="flex flex-wrap gap-2 mb-3">
                       {archivosExistentes.map((file) => (
-                        <Chip 
-                          key={file.id} 
-                          label={file.nombre_archivo} 
-                          onDelete={() => handleRemoveExistingFile(file.id)} 
-                          color="secondary" 
-                          variant="outlined" 
+                        <Chip
+                          key={file.id}
+                          label={file.nombre_archivo}
+                          onDelete={() => handleRemoveExistingFile(file.id)}
+                          color="secondary"
+                          variant="outlined"
                           component="a"
                           href={file.ruta_archivo}
                           target="_blank"
