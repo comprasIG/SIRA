@@ -86,9 +86,20 @@ export default function IngresoOCModal({
   }, [detalles, open]);
 
   const handleItemChange = (detalle_id, field, value) => {
-    setItemsState(prev => prev.map(item =>
-      item.detalle_id === detalle_id ? { ...item, [field]: value } : item
-    ));
+    setItemsState(prev => prev.map(item => {
+      if (item.detalle_id !== detalle_id) return item;
+
+      // Clampar cantidad_a_ingresar al faltante
+      if (field === 'cantidad_a_ingresar') {
+        const faltante = Math.max(0, parseFloat(item.cantidad_pedida) - parseFloat(item.cantidad_recibida));
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue) && numValue > faltante) {
+          return { ...item, [field]: faltante.toString() };
+        }
+      }
+
+      return { ...item, [field]: value };
+    }));
   };
 
   const handleIncidenciaChange = (detalle_id, field, value) => {
@@ -271,31 +282,37 @@ export default function IngresoOCModal({
                         </Typography>
                       </Stack>
 
-                    <Typography variant="body2" align="right">{item.cantidad_pedida} {item.unidad_simbolo}</Typography>
-                    <Typography variant="body2" align="right">{item.cantidad_recibida} {item.unidad_simbolo}</Typography>
+                      <Typography variant="body2" align="right">{item.cantidad_pedida} {item.unidad_simbolo}</Typography>
+                      <Typography variant="body2" align="right">{item.cantidad_recibida} {item.unidad_simbolo}</Typography>
 
-                    <TextField
-                      size="small"
-                      type="number"
-                      value={item.cantidad_a_ingresar}
-                      onChange={(e) => handleItemChange(item.detalle_id, 'cantidad_a_ingresar', e.target.value)}
-                      sx={{ maxWidth: 100, justifySelf: 'end' }}
-                      inputProps={{ min: 0, step: 'any', style: { textAlign: 'right' } }}
-                      disabled={!!item.incidencia?.tipo_id}
-                    />
+                      {(() => {
+                        const faltante = Math.max(0, parseFloat(item.cantidad_pedida) - parseFloat(item.cantidad_recibida));
+                        return (
+                          <TextField
+                            size="small"
+                            type="number"
+                            value={item.cantidad_a_ingresar}
+                            onChange={(e) => handleItemChange(item.detalle_id, 'cantidad_a_ingresar', e.target.value)}
+                            sx={{ maxWidth: 110, justifySelf: 'end' }}
+                            inputProps={{ min: 0, max: faltante, step: 'any', style: { textAlign: 'right' } }}
+                            helperText={`Máx: ${faltante}`}
+                            disabled={!!item.incidencia?.tipo_id || faltante <= 0}
+                          />
+                        );
+                      })()}
 
-                    <Tooltip title="Reportar incidencia" arrow>
-                      <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                        <IconButton
-                          size="small"
-                          onClick={() => toggleIncidenciaForm(item.detalle_id)}
-                          color={item.incidencia?.tipo_id ? 'error' : 'default'}
-                        >
-                          <ReportProblemOutlinedIcon />
-                        </IconButton>
-                      </Box>
-                    </Tooltip>
-                  </ItemRow>
+                      <Tooltip title="Reportar incidencia" arrow>
+                        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                          <IconButton
+                            size="small"
+                            onClick={() => toggleIncidenciaForm(item.detalle_id)}
+                            color={item.incidencia?.tipo_id ? 'error' : 'default'}
+                          >
+                            <ReportProblemOutlinedIcon />
+                          </IconButton>
+                        </Box>
+                      </Tooltip>
+                    </ItemRow>
 
                     <Collapse in={item.showIncidenciaForm}>
                       <Paper
@@ -310,51 +327,51 @@ export default function IngresoOCModal({
                           Reportar incidencia para: {materialLabel}
                         </Typography>
 
-                      <Stack spacing={1.5}>
-                        <Autocomplete
-                          size="small"
-                          options={Array.isArray(tiposIncidencia) ? tiposIncidencia : []}
-                          getOptionLabel={(o) => o?.descripcion || ''}
-                          value={(Array.isArray(tiposIncidencia) ? tiposIncidencia : []).find(t => t.id === item.incidencia.tipo_id) || null}
-                          onChange={(_, v) => handleIncidenciaChange(item.detalle_id, 'tipo_id', v?.id || '')}
-                          renderInput={(params) => <TextField {...params} label="Tipo de incidencia" required />}
-                        />
+                        <Stack spacing={1.5}>
+                          <Autocomplete
+                            size="small"
+                            options={Array.isArray(tiposIncidencia) ? tiposIncidencia : []}
+                            getOptionLabel={(o) => o?.descripcion || ''}
+                            value={(Array.isArray(tiposIncidencia) ? tiposIncidencia : []).find(t => t.id === item.incidencia.tipo_id) || null}
+                            onChange={(_, v) => handleIncidenciaChange(item.detalle_id, 'tipo_id', v?.id || '')}
+                            renderInput={(params) => <TextField {...params} label="Tipo de incidencia" required />}
+                          />
 
-                        <TextField
-                          size="small"
-                          label="Cantidad afectada (opcional)"
-                          type="number"
-                          value={item.incidencia.cantidad_afectada}
-                          onChange={(e) => handleIncidenciaChange(item.detalle_id, 'cantidad_afectada', e.target.value)}
-                          inputProps={{ min: 0, step: 'any' }}
-                        />
+                          <TextField
+                            size="small"
+                            label="Cantidad afectada (opcional)"
+                            type="number"
+                            value={item.incidencia.cantidad_afectada}
+                            onChange={(e) => handleIncidenciaChange(item.detalle_id, 'cantidad_afectada', e.target.value)}
+                            inputProps={{ min: 0, step: 'any' }}
+                          />
 
-                        <TextField
-                          size="small"
-                          label="Descripción del problema"
-                          multiline
-                          rows={2}
-                          required
-                          value={item.incidencia.descripcion}
-                          onChange={(e) => handleIncidenciaChange(item.detalle_id, 'descripcion', e.target.value)}
-                        />
+                          <TextField
+                            size="small"
+                            label="Descripción del problema"
+                            multiline
+                            rows={2}
+                            required
+                            value={item.incidencia.descripcion}
+                            onChange={(e) => handleIncidenciaChange(item.detalle_id, 'descripcion', e.target.value)}
+                          />
 
-                        <Button
-                          size="small"
-                          variant="text"
-                          color="inherit"
-                          sx={{ alignSelf: 'flex-start' }}
-                          onClick={() => {
-                            toggleIncidenciaForm(item.detalle_id);
-                            handleIncidenciaChange(item.detalle_id, 'tipo_id', '');
-                            handleIncidenciaChange(item.detalle_id, 'cantidad_afectada', '');
-                            handleIncidenciaChange(item.detalle_id, 'descripcion', '');
-                          }}
-                        >
-                          Cancelar incidencia
-                        </Button>
-                      </Stack>
-                    </Paper>
+                          <Button
+                            size="small"
+                            variant="text"
+                            color="inherit"
+                            sx={{ alignSelf: 'flex-start' }}
+                            onClick={() => {
+                              toggleIncidenciaForm(item.detalle_id);
+                              handleIncidenciaChange(item.detalle_id, 'tipo_id', '');
+                              handleIncidenciaChange(item.detalle_id, 'cantidad_afectada', '');
+                              handleIncidenciaChange(item.detalle_id, 'descripcion', '');
+                            }}
+                          >
+                            Cancelar incidencia
+                          </Button>
+                        </Stack>
+                      </Paper>
                     </Collapse>
                   </Box>
                 );

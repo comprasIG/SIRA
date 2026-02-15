@@ -341,10 +341,37 @@ const registrarIngreso = async (req, res) => {
       const precioUnitarioFromBody = toNumber(item?.precio_unitario, NaN);
       const monedaFromBody = toTrimmedString(item?.moneda).toUpperCase();
 
-      // 1) Update detalle OC
+      // 1) Validar que no se exceda la cantidad pendiente y luego Update detalle OC
       let updatedDetail = null;
 
       if (cantidadNum > 0 || (incidencia && incidencia.tipo_id)) {
+        // --- Validación: leer estado actual del detalle antes de actualizar ---
+        if (cantidadNum > 0) {
+          const checkQuery = `
+            SELECT ocd.cantidad, ocd.cantidad_recibida, cm.nombre AS material_nombre
+            FROM public.ordenes_compra_detalle ocd
+            JOIN public.catalogo_materiales cm ON ocd.material_id = cm.id
+            WHERE ocd.id = $1 AND ocd.orden_compra_id = $2
+          `;
+          const checkRes = await client.query(checkQuery, [detalle_id, orden_compra_id]);
+          if (checkRes.rowCount === 0) {
+            throw new Error(
+              `Detalle ID ${detalle_id} no encontrado o no pertenece a OC ${orden_compra_id}.`
+            );
+          }
+          const currentDetail = checkRes.rows[0];
+          const cantidadPedida = toNumber(currentDetail.cantidad, 0);
+          const cantidadYaRecibida = toNumber(currentDetail.cantidad_recibida, 0);
+          const faltante = Math.max(0, cantidadPedida - cantidadYaRecibida);
+
+          if (cantidadNum > faltante) {
+            throw {
+              statusCode: 400,
+              message: `La cantidad a ingresar (${cantidadNum}) excede lo pendiente (${faltante}) para el material "${currentDetail.material_nombre}".`,
+            };
+          }
+        }
+
         const updateDetailQuery = `
           UPDATE public.ordenes_compra_detalle
              SET cantidad_recibida = cantidad_recibida + $1
@@ -607,9 +634,9 @@ const registrarIngreso = async (req, res) => {
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Error registrando ingreso OC:", error);
-    return res
-      .status(500)
-      .json({ error: error.message || "Error interno al registrar el ingreso." });
+    const statusCode = error?.statusCode || 500;
+    const errorMessage = error?.message || "Error interno al registrar el ingreso.";
+    return res.status(statusCode).json({ error: errorMessage });
   } finally {
     client.release();
   }
