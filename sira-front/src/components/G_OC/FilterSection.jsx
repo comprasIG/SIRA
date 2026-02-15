@@ -15,11 +15,11 @@ export default function FilterSection({ filters, options, onFilterChange, onRese
     };
 
     return (
-        <Paper elevation={1} sx={{ p: 2, mb: 3, width: '100%' }}>
-            <Grid container spacing={2} alignItems="center">
+        <Paper elevation={1} sx={{ p: 1.5, mb: 3, width: '100%' }}>
+            <Grid container spacing={1.5} alignItems="center">
 
-                {/* Search Bar - Reduced width */}
-                <Grid item xs={12} sm={6} md={2.5}>
+                {/* Search Bar */}
+                <Grid item xs={12} sm={6} md={1.5}>
                     <TextField
                         fullWidth
                         name="search"
@@ -29,7 +29,7 @@ export default function FilterSection({ filters, options, onFilterChange, onRese
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
-                                    <SearchIcon color="action" />
+                                    <SearchIcon fontSize="small" color="action" />
                                 </InputAdornment>
                             ),
                         }}
@@ -38,8 +38,8 @@ export default function FilterSection({ filters, options, onFilterChange, onRese
                     />
                 </Grid>
 
-                {/* Status Filter - Reduced width */}
-                <Grid item xs={6} sm={6} md={1.5}>
+                {/* Status Filter */}
+                <Grid item xs={6} sm={3} md={1.5}>
                     <TextField
                         select
                         fullWidth
@@ -60,7 +60,7 @@ export default function FilterSection({ filters, options, onFilterChange, onRese
                     </TextField>
                 </Grid>
 
-                {/* Proyecto Filter - Wider */}
+                {/* Proyecto Filter - More width */}
                 <Grid item xs={12} sm={6} md={3}>
                     <TextField
                         select
@@ -81,7 +81,7 @@ export default function FilterSection({ filters, options, onFilterChange, onRese
                     </TextField>
                 </Grid>
 
-                {/* Sitio Filter - Wider & Dependent */}
+                {/* Sitio Filter - More width & Dependent */}
                 <Grid item xs={12} sm={6} md={3}>
                     <TextField
                         select
@@ -125,18 +125,21 @@ export default function FilterSection({ filters, options, onFilterChange, onRese
                     </TextField>
                 </Grid>
 
+                {/* Reset Button - Inline */}
+                <Grid item xs={6} sm={3} md={1}>
+                    <Button
+                        variant="outlined"
+                        color="secondary"
+                        onClick={onResetFilters}
+                        size="small"
+                        fullWidth
+                        sx={{ height: '40px' }}
+                    >
+                        <FilterAltOffIcon fontSize="small" />
+                    </Button>
+                </Grid>
+
             </Grid>
-            <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
-                <Button
-                    variant="text"
-                    color="secondary"
-                    onClick={onResetFilters}
-                    size="small"
-                    startIcon={<FilterAltOffIcon />}
-                >
-                    Limpiar Filtros
-                </Button>
-            </Box>
         </Paper>
     );
 }

@@ -17,35 +17,36 @@ export default function KPISection({ kpis }) {
     ];
 
     return (
-        <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid container spacing={2} sx={{ mb: 3 }}>
             {cards.map((card, index) => (
                 <Grid item xs={6} sm={4} md={2.4} key={index}>
                     <Paper
                         elevation={2}
                         sx={{
-                            p: 2,
+                            p: 1.5,
                             display: 'flex',
-                            flexDirection: 'column',
+                            flexDirection: 'row',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            height: '100%',
-                            borderLeft: `5px solid ${card.color}`,
+                            gap: 1.5,
+                            borderLeft: `4px solid ${card.color}`,
                             transition: 'transform 0.2s',
                             '&:hover': {
-                                transform: 'translateY(-5px)',
+                                transform: 'translateY(-3px)',
                                 boxShadow: 4
                             }
                         }}
                     >
-                        <Box sx={{ color: card.color, mb: 1 }}>
+                        <Box sx={{ color: card.color, display: 'flex', alignItems: 'center' }}>
                             {React.cloneElement(card.icon, { fontSize: 'large' })}
                         </Box>
-                        <Typography variant="h4" component="div" sx={{ fontWeight: 'bold', color: '#333' }}>
-                            {card.value}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            {card.title}
-                        </Typography>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="h5" component="div" sx={{ fontWeight: 'bold', color: '#333', lineHeight: 1.2 }}>
+                                {card.value}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                                {card.title}
+                            </Typography>
+                        </Box>
                     </Paper>
                 </Grid>
             ))}
