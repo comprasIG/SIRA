@@ -24,4 +24,7 @@ router.get("/status-options", dashboardController.getStatusOptions);
 // NUEVO: EndPoint para obtener detalle de una Orden de Compra por su número
 router.get("/oc/:numero_oc", ordenCompraDashboardController.getOrdenCompraDetalle);
 
+// Cambio manual de status de requisición (solo SSD)
+router.patch("/requisicion/:id/status", dashboardController.updateRequisicionStatus);
+
 module.exports = router;

@@ -202,8 +202,43 @@ const getComprasDashboard = async (req, res) => {
   }
 };
 
+/**
+ * PATCH /api/dashboard/requisicion/:id/status
+ * Permite cambiar manualmente el status de una requisición desde el dashboard SSD.
+ */
+const updateRequisicionStatus = async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!id || !status) {
+    return res.status(400).json({ error: 'Se requiere id y status.' });
+  }
+
+  try {
+    const validStatuses = await getRFQStatusEnum();
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: `Status inválido: '${status}'. Valores permitidos: ${validStatuses.join(', ')}` });
+    }
+
+    const result = await pool.query(
+      `UPDATE requisiciones SET status = $1, actualizado_en = NOW() WHERE id = $2 RETURNING id, status`,
+      [status, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Requisición no encontrada.' });
+    }
+
+    res.json({ mensaje: `Status actualizado a '${status}'.`, requisicion: result.rows[0] });
+  } catch (error) {
+    console.error(`Error al actualizar status de requisición ${id}:`, error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+};
+
 module.exports = {
   getComprasDashboard,
   getDepartamentosConRfq,
   getStatusOptions,
+  updateRequisicionStatus,
 };
