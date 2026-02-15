@@ -117,6 +117,7 @@ const getComprasDashboard = async (req, res) => {
         rb.proyecto,
         rb.proyecto_id,
         rb.rfq_status,
+        oc.id as oc_id,
         oc.numero_oc,
         oc.status as oc_status
       FROM rfq_base rb
@@ -185,6 +186,7 @@ const getComprasDashboard = async (req, res) => {
       }
       if (row.numero_oc) {
         acc[row.rfq_id].ordenes.push({
+          id: row.oc_id,
           numero_oc: row.numero_oc,
           oc_status: row.oc_status
         });
