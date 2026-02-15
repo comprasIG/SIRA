@@ -10,14 +10,11 @@ import {
   Typography,
   Box,
   Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
 } from '@mui/material';
 import { RFQ_STATUS_COLOR, OC_STATUS_COLOR } from './statusColors';
 import api from '../../api/api'; // ✅ usa tu helper con token + VITE_API_URL
+import { useOcPreview } from '../../hooks/useOcPreview'; // <<< Hook compartido
+import OCInfoModal from '../common/OCInfoModal'; // <<< Modal compartido
 
 /**
  * Tabla que muestra las requisiciones (RFQs) y las órdenes de compra asociadas.
@@ -26,29 +23,10 @@ import api from '../../api/api'; // ✅ usa tu helper con token + VITE_API_URL
  * @param {Array} props.rfqs - Lista de requisiciones agrupadas con sus OCs.
  */
 export default function RfqTable({ rfqs }) {
-  const [selectedOc, setSelectedOc] = useState(null);
-  const [ocDetail, setOcDetail] = useState(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-
-  const handleOcClick = async (numeroOc) => {
-    setSelectedOc(numeroOc);
-    setLoadingDetail(true);
-    try {
-      // ✅ aquí estaba el bug: fetch directo devolvía HTML si no pegaba al backend
-      const data = await api.get(`/api/dashboard/oc/${numeroOc}`);
-      setOcDetail(data?.ordenCompra || null);
-    } catch (err) {
-      console.error(err);
-      setOcDetail(null);
-    } finally {
-      setLoadingDetail(false);
-    }
-  };
-
-  const handleClose = () => {
-    setSelectedOc(null);
-    setOcDetail(null);
-  };
+  const {
+    previewOpen, previewOc, previewItems, previewMetadata, loading: previewLoading,
+    openPreview, closePreview
+  } = useOcPreview();
 
   return (
     <>
@@ -91,7 +69,7 @@ export default function RfqTable({ rfqs }) {
                             color={OC_STATUS_COLOR[oc.oc_status] || 'default'}
                             size="small"
                             variant="outlined"
-                            onClick={() => handleOcClick(oc.numero_oc)}
+                            onClick={() => openPreview(oc)}
                           />
                         </Tooltip>
                       ))}
@@ -109,62 +87,16 @@ export default function RfqTable({ rfqs }) {
       </TableContainer>
 
       {/* Modal para mostrar el detalle de la OC seleccionada */}
-      <Dialog open={Boolean(selectedOc)} onClose={handleClose} maxWidth="md" fullWidth>
-        <DialogTitle>Detalle de Orden de Compra</DialogTitle>
-        <DialogContent dividers>
-          {loadingDetail ? (
-            <Typography>Cargando...</Typography>
-          ) : ocDetail ? (
-            <Box sx={{ mt: 1 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                Número OC: {ocDetail.numero_oc}
-              </Typography>
-              <Typography variant="body2">Status: {ocDetail.status}</Typography>
-              <Typography variant="body2">Proveedor: {ocDetail.proveedor_nombre}</Typography>
-              <Typography variant="body2">Proyecto: {ocDetail.proyecto_nombre}</Typography>
-              <Typography variant="body2">Sitio: {ocDetail.sitio_nombre}</Typography>
-              <Typography variant="body2">Usuario: {ocDetail.usuario_nombre}</Typography>
-              <Typography variant="body2">
-                Fecha creación: {new Date(ocDetail.fecha_creacion).toLocaleDateString()}
-              </Typography>
-
-              <Typography variant="body2" sx={{ mt: 2, mb: 1, fontWeight: 'bold' }}>
-                Ítems:
-              </Typography>
-
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Material</TableCell>
-                    <TableCell>Descripción</TableCell>
-                    <TableCell>Cantidad</TableCell>
-                    <TableCell>Precio unitario</TableCell>
-                    <TableCell>Total</TableCell>
-                    <TableCell>Recibido</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {(ocDetail.items || []).map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.material_nombre}</TableCell>
-                      <TableCell>{item.descripcion}</TableCell>
-                      <TableCell>{item.cantidad}</TableCell>
-                      <TableCell>{item.precio_unitario}</TableCell>
-                      <TableCell>{item.total}</TableCell>
-                      <TableCell>{item.cantidad_recibida}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Box>
-          ) : (
-            <Typography>No se encontró información.</Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClose}>Cerrar</Button>
-        </DialogActions>
-      </Dialog>
+      {previewOc && (
+        <OCInfoModal
+          open={previewOpen}
+          onClose={closePreview}
+          oc={previewOc}
+          items={previewItems}
+          metadata={previewMetadata}
+          loading={previewLoading}
+        />
+      )}
     </>
   );
 }
