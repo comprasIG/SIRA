@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Grid, Paper, Typography, Box } from '@mui/material';
+import { Paper, Typography, Box } from '@mui/material';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import AssignmentLateIcon from '@mui/icons-material/AssignmentLate';
@@ -17,39 +17,50 @@ export default function KPISection({ kpis }) {
     ];
 
     return (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Box
+            sx={{
+                display: 'grid',
+                gridTemplateColumns: {
+                    xs: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    sm: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    lg: 'repeat(auto-fit, minmax(240px, 1fr))',
+                },
+                gap: 2,
+                mb: 3
+            }}
+        >
             {cards.map((card, index) => (
-                <Grid item xs={6} sm={4} md={2.4} key={index}>
-                    <Paper
-                        elevation={2}
-                        sx={{
-                            p: 1.5,
-                            display: 'flex',
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 1.5,
-                            borderLeft: `4px solid ${card.color}`,
-                            transition: 'transform 0.2s',
-                            '&:hover': {
-                                transform: 'translateY(-3px)',
-                                boxShadow: 4
-                            }
-                        }}
-                    >
-                        <Box sx={{ color: card.color, display: 'flex', alignItems: 'center' }}>
-                            {React.cloneElement(card.icon, { fontSize: 'large' })}
-                        </Box>
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography variant="h5" component="div" sx={{ fontWeight: 'bold', color: '#333', lineHeight: 1.2 }}>
-                                {card.value}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
-                                {card.title}
-                            </Typography>
-                        </Box>
-                    </Paper>
-                </Grid>
+                <Paper
+                    key={index}
+                    elevation={2}
+                    sx={{
+                        p: 1.25,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1.25,
+                        minHeight: 88,
+                        height: '100%',
+                        borderLeft: `4px solid ${card.color}`,
+                        transition: 'transform 0.2s',
+                        '&:hover': {
+                            transform: 'translateY(-3px)',
+                            boxShadow: 4
+                        }
+                    }}
+                >
+                    <Box sx={{ color: card.color, display: 'flex', alignItems: 'center' }}>
+                        {React.cloneElement(card.icon, { fontSize: 'medium' })}
+                    </Box>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="h5" component="div" sx={{ fontWeight: 'bold', color: '#333', lineHeight: 1 }}>
+                            {card.value}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                            {card.title}
+                        </Typography>
+                    </Box>
+                </Paper>
             ))}
-        </Grid>
+        </Box>
     );
 }

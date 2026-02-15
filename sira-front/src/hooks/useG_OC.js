@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../api/api';
 import { toast } from 'react-toastify';
 import debounce from 'lodash.debounce';
@@ -43,13 +43,13 @@ export const useG_OC = () => {
                 params.append('status', currentStatus);
             }
 
-            const response = await api.get(`/api/ocs/filters?${params.toString()}`);
-            if (response.data) {
+            const data = await api.get(`/api/ocs/filters?${params.toString()}`);
+            if (data) {
                 setOptions(prev => ({
                     ...prev,
-                    proyectos: response.data.proyectos || [],
-                    sitios: response.data.sitios || [],
-                    status: ['ABIERTAS', 'POR_AUTORIZAR', 'AUTORIZADA', 'ENTREGADA', 'RECHAZADA', 'CANCELADA', 'HOLD'] // Hardcoded or fetched if needed
+                    proyectos: data.proyectos || [],
+                    sitios: data.sitios || [],
+                    status: data.status || ['ABIERTAS', 'POR_AUTORIZAR', 'AUTORIZADA', 'ENTREGADA', 'RECHAZADA', 'CANCELADA', 'HOLD']
                 }));
             }
         } catch (error) {
@@ -97,7 +97,7 @@ export const useG_OC = () => {
                     if (['POR_AUTORIZAR'].includes(oc.status)) acc.porAutorizar++;
                     if (!['ENTREGADA', 'RECHAZADA', 'CANCELADA'].includes(oc.status)) acc.abiertas++;
                     return acc;
-                }, { total: 0, abuestas: 0, porAutorizar: 0, entregadas: 0, rechazadas: 0 });
+                }, { total: 0, abiertas: 0, porAutorizar: 0, entregadas: 0, rechazadas: 0 });
                 setKpis(stats);
             }
 
