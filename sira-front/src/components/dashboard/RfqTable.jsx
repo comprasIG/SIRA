@@ -15,6 +15,8 @@ import { RFQ_STATUS_COLOR, OC_STATUS_COLOR } from './statusColors';
 import api from '../../api/api'; // ✅ usa tu helper con token + VITE_API_URL
 import { useOcPreview } from '../../hooks/useOcPreview'; // <<< Hook compartido
 import OCInfoModal from '../common/OCInfoModal'; // <<< Modal compartido
+import { useRfqPreview } from '../../hooks/useRfqPreview'; // <<< Hook RFQ
+import RFQInfoModal from '../common/RFQInfoModal'; // <<< Modal RFQ
 
 /**
  * Tabla que muestra las requisiciones (RFQs) y las órdenes de compra asociadas.
@@ -27,6 +29,17 @@ export default function RfqTable({ rfqs }) {
     previewOpen, previewOc, previewItems, previewMetadata, loading: previewLoading,
     openPreview, closePreview
   } = useOcPreview();
+
+  const {
+    previewOpen: rfqOpen,
+    previewRfq,
+    previewItems: rfqItems,
+    previewMetadata: rfqMetadata,
+    previewAttachments: rfqAttachments,
+    loading: rfqLoading,
+    openPreview: openRfqPreview,
+    closePreview: closeRfqPreview
+  } = useRfqPreview();
 
   return (
     <>
@@ -57,6 +70,8 @@ export default function RfqTable({ rfqs }) {
                     label={rfq.rfq_status}
                     color={RFQ_STATUS_COLOR[rfq.rfq_status] || 'default'}
                     size="small"
+                    onClick={() => openRfqPreview(rfq)}
+                    sx={{ cursor: 'pointer', fontWeight: 'bold' }}
                   />
                 </TableCell>
                 <TableCell>
@@ -95,6 +110,19 @@ export default function RfqTable({ rfqs }) {
           items={previewItems}
           metadata={previewMetadata}
           loading={previewLoading}
+        />
+      )}
+
+      {/* Modal para mostrar el detalle del RFQ seleccionado */}
+      {previewRfq && (
+        <RFQInfoModal
+          open={rfqOpen}
+          onClose={closeRfqPreview}
+          rfq={previewRfq}
+          items={rfqItems}
+          metadata={rfqMetadata}
+          attachments={rfqAttachments}
+          loading={rfqLoading}
         />
       )}
     </>
