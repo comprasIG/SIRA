@@ -25,31 +25,39 @@ export function useInitialData(requisicionId, reset, setValue, setArchivosExiste
       setIsLoading(true);
       try {
         const [proyectosData, sitiosData] = await Promise.all([
-            api.get("/api/proyectos"),
-            api.get("/api/sitios")
+          api.get("/api/proyectos"),
+          api.get("/api/sitios")
         ]);
-        setProyectos(proyectosData);
-        setSitios(sitiosData);
+
+        // Excluir sitio "UNIDADES" y sus proyectos asociados
+        const sitiosFiltrados = sitiosData.filter(s => s.nombre?.toUpperCase() !== 'UNIDADES');
+        const sitioUnidadesIds = new Set(
+          sitiosData.filter(s => s.nombre?.toUpperCase() === 'UNIDADES').map(s => s.id)
+        );
+        const proyectosFiltrados = proyectosData.filter(p => !sitioUnidadesIds.has(p.sitio_id));
+
+        setProyectos(proyectosFiltrados);
+        setSitios(sitiosFiltrados);
 
         if (isEditMode) {
           const reqData = await api.get(`/api/requisiciones/${requisicionId}`);
-          
+
           const formattedDate = new Date(reqData.fecha_requerida).toISOString().split('T')[0];
-          
+
           // CAMBIO: Se utiliza directamente la información de la API para poblar el formulario.
           // La consulta del backend ya nos trae los IDs correctos.
           const mappedData = {
-              proyecto_id: reqData.proyecto_id,
-              sitio_id: reqData.sitio_id,
-              fecha_requerida: formattedDate,
-              lugar_entrega: reqData.lugar_entrega, // <-- Usamos el ID que viene de la BD
-              comentario: reqData.comentario_general,
-              items: reqData.materiales.map(m => ({
-                  material: { id: m.material_id, nombre: m.material },
-                  cantidad: m.cantidad,
-                  comentario: m.comentario,
-                  unidad: m.unidad,
-              }))
+            proyecto_id: reqData.proyecto_id,
+            sitio_id: reqData.sitio_id,
+            fecha_requerida: formattedDate,
+            lugar_entrega: reqData.lugar_entrega, // <-- Usamos el ID que viene de la BD
+            comentario: reqData.comentario_general,
+            items: reqData.materiales.map(m => ({
+              material: { id: m.material_id, nombre: m.material },
+              cantidad: m.cantidad,
+              comentario: m.comentario,
+              unidad: m.unidad,
+            }))
           };
           reset(mappedData);
           setArchivosExistentes(reqData.adjuntos || []);
@@ -64,7 +72,7 @@ export function useInitialData(requisicionId, reset, setValue, setArchivosExiste
         setIsLoading(false);
       }
     };
-    
+
     loadData();
   }, [requisicionId, isEditMode, reset, setValue, setArchivosExistentes]);
 
