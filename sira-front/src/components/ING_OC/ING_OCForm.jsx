@@ -204,7 +204,7 @@ export default function ING_OCForm() {
                 filterOptions={filterOptions}
                 filters={filters}
                 onFilterChange={setFilters} // Pasa la función para actualizar filtros
-                onReset={resetFilters}
+                onReset={() => { resetFilters(); setActiveKpi(null); }}
             />
 
             {/* Lista de OCs */}

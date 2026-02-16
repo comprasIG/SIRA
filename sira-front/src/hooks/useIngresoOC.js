@@ -1,5 +1,5 @@
 // sira-front/src/hooks/useIngresoOC.js
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import api from '../api/api';
 import { toast } from 'react-toastify';
 import debounce from 'lodash.debounce';
@@ -10,6 +10,10 @@ const initialFilters = {
     proyectoId: '',
     departamentoId: '',
     search: '',
+    metodo_recoleccion_id: '',
+    entrega_responsable: '',
+    entrega_parcial: '',
+    con_incidencia: '',
 };
 
 export const useIngresoOC = () => {
@@ -60,20 +64,23 @@ export const useIngresoOC = () => {
     const debouncedFetch = useCallback(debounce((currentFilters) => {
         setLoading(true); // Inicia carga al empezar búsqueda debounced
         fetchOcsEnProceso(currentFilters);
-    } , 500), [fetchOcsEnProceso]);
+    }, 500), [fetchOcsEnProceso]);
 
     useEffect(() => {
         fetchInitialData();
         // La llamada a fetchOcsEnProceso ahora se hace dentro de fetchInitialData
     }, [fetchInitialData]); // Solo se llama una vez al montar
 
-     // Efecto separado para reaccionar a cambios en filters con debounce
+    const isFirstLoad = useRef(true);
+
+    // Efecto separado para reaccionar a cambios en filters con debounce
     useEffect(() => {
         // No llamar en la carga inicial, ya se hizo en fetchInitialData
-        const isInitialLoad = JSON.stringify(filters) === JSON.stringify(initialFilters);
-        if (!isInitialLoad) {
-            debouncedFetch(filters);
+        if (isFirstLoad.current) {
+            isFirstLoad.current = false;
+            return;
         }
+        debouncedFetch(filters);
         return () => debouncedFetch.cancel();
     }, [filters, debouncedFetch]);
 
