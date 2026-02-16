@@ -126,7 +126,8 @@ const getOcInfoForIngreso = async (client, ocId) => {
  * GET /api/ingreso/ocs-en-proceso
  * ======================================================================================= */
 const getOcsEnProceso = async (req, res) => {
-  const { departamentoId, sitioId, proyectoId, proveedorId, search } = req.query;
+  const { departamentoId, sitioId, proyectoId, proveedorId, search,
+    metodo_recoleccion_id, entrega_responsable, entrega_parcial, con_incidencia } = req.query;
 
   // ✅ Cambio importante:
   // Traemos el parámetro del sistema (si existe) y devolvemos:
@@ -205,6 +206,21 @@ const getOcsEnProceso = async (req, res) => {
   if (search) {
     query += ` AND (oc.numero_oc ILIKE $${paramIndex} OR p.marca ILIKE $${paramIndex})`;
     params.push(`%${search}%`);
+    paramIndex++;
+  }
+  if (metodo_recoleccion_id) {
+    query += ` AND oc.metodo_recoleccion_id = $${paramIndex++}`;
+    params.push(metodo_recoleccion_id);
+  }
+  if (entrega_responsable) {
+    query += ` AND oc.entrega_responsable = $${paramIndex++}`;
+    params.push(entrega_responsable);
+  }
+  if (entrega_parcial === 'true') {
+    query += ` AND oc.entrega_parcial = true`;
+  }
+  if (con_incidencia === 'true') {
+    query += ` AND oc.con_incidencia = true`;
   }
 
   query += ` ORDER BY oc.actualizado_en DESC`;
