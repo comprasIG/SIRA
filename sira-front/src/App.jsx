@@ -1,3 +1,4 @@
+import PermisosPage from "./pages/PermisosPage";
 import VacacionesPage from "./pages/VacacionesPage";
 import ProveedoresPage from "./pages/ProveedoresPage";
 import SitiosPage from "./pages/Sitios";
@@ -92,6 +93,7 @@ export default function App() {
           <Route path="/FIN_FUENTES_PAGO" element={<RutaProtegida permiso="FIN_FUENTES_PAGO"><MainLayout><FIN_FUENTES_PAGO /></MainLayout></RutaProtegida>} />
                     <Route path="/Proveedores" element={<RutaProtegida permiso="PROV"><MainLayout><ProveedoresPage /></MainLayout></RutaProtegida>}/>
                     <Route path="/Vacaciones" element={<RutaProtegida permiso="VAC"><MainLayout><VacacionesPage /></MainLayout></RutaProtegida>}/>
+                    <Route path="/Permisos-RH" element={<RutaProtegida permiso="PERM-RH"><MainLayout><PermisosPage /></MainLayout></RutaProtegida>}/>
           {/* --- AÑADIR NUEVAS RUTAS AUTOMÁTICAMENTE AQUÍ --- */}
 
           {/* Redirección y página no encontrada */}
