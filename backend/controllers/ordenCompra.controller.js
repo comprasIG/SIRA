@@ -177,6 +177,189 @@ WHERE oc.id = $1;
   }
 };
 
+/* ================================================================================================
+ * Endpoint: Listar OCs (G_OC)
+ * ==============================================================================================*/
+const getOcs = async (req, res) => {
+  try {
+    const { status, proyecto, sitio, proveedor, search, fecha_inicio, fecha_fin, exclude_status } = req.query;
+
+    let query = `
+            SELECT 
+                oc.id,
+                oc.numero_oc,
+                oc.fecha_creacion,
+                oc.total,
+                (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) AS moneda,
+                oc.status,
+                p.nombre AS proyecto,
+                s.nombre AS sitio,
+                prov.razon_social AS proveedor,
+                u.nombre AS usuario_creador
+            FROM ordenes_compra oc
+            LEFT JOIN proyectos p ON oc.proyecto_id = p.id
+            LEFT JOIN sitios s ON oc.sitio_id = s.id
+            LEFT JOIN proveedores prov ON oc.proveedor_id = prov.id
+            LEFT JOIN usuarios u ON oc.usuario_id = u.id
+            WHERE 1=1
+        `;
+
+    const params = [];
+    let paramIndex = 1;
+
+    if (status && status !== 'TODAS') {
+      query += ` AND oc.status = $${paramIndex++}`;
+      params.push(status);
+    }
+
+    if (exclude_status) {
+      const excluded = exclude_status.split(',').map(s => s.trim());
+      if (excluded.length > 0) {
+        query += ` AND oc.status NOT IN (${excluded.map((_, i) => `$${paramIndex + i}`).join(', ')})`;
+        params.push(...excluded);
+        paramIndex += excluded.length;
+      }
+    }
+
+    if (proyecto) {
+      query += ` AND (p.nombre ILIKE $${paramIndex} OR CAST(oc.proyecto_id AS TEXT) = $${paramIndex})`;
+      params.push(`%${proyecto}%`); // Support partial match or ID if exact
+      paramIndex++;
+    }
+
+    if (sitio) {
+      query += ` AND (s.nombre ILIKE $${paramIndex} OR CAST(oc.sitio_id AS TEXT) = $${paramIndex})`;
+      params.push(`%${sitio}%`);
+      paramIndex++;
+    }
+
+    if (proveedor) {
+      query += ` AND prov.razon_social ILIKE $${paramIndex++}`;
+      params.push(`%${proveedor}%`);
+    }
+
+    if (search) {
+      query += ` AND (
+                oc.numero_oc ILIKE $${paramIndex} OR 
+                prov.razon_social ILIKE $${paramIndex} OR 
+                p.nombre ILIKE $${paramIndex} OR
+                CAST(oc.id AS TEXT) ILIKE $${paramIndex}
+             )`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    if (fecha_inicio) {
+      query += ` AND oc.fecha_creacion >= $${paramIndex++}`;
+      params.push(fecha_inicio);
+    }
+
+    if (fecha_fin) {
+      query += ` AND oc.fecha_creacion <= $${paramIndex++}`;
+      params.push(fecha_fin);
+    }
+
+    query += ` ORDER BY oc.fecha_creacion DESC`;
+
+    const result = await pool.query(query, params);
+
+    // Calculate KPIs from the FULL dataset (or separated query if pagination were used)
+    // For now, calculating from result is okay if result is not paginated yet.
+    // Better: separate query for KPIs to always show totals regardless of filters?
+    // Usually KPIs reflect the *current view* or *global state*.
+    // User asked: "1 KPI que pueden ser una por cada estado... y el recuento". 
+    // Let's do a quick aggregate query for the KPIs globally (or respecting static filters like project?)
+    // For simplicity/performance now: calculate from the fetched list regarding the applied filters, 
+    // OR fetch global stats. Let's fetch global status counts.
+
+    const kpiQuery = `
+            SELECT 
+                COUNT(*) AS total,
+                SUM(CASE WHEN status = 'ENTREGADA' THEN 1 ELSE 0 END) AS entregadas,
+                SUM(CASE WHEN status = 'RECHAZADA' THEN 1 ELSE 0 END) AS rechazadas,
+                SUM(CASE WHEN status = 'POR_AUTORIZAR' THEN 1 ELSE 0 END) AS por_autorizar,
+                SUM(CASE WHEN status NOT IN ('ENTREGADA', 'RECHAZADA', 'CANCELADA') THEN 1 ELSE 0 END) AS abiertas
+            FROM ordenes_compra
+        `;
+    const kpiResult = await pool.query(kpiQuery);
+    const kpisRaw = kpiResult.rows[0];
+
+    const kpis = {
+      total: parseInt(kpisRaw.total || 0),
+      entregadas: parseInt(kpisRaw.entregadas || 0),
+      rechazadas: parseInt(kpisRaw.rechazadas || 0),
+      porAutorizar: parseInt(kpisRaw.por_autorizar || 0),
+      abiertas: parseInt(kpisRaw.abiertas || 0)
+    };
+
+    res.json({
+      ocs: result.rows,
+      kpis: kpis
+    });
+
+  } catch (error) {
+    console.error('Error getting OCs:', error);
+    res.status(500).json({ error: 'Error al obtener órdenes de compra.' });
+  }
+};
+
+
+const getOcFilters = async (req, res) => {
+  try {
+    const { status, exclude_status } = req.query;
+
+    let whereClause = "WHERE 1=1";
+    const params = [];
+    let paramIndex = 1;
+
+    if (status && status !== 'TODAS') {
+      whereClause += ` AND oc.status = $${paramIndex++}`;
+      params.push(status);
+    }
+
+    if (exclude_status) {
+      const excluded = exclude_status.split(',').map(s => s.trim());
+      if (excluded.length > 0) {
+        whereClause += ` AND oc.status NOT IN (${excluded.map((_, i) => `$${paramIndex + i}`).join(', ')})`;
+        params.push(...excluded);
+        paramIndex += excluded.length;
+      }
+    }
+
+    const proyectosQuery = `
+      SELECT DISTINCT p.id, p.nombre
+      FROM ordenes_compra oc
+      JOIN proyectos p ON oc.proyecto_id = p.id
+      ${whereClause}
+      ORDER BY p.nombre
+    `;
+
+    const sitiosQuery = `
+      SELECT DISTINCT s.id, s.nombre, oc.proyecto_id
+      FROM ordenes_compra oc
+      JOIN sitios s ON oc.sitio_id = s.id
+      ${whereClause}
+      ORDER BY s.nombre
+    `;
+
+    const [proyectosRes, sitiosRes] = await Promise.all([
+      pool.query(proyectosQuery, params),
+      pool.query(sitiosQuery, params)
+    ]);
+
+    res.json({
+      proyectos: proyectosRes.rows,
+      sitios: sitiosRes.rows
+    });
+
+  } catch (error) {
+    console.error('Error getting OC filters:', error);
+    res.status(500).json({ error: 'Error al obtener filtros.' });
+  }
+};
+
 module.exports = {
   descargarOcPdf,
+  getOcs,
+  getOcFilters
 };

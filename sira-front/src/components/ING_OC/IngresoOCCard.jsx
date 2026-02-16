@@ -1,6 +1,6 @@
 // sira-front/src/components/ING_OC/IngresoOCCard.jsx
 import React from 'react';
-import { Paper, Typography, Box, Button, Divider, Chip, Stack, Tooltip } from '@mui/material';
+import { Paper, Typography, Box, Button, Divider, Chip, Stack, Tooltip, IconButton } from '@mui/material';
 import { motion } from 'framer-motion';
 import { alpha, useTheme } from '@mui/material/styles';
 import PlaceIcon from '@mui/icons-material/Place';
@@ -15,7 +15,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 const cardVariants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } };
 
-export default function IngresoOCCard({ oc, onGestionarIngreso }) {
+export default function IngresoOCCard({ oc, onGestionarIngreso, onPreview }) {
     const theme = useTheme();
 
     // Determina el icono y texto del método de entrega
@@ -76,9 +76,16 @@ export default function IngresoOCCard({ oc, onGestionarIngreso }) {
                                     borderRadius: 1.5,
                                 }}
                             />
-                            <Typography variant="h6" fontWeight={700} lineHeight={1.2} color="text.primary">
-                                {oc.proveedor_marca}
-                            </Typography>
+                            <Stack direction="row" alignItems="center" spacing={1}>
+                                <Typography variant="h6" fontWeight={700} lineHeight={1.2} color="text.primary">
+                                    {oc.proveedor_marca}
+                                </Typography>
+                                <Tooltip title="Ver detalles y resumen">
+                                    <IconButton size="small" onClick={onPreview} sx={{ color: 'text.secondary' }}>
+                                        <InfoOutlinedIcon fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
+                            </Stack>
                             <Typography variant="body2" color="text.secondary">
                                 {oc.proveedor_razon_social}
                             </Typography>

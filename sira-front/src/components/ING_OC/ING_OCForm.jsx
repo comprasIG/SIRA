@@ -7,6 +7,7 @@ import IngresoOCCard from './IngresoOCCard';
 import IngresoOCModal from './IngresoOCModal';
 import FiltrosIngresoOC from './FiltrosIngresoOC'; // Componente de filtros específico
 import KPICard from '../REC_OC/KPICard'; // Reutilizamos el KPICard de REC_OC
+import { useOcPreview } from '../../hooks/useOcPreview';
 import OCInfoModal from '../common/OCInfoModal';
 
 // Iconos para KPIs
@@ -28,18 +29,13 @@ export default function ING_OCForm() {
     const [selectedOc, setSelectedOc] = useState(null); // OC completa para el modal de ingreso
     const [detallesOc, setDetallesOc] = useState([]); // Detalles para el modal de ingreso
     const [loadingModal, setLoadingModal] = useState(false);
-    const [infoDialog, setInfoDialog] = useState({
-        open: false,
-        oc: null,
-        detalles: [],
-        loading: false,
-    });
+
+    // --- Hook de Preview (sustituye infoDialog manual) ---
     const {
-        open: infoModalOpen,
-        oc: infoOc,
-        detalles: infoDetalles,
-        loading: infoLoading,
-    } = infoDialog;
+        previewOpen, previewOc: infoOc, previewItems: infoItems, previewMetadata: infoMetadata, loading: infoLoading,
+        openPreview, closePreview
+    } = useOcPreview();
+
     const [activeKpi, setActiveKpi] = useState(null);
 
     const handleOpenModal = (oc) => {
@@ -65,35 +61,6 @@ export default function ING_OCForm() {
         setDetallesOc([]);
     };
 
-    const handleViewOcDetails = async (oc) => {
-        setInfoDialog({ open: true, oc, detalles: [], loading: true });
-        try {
-            const detalles = await getDetallesOC(oc.id);
-            setInfoDialog((prev) => {
-                if (prev.oc?.id !== oc.id) {
-                    return prev;
-                }
-                return { ...prev, detalles, loading: false };
-            });
-        } catch (error) {
-            setInfoDialog((prev) => {
-                if (prev.oc?.id !== oc.id) {
-                    return prev;
-                }
-                return { ...prev, loading: false };
-            });
-        }
-    };
-
-    // 🔧 Corrección: una sola función para cerrar el modal de info
-    const handleCloseInfoModal = () => {
-        setInfoDialog({
-            open: false,
-            oc: null,
-            detalles: [],
-            loading: false,
-        });
-    };
 
     const handleRegistrarIngreso = async (ingresoData) => {
         await registrarIngreso(ingresoData);
@@ -181,54 +148,6 @@ export default function ING_OCForm() {
         },
     ]), [kpis]);
 
-    const infoItems = useMemo(() => {
-        const parseOrNull = (value) => {
-            if (value === '' || value === null || value === undefined) return null;
-            const parsed = Number(value);
-            return Number.isFinite(parsed) ? parsed : null;
-        };
-
-        return infoDetalles.map((item) => {
-            const quantity = parseOrNull(item?.cantidad_pedida ?? item?.cantidad);
-            const received = parseOrNull(item?.cantidad_recibida ?? item?.cantidad_ingresada ?? item?.cantidad_entregada);
-            const pending = item?.cantidad_pendiente != null
-                ? parseOrNull(item.cantidad_pendiente)
-                : (quantity != null && received != null
-                    ? Math.max(0, quantity - received)
-                    : null);
-
-            const total = parseOrNull(item?.total_linea ?? item?.total);
-            const price = parseOrNull(item?.precio_unitario ?? item?.precio);
-
-            return {
-                id: item.detalle_id || item.id,
-                description: item.material_nombre || item.descripcion || item.material || '-',
-                quantity,
-                unit: item.unidad_simbolo || item.unidad || '',
-                received,
-                pending,
-                price,
-                currency: item.moneda || item.moneda_codigo || infoOc?.moneda || 'MXN',
-                total,
-                note: item.nota || item.comentario || '',
-            };
-        });
-    }, [infoDetalles, infoOc?.moneda]);
-
-    const infoMetadata = useMemo(() => {
-        if (!infoOc) return [];
-        const formatEntrega = infoOc.entrega_responsable
-            ? infoOc.entrega_responsable.replace(/_/g, ' ').toLowerCase()
-            : null;
-        const capitalize = (text) => text.replace(/(^|\s)\w/g, (c) => c.toUpperCase());
-        return [
-            { label: 'Proyecto', value: infoOc.proyecto_nombre },
-            { label: 'Sitio', value: infoOc.sitio_nombre },
-            { label: 'Método de recolección', value: infoOc.metodo_recoleccion_nombre },
-            { label: 'Responsable de entrega', value: formatEntrega ? capitalize(formatEntrega) : null },
-            { label: 'Marca proveedor', value: infoOc.proveedor_marca },
-        ];
-    }, [infoOc]);
 
     return (
         <Box
@@ -301,8 +220,7 @@ export default function ING_OCForm() {
                                 <IngresoOCCard
                                     oc={oc}
                                     onGestionarIngreso={() => handleOpenModal(oc)}
-                                    // Si tu tarjeta soporta ver detalles, aquí podrías pasar:
-                                    // onVerDetalles={() => handleViewOcDetails(oc)}
+                                    onPreview={() => openPreview(oc)}
                                 />
                             </Grid>
                         ))
@@ -347,8 +265,8 @@ export default function ING_OCForm() {
             {/* Modal de Información de OC */}
             {infoOc && (
                 <OCInfoModal
-                    open={infoModalOpen}
-                    onClose={handleCloseInfoModal}
+                    open={previewOpen}
+                    onClose={closePreview}
                     oc={infoOc}
                     items={infoItems}
                     metadata={infoMetadata}

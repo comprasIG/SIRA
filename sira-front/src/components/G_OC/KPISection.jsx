@@ -1,0 +1,66 @@
+
+import React from 'react';
+import { Paper, Typography, Box } from '@mui/material';
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
+import AssignmentLateIcon from '@mui/icons-material/AssignmentLate';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CancelIcon from '@mui/icons-material/Cancel';
+
+export default function KPISection({ kpis }) {
+    const cards = [
+        { title: 'Total OCs', value: kpis.total || 0, icon: <AssignmentIcon />, color: '#B3E5FC' }, // Pastel Blue
+        { title: 'Abiertas', value: kpis.abiertas || 0, icon: <AssignmentTurnedInIcon />, color: '#C8E6C9' }, // Pastel Green
+        { title: 'Por Autorizar', value: kpis.porAutorizar || 0, icon: <AssignmentLateIcon />, color: '#FFE0B2' }, // Pastel Orange
+        { title: 'Entregadas', value: kpis.entregadas || 0, icon: <CheckCircleIcon />, color: '#E1BEE7' }, // Pastel Purple
+        { title: 'Rechazadas', value: kpis.rechazadas || 0, icon: <CancelIcon />, color: '#FFCDD2' }, // Pastel Red
+    ];
+
+    return (
+        <Box
+            sx={{
+                display: 'grid',
+                gridTemplateColumns: {
+                    xs: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    sm: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    lg: 'repeat(auto-fit, minmax(240px, 1fr))',
+                },
+                gap: 2,
+                mb: 3
+            }}
+        >
+            {cards.map((card, index) => (
+                <Paper
+                    key={index}
+                    elevation={2}
+                    sx={{
+                        p: 1.25,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1.25,
+                        minHeight: 88,
+                        height: '100%',
+                        borderLeft: `4px solid ${card.color}`,
+                        transition: 'transform 0.2s',
+                        '&:hover': {
+                            transform: 'translateY(-3px)',
+                            boxShadow: 4
+                        }
+                    }}
+                >
+                    <Box sx={{ color: card.color, display: 'flex', alignItems: 'center' }}>
+                        {React.cloneElement(card.icon, { fontSize: 'medium' })}
+                    </Box>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="h5" component="div" sx={{ fontWeight: 'bold', color: '#333', lineHeight: 1 }}>
+                            {card.value}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                            {card.title}
+                        </Typography>
+                    </Box>
+                </Paper>
+            ))}
+        </Box>
+    );
+}

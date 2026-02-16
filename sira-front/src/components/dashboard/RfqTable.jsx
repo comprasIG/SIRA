@@ -10,44 +10,63 @@ import {
   Typography,
   Box,
   Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
+  Select,
+  MenuItem,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import { RFQ_STATUS_COLOR, OC_STATUS_COLOR } from './statusColors';
-import api from '../../api/api'; // ✅ usa tu helper con token + VITE_API_URL
+import RfqCodeChip from '../common/RfqCodeChip';
+import api from '../../api/api';
+import { useOcPreview } from '../../hooks/useOcPreview';
+import OCInfoModal from '../common/OCInfoModal';
+import { useRfqPreview } from '../../hooks/useRfqPreview';
+import RFQInfoModal from '../common/RFQInfoModal';
 
 /**
  * Tabla que muestra las requisiciones (RFQs) y las órdenes de compra asociadas.
  *
  * @param {Object} props
- * @param {Array} props.rfqs - Lista de requisiciones agrupadas con sus OCs.
+ * @param {Array}    props.rfqs              - Lista de requisiciones agrupadas con sus OCs.
+ * @param {string}   props.mode              - Modo del dashboard ('SSD', etc.)
+ * @param {string[]} props.rfqStatusOptions  - Enum de statuses válidos del backend
+ * @param {Function} props.onStatusChanged   - Callback para recargar datos tras cambio
  */
-export default function RfqTable({ rfqs }) {
-  const [selectedOc, setSelectedOc] = useState(null);
-  const [ocDetail, setOcDetail] = useState(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
+export default function RfqTable({ rfqs, mode, rfqStatusOptions = [], onStatusChanged }) {
+  const {
+    previewOpen, previewOc, previewItems, previewMetadata, loading: previewLoading,
+    openPreview, closePreview
+  } = useOcPreview();
 
-  const handleOcClick = async (numeroOc) => {
-    setSelectedOc(numeroOc);
-    setLoadingDetail(true);
+  const {
+    previewOpen: rfqOpen,
+    previewRfq,
+    previewItems: rfqItems,
+    previewMetadata: rfqMetadata,
+    previewAttachments: rfqAttachments,
+    loading: rfqLoading,
+    openPreview: openRfqPreview,
+    closePreview: closeRfqPreview
+  } = useRfqPreview();
+
+  // Snackbar state
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  // Track which row is updating
+  const [updatingId, setUpdatingId] = useState(null);
+
+  const isSSD = mode === 'SSD';
+
+  const handleStatusChange = async (rfqId, newStatus) => {
+    setUpdatingId(rfqId);
     try {
-      // ✅ aquí estaba el bug: fetch directo devolvía HTML si no pegaba al backend
-      const data = await api.get(`/api/dashboard/oc/${numeroOc}`);
-      setOcDetail(data?.ordenCompra || null);
+      await api.patch(`/api/dashboard/requisicion/${rfqId}/status`, { status: newStatus });
+      setSnackbar({ open: true, message: `Status actualizado a '${newStatus}'`, severity: 'success' });
+      if (onStatusChanged) onStatusChanged();
     } catch (err) {
-      console.error(err);
-      setOcDetail(null);
+      setSnackbar({ open: true, message: err?.error || 'Error al actualizar status', severity: 'error' });
     } finally {
-      setLoadingDetail(false);
+      setUpdatingId(null);
     }
-  };
-
-  const handleClose = () => {
-    setSelectedOc(null);
-    setOcDetail(null);
   };
 
   return (
@@ -65,7 +84,12 @@ export default function RfqTable({ rfqs }) {
           <TableBody>
             {(rfqs || []).map((rfq) => (
               <TableRow key={rfq.rfq_id} hover>
-                <TableCell sx={{ fontWeight: 'bold' }}>{rfq.rfq_code}</TableCell>
+                <TableCell>
+                  <RfqCodeChip
+                    label={rfq.rfq_code}
+                    onClick={() => openRfqPreview(rfq)}
+                  />
+                </TableCell>
                 <TableCell>
                   <Typography variant="body2" sx={{ fontWeight: 500 }}>
                     {rfq.sitio}
@@ -75,11 +99,54 @@ export default function RfqTable({ rfqs }) {
                   </Typography>
                 </TableCell>
                 <TableCell>
-                  <Chip
-                    label={rfq.rfq_status}
-                    color={RFQ_STATUS_COLOR[rfq.rfq_status] || 'default'}
-                    size="small"
-                  />
+                  {isSSD && rfqStatusOptions.length > 0 ? (
+                    <Select
+                      size="small"
+                      value={rfq.rfq_status}
+                      onChange={(e) => handleStatusChange(rfq.rfq_id, e.target.value)}
+                      disabled={updatingId === rfq.rfq_id}
+                      variant="standard"
+                      disableUnderline
+                      IconComponent={(props) => (
+                        <span {...props} style={{ ...props.style, fontSize: 14, color: '#999', marginLeft: -4 }}>▾</span>
+                      )}
+                      renderValue={(value) => (
+                        <Chip
+                          label={value}
+                          color={RFQ_STATUS_COLOR[value] || 'default'}
+                          size="small"
+                          sx={{ fontWeight: 'bold', cursor: 'pointer' }}
+                        />
+                      )}
+                      sx={{
+                        '& .MuiSelect-select': {
+                          p: '0 !important',
+                          pr: '16px !important',
+                          display: 'flex',
+                          alignItems: 'center',
+                        },
+                        '& .MuiInput-input:focus': { backgroundColor: 'transparent' },
+                      }}
+                    >
+                      {rfqStatusOptions.map((s) => (
+                        <MenuItem key={s} value={s}>
+                          <Chip
+                            label={s}
+                            color={RFQ_STATUS_COLOR[s] || 'default'}
+                            size="small"
+                            sx={{ fontWeight: 'bold', pointerEvents: 'none' }}
+                          />
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  ) : (
+                    <Chip
+                      label={rfq.rfq_status}
+                      color={RFQ_STATUS_COLOR[rfq.rfq_status] || 'default'}
+                      size="small"
+                      sx={{ fontWeight: 'bold' }}
+                    />
+                  )}
                 </TableCell>
                 <TableCell>
                   {(rfq.ordenes || []).length > 0 ? (
@@ -91,7 +158,7 @@ export default function RfqTable({ rfqs }) {
                             color={OC_STATUS_COLOR[oc.oc_status] || 'default'}
                             size="small"
                             variant="outlined"
-                            onClick={() => handleOcClick(oc.numero_oc)}
+                            onClick={() => openPreview(oc)}
                           />
                         </Tooltip>
                       ))}
@@ -109,62 +176,45 @@ export default function RfqTable({ rfqs }) {
       </TableContainer>
 
       {/* Modal para mostrar el detalle de la OC seleccionada */}
-      <Dialog open={Boolean(selectedOc)} onClose={handleClose} maxWidth="md" fullWidth>
-        <DialogTitle>Detalle de Orden de Compra</DialogTitle>
-        <DialogContent dividers>
-          {loadingDetail ? (
-            <Typography>Cargando...</Typography>
-          ) : ocDetail ? (
-            <Box sx={{ mt: 1 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                Número OC: {ocDetail.numero_oc}
-              </Typography>
-              <Typography variant="body2">Status: {ocDetail.status}</Typography>
-              <Typography variant="body2">Proveedor: {ocDetail.proveedor_nombre}</Typography>
-              <Typography variant="body2">Proyecto: {ocDetail.proyecto_nombre}</Typography>
-              <Typography variant="body2">Sitio: {ocDetail.sitio_nombre}</Typography>
-              <Typography variant="body2">Usuario: {ocDetail.usuario_nombre}</Typography>
-              <Typography variant="body2">
-                Fecha creación: {new Date(ocDetail.fecha_creacion).toLocaleDateString()}
-              </Typography>
+      {previewOc && (
+        <OCInfoModal
+          open={previewOpen}
+          onClose={closePreview}
+          oc={previewOc}
+          items={previewItems}
+          metadata={previewMetadata}
+          loading={previewLoading}
+        />
+      )}
 
-              <Typography variant="body2" sx={{ mt: 2, mb: 1, fontWeight: 'bold' }}>
-                Ítems:
-              </Typography>
+      {/* Modal para mostrar el detalle del RFQ seleccionado */}
+      {previewRfq && (
+        <RFQInfoModal
+          open={rfqOpen}
+          onClose={closeRfqPreview}
+          rfq={previewRfq}
+          items={rfqItems}
+          metadata={rfqMetadata}
+          attachments={rfqAttachments}
+          loading={rfqLoading}
+        />
+      )}
 
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Material</TableCell>
-                    <TableCell>Descripción</TableCell>
-                    <TableCell>Cantidad</TableCell>
-                    <TableCell>Precio unitario</TableCell>
-                    <TableCell>Total</TableCell>
-                    <TableCell>Recibido</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {(ocDetail.items || []).map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.material_nombre}</TableCell>
-                      <TableCell>{item.descripcion}</TableCell>
-                      <TableCell>{item.cantidad}</TableCell>
-                      <TableCell>{item.precio_unitario}</TableCell>
-                      <TableCell>{item.total}</TableCell>
-                      <TableCell>{item.cantidad_recibida}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Box>
-          ) : (
-            <Typography>No se encontró información.</Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClose}>Cerrar</Button>
-        </DialogActions>
-      </Dialog>
+      {/* Snackbar de confirmación */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+          severity={snackbar.severity}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </>
   );
 }

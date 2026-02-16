@@ -18,6 +18,7 @@ export default function DashboardBase({ mode }) {
     options,
     setFilter,
     resetFilters,
+    reload,
   } = useDashboard(mode);
 
   return (
@@ -48,7 +49,12 @@ export default function DashboardBase({ mode }) {
         ) : error ? (
           <Typography color="error">{error}</Typography>
         ) : (
-          <RfqTable rfqs={rfqs} />
+          <RfqTable
+            rfqs={rfqs}
+            mode={mode}
+            rfqStatusOptions={options._rfqEnum || []}
+            onStatusChanged={reload}
+          />
         )}
       </Paper>
     </Box>

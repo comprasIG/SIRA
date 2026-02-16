@@ -15,9 +15,10 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
 import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined';
-import InboxIcon from '@mui/icons-material/Inbox'; // Icono para el estado vacío
+import InboxIcon from '@mui/icons-material/Inbox';
 
 import RFQInfoModal from './rfq/RFQInfoModal';
+import RfqCodeChip from './common/RfqCodeChip';
 
 export default function G_RFQ_List({ onSelectRequisicion }) {
   // --- Estados (sin cambios) ---
@@ -65,13 +66,13 @@ export default function G_RFQ_List({ onSelectRequisicion }) {
 
   const handleCancel = async (id) => {
     if (window.confirm("¿Seguro que deseas cancelar este RFQ?")) {
-        try {
-            await api.post(`/api/rfq/${id}/cancelar`);
-            toast.success("RFQ cancelado.");
-            setRequisiciones(prev => prev.filter(req => req.id !== id));
-        } catch (err) {
-            toast.error(err.error || "Error al cancelar.");
-        }
+      try {
+        await api.post(`/api/rfq/${id}/cancelar`);
+        toast.success("RFQ cancelado.");
+        setRequisiciones(prev => prev.filter(req => req.id !== id));
+      } catch (err) {
+        toast.error(err.error || "Error al cancelar.");
+      }
     }
   };
 
@@ -109,9 +110,10 @@ export default function G_RFQ_List({ onSelectRequisicion }) {
               {/* Sección de Información */}
               <Box sx={{ flexGrow: 1, width: '100%' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5 }}>
-                  <Typography variant="h6" component="h3" sx={{ fontWeight: 'bold' }}>
-                    {req.rfq_code}
-                  </Typography>
+                  <RfqCodeChip
+                    label={req.rfq_code}
+                    onClick={() => openInfoModal(req.id)}
+                  />
                   <Chip label={req.proyecto} color="primary" variant="outlined" size="small" />
                 </Box>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2.5, color: 'text.secondary', fontSize: '0.875rem' }}>
@@ -120,7 +122,7 @@ export default function G_RFQ_List({ onSelectRequisicion }) {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><CalendarTodayOutlinedIcon fontSize="small" />{new Date(req.fecha_creacion).toLocaleDateString()}</Box>
                 </Box>
               </Box>
-              
+
               {/* Sección de Acciones */}
               <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
                 <Tooltip title="Ver detalles"><IconButton onClick={() => openInfoModal(req.id)} disabled={isProcessingAction}><InfoIcon /></IconButton></Tooltip>
