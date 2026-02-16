@@ -6,7 +6,7 @@ export const shorthands = undefined;
 export const up = async (pgm) => {
   await pgm.sql(`
     INSERT INTO public.funciones (codigo, nombre, modulo, icono, ruta)
-    VALUES ('PERM-RH', 'Permisos', 'Permisos', 'HelpOutline', '/Permisos-RH')
+    VALUES ('PERM-RH', 'Permisos', 'R.H.', 'HelpOutline', '/Permisos-RH')
     ON CONFLICT (codigo) DO UPDATE SET
       nombre = EXCLUDED.nombre,
       modulo = EXCLUDED.modulo,
