@@ -7,9 +7,10 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 
 export default function SeccionMateriales({
   control, register, errors, watch, setValue,
-  loading, materialesOptions, skuOptions, skuLoading,
-  setSearchTerm, setSkuSearchTerm, handleMaterialChange,
-  unidadesLoading, duplicateMaterialIds
+  loading, materialesOptions, // Eliminados: skuOptions, skuLoading,
+  setSearchTerm, // Eliminado: setSkuSearchTerm, 
+  handleMaterialChange,
+  unidadesLoading, duplicateMaterialIds, proyectoId
 }) {
   const { fields, prepend, remove } = useFieldArray({ control, name: "items" });
   const containerRef = useRef(null);
@@ -22,6 +23,12 @@ export default function SeccionMateriales({
     const fieldType = activeElement.getAttribute('data-field-type');
 
     if (isNaN(rowIndex) || !fieldType) return;
+
+    // PREVENIR ENVÍO CON ENTER
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      return;
+    }
 
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       e.preventDefault();
@@ -65,7 +72,7 @@ export default function SeccionMateriales({
   };
 
   return (
-    <div 
+    <div
       className="bg-white p-6 rounded-xl shadow-lg transition-shadow duration-300 hover:shadow-2xl"
       onKeyDown={handleKeyDown}
       ref={containerRef}
@@ -85,7 +92,6 @@ export default function SeccionMateriales({
         {fields.map((field, index) => (
           <FilaMaterial
             key={field.id}
-            // CAMBIO: Se vuelve a pasar la prop 'field' que se había omitido.
             field={field}
             index={index}
             control={control}
@@ -97,13 +103,13 @@ export default function SeccionMateriales({
             fields={fields}
             loading={loading}
             materialesOptions={materialesOptions}
-            skuOptions={skuOptions}
-            skuLoading={skuLoading}
+            // Eliminados: skuOptions, skuLoading
             setSearchTerm={setSearchTerm}
-            setSkuSearchTerm={setSkuSearchTerm}
+            // Eliminado: setSkuSearchTerm
             handleMaterialChange={handleMaterialChange}
             unidadesLoading={unidadesLoading}
             duplicateMaterialIds={duplicateMaterialIds}
+            proyectoId={proyectoId}
           />
         ))}
       </div>

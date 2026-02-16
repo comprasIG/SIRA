@@ -175,41 +175,41 @@ export function useDashboard(mode) {
    * - Compras (SSD): permite filtrar por departamento_id (dropdown)
    * - Departamentales: backend filtra por el departamento del usuario, no hace falta parámetro
    */
- const loadBaseData = useCallback(
-  async (departamentoIdFromFilter) => {
-    setLoadingBase(true);
-    setError(null);
+  const loadBaseData = useCallback(
+    async (departamentoIdFromFilter) => {
+      setLoadingBase(true);
+      setError(null);
 
-    try {
-      const params = new URLSearchParams();
+      try {
+        const params = new URLSearchParams();
 
-      const endpoint = config.endpoint || '/api/dashboard/compras';
+        const endpoint = config.endpoint || '/api/dashboard/compras';
 
-      // ✅ Caso 1: SSD (Compras): usa filtro departamento_id (si aplica)
-      if (config.showDepartmentFilter && departamentoIdFromFilter) {
-        params.append('departamento_id', departamentoIdFromFilter);
+        // ✅ Caso 1: SSD (Compras): usa filtro departamento_id (si aplica)
+        if (config.showDepartmentFilter && departamentoIdFromFilter) {
+          params.append('departamento_id', departamentoIdFromFilter);
+        }
+
+        // ✅ Caso 2: NO-SSD: manda SIEMPRE el departamento_id del usuario como fallback
+        // (sin romper SSD y sin tocar middlewares)
+        if (!config.showDepartmentFilter && usuario?.departamento_id) {
+          params.append('departamento_id', String(usuario.departamento_id));
+        }
+
+        const url = params.toString() ? `${endpoint}?${params.toString()}` : endpoint;
+
+        const data = await api.get(url);
+        setBaseRfqs(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error(err);
+        setError(err?.error || err?.message || 'Error al cargar datos del dashboard.');
+        setBaseRfqs([]);
+      } finally {
+        setLoadingBase(false);
       }
-
-      // ✅ Caso 2: NO-SSD: manda SIEMPRE el departamento_id del usuario como fallback
-      // (sin romper SSD y sin tocar middlewares)
-      if (!config.showDepartmentFilter && usuario?.departamento_id) {
-        params.append('departamento_id', String(usuario.departamento_id));
-      }
-
-      const url = params.toString() ? `${endpoint}?${params.toString()}` : endpoint;
-
-      const data = await api.get(url);
-      setBaseRfqs(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error(err);
-      setError(err?.error || err?.message || 'Error al cargar datos del dashboard.');
-      setBaseRfqs([]);
-    } finally {
-      setLoadingBase(false);
-    }
-  },
-  [config.endpoint, config.showDepartmentFilter, usuario?.departamento_id]
-);
+    },
+    [config.endpoint, config.showDepartmentFilter, usuario?.departamento_id]
+  );
 
   // carga inicial (cuando cambia el dashboard)
   useEffect(() => {
@@ -230,7 +230,7 @@ export function useDashboard(mode) {
     const dataForProyecto = filterRfqs(baseRfqs, filters, 'proyecto');
 
     const rfqStatusPresent = uniqSorted((dataForRfqStatus || []).map((r) => r.rfq_status));
-    const rfqStatusOptions = ['ACTIVOS', ...rfqStatusPresent];
+    const rfqStatusOptions = ['', 'ACTIVOS', ...rfqStatusPresent];
 
     const ocStatusSet = [];
     (dataForOcStatus || []).forEach((r) => {
@@ -294,6 +294,10 @@ export function useDashboard(mode) {
     }));
   }, [baseRfqs, filters, facets]);
 
+  const reload = useCallback(() => {
+    loadBaseData(filters.departamento_id);
+  }, [loadBaseData, filters.departamento_id]);
+
   return {
     // ✅ devolvemos "usuario" por claridad (si lo ocupas en UI futura)
     usuario,
@@ -305,5 +309,6 @@ export function useDashboard(mode) {
     options,
     setFilter,
     resetFilters,
+    reload,
   };
 }

@@ -154,6 +154,10 @@ app.use('/api/sitios-dashboard', dashboardSitiosRoutes);
 const uiPreferenciasRoutes = require('./routes/uiPreferencias.routes');
 app.use('/api/ui-preferencias', uiPreferenciasRoutes);
 
+// OC Directa (VB_OC)
+const ocDirectaRoutes = require('./routes/oc-directa.routes');
+app.use('/api/oc-directa', ocDirectaRoutes);
+
 
 
 // Ruta base de prueba

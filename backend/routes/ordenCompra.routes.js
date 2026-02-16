@@ -8,7 +8,7 @@
 
 const express = require("express");
 const router = express.Router();
-const { descargarOcPdf } = require("../controllers/ordenCompra.controller");
+const { descargarOcPdf, getOcs, getOcFilters } = require("../controllers/ordenCompra.controller");
 
 // Mantengo tus middlewares y sus rutas actuales:
 const verifyFirebaseToken = require("../middleware/verifyFirebaseToken");
@@ -18,5 +18,9 @@ router.use(verifyFirebaseToken, loadSiraUser);
 
 // Descargar PDF de una OC
 router.get("/:id/pdf", descargarOcPdf);
+
+// Listar OCs
+router.get("/", getOcs);
+router.get("/filters", getOcFilters);
 
 module.exports = router;
