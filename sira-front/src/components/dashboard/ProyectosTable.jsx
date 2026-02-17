@@ -5,6 +5,8 @@ import {
 } from '@mui/material';
 import FolderIcon from '@mui/icons-material/Folder';
 import { PROYECTO_STATUS_COLOR } from './statusColors';
+import useProyectoPreview from '../../hooks/useProyectoPreview';
+import ProyectoInfoModal from '../common/ProyectoInfoModal';
 
 /**
  * Formats a number as currency with thousands separators.
@@ -45,6 +47,10 @@ const headerCellSx = {
 export default function ProyectosTable({ proyectos, statusOptions, onStatusChange }) {
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
     const [updatingId, setUpdatingId] = useState(null);
+    const [previewId, setPreviewId] = useState(null);
+
+    // Data for the modal
+    const { proyecto, hitos, gastos, loading: loadingPreview, error: errorPreview } = useProyectoPreview(previewId);
 
     const handleStatusChange = async (id, newStatus) => {
         setUpdatingId(id);
@@ -90,9 +96,25 @@ export default function ProyectosTable({ proyectos, statusOptions, onStatusChang
                         ) : (
                             (proyectos || []).map((p) => (
                                 <TableRow key={p.id} sx={rowHoverSx}>
-                                    {/* Proyecto name with avatar */}
+                                    {/* Proyecto name with avatar - Clickable */}
                                     <TableCell>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                        <Box
+                                            onClick={() => setPreviewId(p.id)}
+                                            sx={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 1.5,
+                                                cursor: 'pointer',
+                                                p: 0.5,
+                                                borderRadius: 1,
+                                                transition: 'all 0.2s',
+                                                '&:hover': {
+                                                    bgcolor: 'rgba(255, 255, 255, 0.5)',
+                                                    boxShadow: '0 0 10px rgba(99, 102, 241, 0.5)', // Luminous effect
+                                                    '& .view-details': { opacity: 1, maxHeight: 20 }
+                                                }
+                                            }}
+                                        >
                                             <Avatar
                                                 sx={{
                                                     width: 30,
@@ -104,9 +126,25 @@ export default function ProyectosTable({ proyectos, statusOptions, onStatusChang
                                             >
                                                 {(p.nombre || '?')[0].toUpperCase()}
                                             </Avatar>
-                                            <Typography variant="body2" sx={{ fontWeight: 600, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                {p.nombre}
-                                            </Typography>
+                                            <Box sx={{ minWidth: 0 }}>
+                                                <Typography variant="body2" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {p.nombre}
+                                                </Typography>
+                                                <Typography
+                                                    className="view-details"
+                                                    variant="caption"
+                                                    color="primary"
+                                                    sx={{
+                                                        fontWeight: 600,
+                                                        opacity: 0,
+                                                        maxHeight: 0,
+                                                        transition: 'all 0.2s',
+                                                        display: 'block'
+                                                    }}
+                                                >
+                                                    Ver detalle
+                                                </Typography>
+                                            </Box>
                                         </Box>
                                     </TableCell>
 
@@ -250,6 +288,17 @@ export default function ProyectosTable({ proyectos, statusOptions, onStatusChang
                     {snackbar.message}
                 </Alert>
             </Snackbar>
+
+            {/* Modal for project details */}
+            <ProyectoInfoModal
+                open={!!previewId}
+                onClose={() => setPreviewId(null)}
+                proyecto={proyecto}
+                hitos={hitos}
+                gastos={gastos}
+                loading={loadingPreview}
+                error={errorPreview}
+            />
         </>
     );
 }

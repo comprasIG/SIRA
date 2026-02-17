@@ -10,7 +10,7 @@ const dashboardController = require("../controllers/dashboard.controller");
 // Importar el controlador específico para obtener detalles de OC
 const ordenCompraDashboardController = require("../controllers/dashboard/ordenCompraDashboard.controller");
 // Controlador de proyectos para el tab de Proyectos en dashboards
-const { getProyectosDashboard, updateProyectoStatus } = require("../controllers/dashboard/proyectosDashboard.controller");
+const { getProyectosDashboard, updateProyectoStatus, getProyectoDetalle } = require("../controllers/dashboard/proyectosDashboard.controller");
 
 router.use(verifyFirebaseToken, loadSiraUser);
 
@@ -31,6 +31,7 @@ router.patch("/requisicion/:id/status", dashboardController.updateRequisicionSta
 
 // Tab de Proyectos en dashboards departamentales
 router.get("/proyectos", getProyectosDashboard);
+router.get("/proyectos/:id/detalle", getProyectoDetalle);
 router.patch("/proyectos/:id/status", updateProyectoStatus);
 
 module.exports = router;
