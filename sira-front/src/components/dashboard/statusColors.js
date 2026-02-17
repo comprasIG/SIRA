@@ -21,3 +21,11 @@ export const OC_STATUS_COLOR = {
   CANCELADA: 'default',
   RECHAZADA: 'error',
 };
+
+export const PROYECTO_STATUS_COLOR = {
+  POR_APROBAR: 'warning',
+  EN_EJECUCION: 'info',
+  EN_PAUSA: 'default',
+  CANCELADO: 'error',
+  CERRADO: 'success',
+};
