@@ -9,6 +9,8 @@ const loadSiraUser = require("../middleware/loadSiraUser");
 const dashboardController = require("../controllers/dashboard.controller");
 // Importar el controlador específico para obtener detalles de OC
 const ordenCompraDashboardController = require("../controllers/dashboard/ordenCompraDashboard.controller");
+// Controlador de proyectos para el tab de Proyectos en dashboards
+const { getProyectosDashboard, updateProyectoStatus, getProyectoDetalle } = require("../controllers/dashboard/proyectosDashboard.controller");
 
 router.use(verifyFirebaseToken, loadSiraUser);
 
@@ -26,5 +28,10 @@ router.get("/oc/:numero_oc", ordenCompraDashboardController.getOrdenCompraDetall
 
 // Cambio manual de status de requisición (solo SSD)
 router.patch("/requisicion/:id/status", dashboardController.updateRequisicionStatus);
+
+// Tab de Proyectos en dashboards departamentales
+router.get("/proyectos", getProyectosDashboard);
+router.get("/proyectos/:id/detalle", getProyectoDetalle);
+router.patch("/proyectos/:id/status", updateProyectoStatus);
 
 module.exports = router;
