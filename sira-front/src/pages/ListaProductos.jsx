@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from "react"; 
+import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
-import EditarProductoModal from "../components/EditarProductoModal"; 
+import EditarProductoModal from "../components/EditarProductoModal";
 
 // ICONOS
 import EditIcon from "@mui/icons-material/Edit";
@@ -23,7 +23,7 @@ const ListaProductos = () => {
   const [unidadesMap, setUnidadesMap] = useState({});
   const [productoEditando, setProductoEditando] = useState(null);
   const [mostrarModal, setMostrarModal] = useState(false);
-  
+
   // Estados de paginación y búsqueda
   const [busqueda, setBusqueda] = useState("");
   const [paginaActual, setPaginaActual] = useState(1);
@@ -40,11 +40,14 @@ const ListaProductos = () => {
   };
 
   // --- CARGA DE DATOS ---
-  const cargarDatos = useCallback(async () => {
+  const cargarDatos = useCallback(async (searchQuery = "") => {
     try {
       setLoading(true);
+      // Petición a catalogo_materiales con query param
       const [resProductos, resUnidades] = await Promise.all([
-        axios.get(`${API_BASE_URL}/api/catalogo_materiales`),
+        axios.get(`${API_BASE_URL}/api/catalogo_materiales`, {
+          params: { query: searchQuery }
+        }),
         axios.get(`${API_BASE_URL}/api/catalogo_unidades`),
       ]);
 
@@ -64,21 +67,35 @@ const ListaProductos = () => {
     }
   }, []);
 
+  // Debounce para evitar llamadas excesivas
   useEffect(() => {
-    cargarDatos();
-  }, [cargarDatos]);
+    const timer = setTimeout(() => {
+      cargarDatos(busqueda);
+    }, 500); // 500ms de debounce
+
+    return () => clearTimeout(timer);
+  }, [busqueda, cargarDatos]);
+
+  // ELIMINADO: cargarDatos() inicial en useEffect sin dependencias, ya que el useEffect de busqueda lo cubrirá al montar (busqueda='')
 
   const handleEliminar = async (id) => {
     if (!confirm("¿Estás seguro de eliminar este producto? Esta acción no se puede deshacer.")) return;
     try {
       await axios.delete(`${API_BASE_URL}/api/catalogo_materiales/${id}`);
-      cargarDatos(); 
+      cargarDatos();
     } catch (error) {
       console.error("Error al eliminar:", error);
     }
   };
 
   // --- LÓGICA DE FILTRADO Y PAGINACIÓN ---
+  // --- LÓGICA DE FILTRADO Y PAGINACIÓN ---
+  // El filtrado ahora es SERVER-SIDE, por lo que 'productos' ya viene filtrado.
+  const productosFiltrados = productos;
+
+  // Mantenemos la lógica antigua comentada por referencia si fuera necesario, 
+  // pero ahora confiamos en que 'productos' es lo que queremos mostrar.
+  /*
   const productosFiltrados = productos.filter((p) => {
     if (!p) return false;
     const nombre = p.nombre ? p.nombre.toString().toLowerCase() : '';
@@ -87,6 +104,7 @@ const ListaProductos = () => {
     if (!termino) return true;
     return nombre.includes(termino) || sku.includes(termino);
   });
+  */
 
   const totalPaginas = Math.ceil(productosFiltrados.length / productosPorPagina);
   const indexInicio = (paginaActual - 1) * productosPorPagina;
@@ -97,7 +115,7 @@ const ListaProductos = () => {
   const paginasAMostrar = 5;
   let inicioPaginas = Math.max(1, paginaActual - Math.floor(paginasAMostrar / 2));
   let finPaginas = Math.min(totalPaginas, inicioPaginas + paginasAMostrar - 1);
-  
+
   if (finPaginas - inicioPaginas + 1 < paginasAMostrar) {
     inicioPaginas = Math.max(1, finPaginas - paginasAMostrar + 1);
   }
@@ -113,7 +131,7 @@ const ListaProductos = () => {
 
   return (
     <div className="min-h-screen bg-gray-50/50 p-6">
-      
+
       {/* --- ENCABEZADO --- */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
@@ -131,7 +149,7 @@ const ListaProductos = () => {
 
       {/* --- TARJETAS KPI (ESTADÍSTICAS) --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        
+
         {/* Card Total */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between relative overflow-hidden group hover:shadow-md transition-all">
           <div className="absolute right-0 top-0 h-full w-1 bg-blue-500 rounded-r-2xl"></div>
@@ -171,10 +189,10 @@ const ListaProductos = () => {
 
       {/* --- CONTENEDOR PRINCIPAL --- */}
       <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 overflow-hidden">
-        
+
         {/* Barra de Herramientas */}
         <div className="p-5 border-b border-slate-100 bg-slate-50/30 flex flex-col sm:flex-row gap-4 justify-between items-center">
-          
+
           {/* Buscador */}
           <div className="relative w-full sm:max-w-md">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -217,7 +235,7 @@ const ListaProductos = () => {
                 <option value={50}>50 filas</option>
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
-                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
               </div>
             </div>
           </div>
@@ -246,7 +264,7 @@ const ListaProductos = () => {
               <tbody className="bg-white divide-y divide-slate-100">
                 {productosPagina.map((p, index) => (
                   <tr key={`${p.id}-${index}`} className="group hover:bg-slate-50/80 transition-colors duration-200">
-                    
+
                     {/* SKU */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 font-mono group-hover:bg-white group-hover:border-blue-200 group-hover:text-blue-600 transition-colors">
@@ -267,23 +285,22 @@ const ListaProductos = () => {
                         {unidadesMap[p.unidad_de_compra] || p.unidad_de_compra}
                       </span>
                     </td>
-                    
+
                     {/* Precio */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-bold text-slate-700 font-mono tracking-tight">
                         {formatearDinero(p.ultimo_precio_entrada, p.moneda)}
                       </div>
                     </td>
-                    
+
                     {/* Moneda */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wide border ${
-                        p.moneda === 'USD' 
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                          : p.moneda === 'MXN' 
-                            ? 'bg-indigo-50 text-indigo-700 border-indigo-100' 
-                            : 'bg-slate-50 text-slate-500 border-slate-100'
-                      }`}>
+                      <span className={`inline-flex items-center px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wide border ${p.moneda === 'USD'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                        : p.moneda === 'MXN'
+                          ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                          : 'bg-slate-50 text-slate-500 border-slate-100'
+                        }`}>
                         {p.moneda || 'N/A'}
                       </span>
                     </td>
@@ -306,15 +323,15 @@ const ListaProductos = () => {
                     {/* Acciones */}
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={() => abrirModalEdicion(p)} 
+                        <button
+                          onClick={() => abrirModalEdicion(p)}
                           className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Editar"
                         >
                           <EditIcon fontSize="small" />
                         </button>
-                        <button 
-                          onClick={() => handleEliminar(p.id)} 
+                        <button
+                          onClick={() => handleEliminar(p.id)}
                           className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                           title="Eliminar"
                         >
@@ -335,7 +352,7 @@ const ListaProductos = () => {
                 </div>
                 <h3 className="text-slate-900 font-medium mb-1">No se encontraron productos</h3>
                 <p className="text-slate-500 text-sm max-w-xs mx-auto">
-                  {busqueda 
+                  {busqueda
                     ? `No hay resultados para "${busqueda}". Intenta con otro término o SKU.`
                     : "Tu inventario está vacío. Comienza agregando nuevos materiales."}
                 </p>
@@ -349,7 +366,7 @@ const ListaProductos = () => {
           <div className="text-sm text-slate-500">
             Mostrando <span className="font-semibold text-slate-700">{productosPagina.length}</span> de <span className="font-semibold text-slate-700">{productosFiltrados.length}</span> resultados
           </div>
-          
+
           <div className="flex items-center gap-1">
             <button
               onClick={() => setPaginaActual(p => Math.max(1, p - 1))}
@@ -358,17 +375,16 @@ const ListaProductos = () => {
             >
               <NavigateBeforeIcon fontSize="small" />
             </button>
-            
+
             <div className="hidden sm:flex gap-1 px-2">
               {paginas.map(num => (
                 <button
                   key={num}
                   onClick={() => setPaginaActual(num)}
-                  className={`min-w-[32px] h-8 flex items-center justify-center text-xs font-medium rounded-lg transition-colors ${
-                    paginaActual === num 
-                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-200' 
-                      : 'text-slate-600 hover:bg-slate-100'
-                  }`}
+                  className={`min-w-[32px] h-8 flex items-center justify-center text-xs font-medium rounded-lg transition-colors ${paginaActual === num
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                    : 'text-slate-600 hover:bg-slate-100'
+                    }`}
                 >
                   {num}
                 </button>

@@ -23,21 +23,44 @@ const agregarProducto = async (req, res) => {
   }
 };
 
+const { buildSearchConditions } = require('../utils/searchUtils');
+
 const obtenerProductos = async (req, res) => {
   try {
-    // Usamos 'cm' como alias para catalogo_materiales
-    // Usamos 'inv' como alias para inventario_actual
-    const query = `
+    const { query: searchQuery } = req.query;
+
+    // Construcción base de la query
+    let sql = `
       SELECT 
         cm.*, 
         inv.ultimo_precio_entrada, 
         inv.moneda
       FROM catalogo_materiales cm
       LEFT JOIN inventario_actual inv ON cm.id = inv.material_id
-      ORDER BY cm.id DESC
     `;
 
-    const result = await pool.query(query);
+    const values = [];
+
+    // Si hay búsqueda, generamos condiciones
+    if (searchQuery && searchQuery.trim()) {
+      const { whereClause, values: searchValues } = buildSearchConditions(searchQuery, 'cm.sku', 'cm.nombre', 1);
+
+      if (whereClause) {
+        // Usamos WHERE porque es la primera condición
+        sql += ` WHERE 1=1 ${whereClause}`;
+        values.push(...searchValues);
+      }
+    }
+
+    // Ordenamiento
+    sql += ` ORDER BY cm.id DESC`;
+
+    // Limit (opcional, por ahora traemos todo si no hay paginación explicita en backend, pero el front pagina)
+    // Para no romper la paginación del front que espera TODO, no ponemos LIMIT si no es búsqueda,
+    // o podríamos ponerlo si el front lo soporta. Dejemoslo como estaba (traer todo) para no romper, 
+    // pero filtrado si hay search.
+
+    const result = await pool.query(sql, values);
     res.json(result.rows);
 
   } catch (error) {
