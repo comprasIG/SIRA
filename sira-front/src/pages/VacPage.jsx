@@ -1,6 +1,6 @@
 // src/pages/VacacionesPage.jsx
 import React from 'react';
-import Vacaciones from '../components/-r.-h./Vacaciones';
+import Vacaciones from '../components/rh/Vac';
 
 export default function VacacionesPage() {
     return (
