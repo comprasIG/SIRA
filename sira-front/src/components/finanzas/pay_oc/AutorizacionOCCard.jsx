@@ -69,11 +69,17 @@ export default function AutorizacionOCCard({
           }}
         >
           <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1.5}>
-            <Box>
+            <Box sx={{ minWidth: 0, flex: 1 }}>
               <Typography variant="overline" color="primary" sx={{ letterSpacing: 1.2 }}>
                 OC {oc.numero_oc}
               </Typography>
-              <Typography variant="h6" fontWeight={700} lineHeight={1.2} color="text.primary">
+              <Typography
+                variant="h6"
+                fontWeight={700}
+                lineHeight={1.25}
+                color="text.primary"
+                sx={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+              >
                 {oc.proveedor_razon_social}
               </Typography>
               {oc.proveedor_rfc && (
@@ -82,18 +88,35 @@ export default function AutorizacionOCCard({
                 </Typography>
               )}
             </Box>
-            <Stack direction="row" spacing={1} alignItems="flex-start">
+            <Stack direction="row" spacing={0.5} alignItems="flex-start" sx={{ flexShrink: 0 }}>
               <Tooltip title="Ver detalle completo de la OC">
                 <IconButton size="small" onClick={() => onPreview?.(oc)}>
                   <InfoOutlinedIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
-              <Stack spacing={0.5} alignItems="flex-end">
+              <Stack spacing={0.5} alignItems="flex-end" sx={{ maxWidth: 130 }}>
                 {oc.proyecto_nombre && (
-                  <Chip size="small" icon={<WorkspacesIcon />} label={oc.proyecto_nombre} color="primary" variant="outlined" />
+                  <Tooltip title={oc.proyecto_nombre} placement="left">
+                    <Chip
+                      size="small"
+                      icon={<WorkspacesIcon />}
+                      label={oc.proyecto_nombre}
+                      color="primary"
+                      variant="outlined"
+                      sx={{ maxWidth: '100%', '.MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }}
+                    />
+                  </Tooltip>
                 )}
                 {oc.sitio_nombre && (
-                  <Chip size="small" icon={<PlaceIcon />} label={oc.sitio_nombre} variant="outlined" />
+                  <Tooltip title={oc.sitio_nombre} placement="left">
+                    <Chip
+                      size="small"
+                      icon={<PlaceIcon />}
+                      label={oc.sitio_nombre}
+                      variant="outlined"
+                      sx={{ maxWidth: '100%', '.MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }}
+                    />
+                  </Tooltip>
                 )}
               </Stack>
             </Stack>
@@ -113,16 +136,18 @@ export default function AutorizacionOCCard({
             </Typography>
           </Box>
 
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} useFlexGap>
+          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
             {oc.metodo_pago && (
-              <Chip size="small" variant="outlined" label={`Pago: ${oc.metodo_pago}`} />
+              <Chip size="small" variant="outlined" label={`Pago: ${oc.metodo_pago}`} sx={{ maxWidth: '100%' }} />
             )}
-            {oc.status && <Chip size="small" color="warning" label={oc.status} />}
+            {oc.status && (
+              <Chip size="small" color="warning" label={oc.status} sx={{ maxWidth: '100%' }} />
+            )}
             {mode === 'hold' && oc.hold_regresar_en && (
-              <Chip size="small" color="info" label={`Regresar en: ${oc.hold_regresar_en}`} />
+              <Chip size="small" color="info" label={`Regresar en: ${oc.hold_regresar_en}`} sx={{ maxWidth: '100%' }} />
             )}
             {mode === 'porLiquidar' && (
-              <Chip size="small" color="warning" variant="outlined" label={`Saldo: ${saldoFormatted}`} />
+              <Chip size="small" color="warning" variant="outlined" label={`Saldo: ${saldoFormatted}`} sx={{ maxWidth: '100%' }} />
             )}
           </Stack>
         </Stack>

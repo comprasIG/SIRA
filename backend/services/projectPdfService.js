@@ -119,29 +119,32 @@ function drawAuthorizationSignature(doc) {
 function drawHeader(doc, payload, isContinuation = false) {
   const projectCode = formatProjectCode(payload?.proyecto?.id);
   const generatedAt = payload?.generatedAt || new Date();
+  const title = isContinuation
+    ? 'NUEVO PROYECTO - AUTORIZACION (CONT.)'
+    : 'NUEVO PROYECTO - SOLICITUD DE AUTORIZACION';
 
   doc.save();
-  doc.fillColor('#123A6F').font('Helvetica-Bold').fontSize(17);
-  doc.text(
-    isContinuation
-      ? `NUEVO PROYECTO - AUTORIZACION (CONT.)`
-      : `NUEVO PROYECTO - SOLICITUD DE AUTORIZACION`,
-    MARGIN_LEFT,
-    54 + TOP_TEXT_OFFSET,
-    { width: CONTENT_WIDTH, align: 'center' }
-  );
 
-  const rightX = PAGE_WIDTH - MARGIN_RIGHT - 220;
+  // Fila 1: metadatos alineados a la derecha (sin competir con el título)
+  const metaY  = 50 + TOP_TEXT_OFFSET; // = 86
+  const rightX = PAGE_WIDTH - MARGIN_RIGHT - 220; // = 342
   doc.font('Helvetica').fontSize(10).fillColor('#111111');
-  doc.text(`Codigo: ${projectCode}`, rightX, 58 + TOP_TEXT_OFFSET, { width: 220, align: 'right' });
-  doc.text(`Fecha: ${formatDate(generatedAt)}`, rightX, 72 + TOP_TEXT_OFFSET, { width: 220, align: 'right' });
+  doc.text(`Codigo: ${projectCode}`, rightX, metaY,      { width: 220, align: 'right' });
+  doc.text(`Fecha: ${formatDate(generatedAt)}`, rightX, metaY + 14, { width: 220, align: 'right' });
 
-  const sepY = 98 + TOP_TEXT_OFFSET;
+  // Fila 2: título en su propia fila (ancho completo, sin colisión)
+  const titleY = metaY + 32; // = 118
+  doc.fillColor('#123A6F').font('Helvetica-Bold').fontSize(15);
+  doc.text(title, MARGIN_LEFT, titleY, { width: CONTENT_WIDTH, align: 'center' });
+
+  // Línea separadora dinámica (debajo del título real)
+  const titleH = doc.heightOfString(title, { width: CONTENT_WIDTH });
+  const sepY   = titleY + titleH + 8;
   doc.lineWidth(1).strokeColor('#333333');
   doc.moveTo(MARGIN_LEFT, sepY).lineTo(PAGE_WIDTH - MARGIN_RIGHT, sepY).stroke();
-  doc.restore();
 
-  return 112 + TOP_TEXT_OFFSET;
+  doc.restore();
+  return sepY + 14;
 }
 
 function ensureSpace(doc, currentY, requiredHeight, payload) {
@@ -161,20 +164,37 @@ function drawSectionTitle(doc, title, y) {
 }
 
 function drawInfoRow(doc, y, leftLabel, leftValue, rightLabel, rightValue) {
-  const colGap = 16;
-  const colWidth = (CONTENT_WIDTH - colGap) / 2;
-  const rightX = MARGIN_LEFT + colWidth + colGap;
+  const colGap   = 16;
+  const colWidth = (CONTENT_WIDTH - colGap) / 2; // 248
+  const rightX   = MARGIN_LEFT + colWidth + colGap; // 314
+  const labelW   = 92;
+  const valueW   = colWidth - 94; // 154
+
+  const leftVal  = safeText(leftValue);
+  const rightVal = safeText(rightValue);
 
   doc.save();
+
+  // Medir alturas reales ANTES de dibujar (con el font de valor)
+  doc.font('Helvetica').fontSize(9);
+  const leftH  = doc.heightOfString(leftVal,  { width: valueW });
+  const rightH = doc.heightOfString(rightVal, { width: valueW });
+  const rowH   = Math.max(leftH, rightH, 12) + 5; // mínimo 17px, padding de 5px
+
+  // Columna izquierda
   doc.font('Helvetica-Bold').fontSize(9).fillColor('#111111');
-  doc.text(`${leftLabel}:`, MARGIN_LEFT, y, { width: 92 });
-  doc.font('Helvetica').text(safeText(leftValue), MARGIN_LEFT + 94, y, { width: colWidth - 94 });
+  doc.text(`${leftLabel}:`, MARGIN_LEFT, y, { width: labelW });
+  doc.font('Helvetica');
+  doc.text(leftVal, MARGIN_LEFT + 94, y, { width: valueW });
 
-  doc.font('Helvetica-Bold').text(`${rightLabel}:`, rightX, y, { width: 92 });
-  doc.font('Helvetica').text(safeText(rightValue), rightX + 94, y, { width: colWidth - 94 });
+  // Columna derecha
+  doc.font('Helvetica-Bold');
+  doc.text(`${rightLabel}:`, rightX, y, { width: labelW });
+  doc.font('Helvetica');
+  doc.text(rightVal, rightX + 94, y, { width: valueW });
+
   doc.restore();
-
-  return y + 15;
+  return y + rowH;
 }
 
 function drawGeneralSection(doc, payload, startY) {
