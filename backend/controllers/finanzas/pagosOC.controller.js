@@ -71,8 +71,8 @@ const registrarPago = async (req, res) => {
     ["TOTAL", "PAGO_TOTAL"].includes(rawTipo)
       ? "TOTAL"
       : ["ANTICIPO", "PARCIAL", "ABONO", "PAGO_PARCIAL"].includes(rawTipo)
-      ? "ANTICIPO"
-      : null;
+        ? "ANTICIPO"
+        : null;
 
   if (!tipoCanonico) {
     return res.status(400).json({
@@ -222,35 +222,54 @@ const registrarPago = async (req, res) => {
 
       await client.query("COMMIT");
 
-      // Email (SPEI)
-      if (metodo_pago === "SPEI" && ocAfter.status === "APROBADA") {
-        let folderLink;
-        try {
-          const info = await getOcFolderWebLink(ocBefore.depto_codigo, ocBefore.numero_requisicion, numero_oc);
-          folderLink = info?.webViewLink || null;
-        } catch {
-          folderLink = null;
-        }
-        if (!folderLink) folderLink = driveFile.webViewLink;
-
+      // Email de notificación (Para CUALQUIER pago registrado)
+      try {
         const recipients = await getNotificationEmails("OC_APROBADA", pool);
         if (recipients.length > 0) {
-          const subject = `Comprobante SPEI registrado | OC ${numero_oc}`;
+
+          let subject = `Comprobante de Pago Registrado (${tipoCanonico}) | OC ${numero_oc}`;
+          let titulo = `Se registró un comprobante de pago (${tipoCanonico})`;
+
+          // Caso especial: Confirmación SPEI (cuando pasa de CONFIRMAR_SPEI a APROBADA o ya estaba en SPEI)
+          // Se ajusta el asunto si fue lo que detonó la aprobación
+          if (metodo_pago === "SPEI" && ocBefore.status === "CONFIRMAR_SPEI" && ocAfter.status === "APROBADA") {
+            subject = `Comprobante SPEI registrado | OC ${numero_oc}`;
+            titulo = `Se registró el comprobante SPEI para la Orden de Compra <b>${numero_oc}</b>`;
+          } else {
+            titulo = `Se registró un pago (${tipoCanonico}) para la Orden de Compra <b>${numero_oc}</b>`;
+          }
+
+          let folderLink;
+          try {
+            const info = await getOcFolderWebLink(ocBefore.depto_codigo, ocBefore.numero_requisicion, numero_oc);
+            folderLink = info?.webViewLink || null;
+          } catch {
+            folderLink = null;
+          }
+          if (!folderLink) folderLink = driveFile.webViewLink;
+
           const htmlBody = `
-            <p>Se registró un comprobante de pago para la Orden de Compra <b>${numero_oc}</b>.</p>
+            <p>${titulo}.</p>
             <ul>
               <li><b>Proveedor:</b> ${proveedor_nombre}</li>
-              <li><b>Monto pagado:</b> $${Number(montoAplicar).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</li>
+              <li><b>Monto del pago:</b> $${Number(montoAplicar).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</li>
               <li><b>Tipo de pago:</b> ${tipoCanonico}</li>
               <li><b>Fuente de pago:</b> ${fuenteQ.rows[0]?.nombre || "N/D"}</li>
               <li><b>Total OC:</b> $${Number(totalNum).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</li>
+              <li><b>Monto pagado acumulado:</b> $${Number(nuevoMontoPagado).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</li>
+              <li><b>Saldo pendiente:</b> $${Number(Math.max(0, totalNum - nuevoMontoPagado)).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</li>
             </ul>
+            <p>Comprobante: <a href="${driveFile.webViewLink}" target="_blank">Ver archivo</a></p>
             <p>Carpeta OC: <a href="${folderLink}" target="_blank">${folderLink}</a></p>
             <br><p><i>Correo automático SIRA.</i></p>
           `;
+
           const attachments = [{ filename: path.basename(fileName), content: archivo.buffer }];
           await sendEmailWithAttachments(recipients, subject, htmlBody, attachments);
         }
+      } catch (emailErr) {
+        console.error("Error al enviar email de pago:", emailErr);
+        // No fallamos el request, solo logueamos
       }
 
       return res.status(201).json({ mensaje: "Pago registrado", pago, oc: ocAfter });
@@ -259,7 +278,7 @@ const registrarPago = async (req, res) => {
       console.error("Error al registrar pago OC:", err);
       return res.status(500).json({ error: err.message || "Error al registrar pago." });
     } finally {
-      try { client.release(); } catch {}
+      try { client.release(); } catch { }
     }
   } catch (outer) {
     console.error("Error runtime:", outer);

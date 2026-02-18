@@ -65,7 +65,17 @@ router.post(
   '/',
   verifyFirebaseToken,
   loadSiraUser,
+  loadSiraUser,
   crearProyecto
+);
+
+// PUT /api/proyectos/:id - actualizar proyecto
+const { actualizarProyecto } = require('../controllers/g_proj.controller');
+router.put(
+  '/:id',
+  verifyFirebaseToken,
+  loadSiraUser,
+  actualizarProyecto
 );
 
 module.exports = router;
