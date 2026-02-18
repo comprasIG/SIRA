@@ -445,7 +445,7 @@ const crearProyecto = async (req, res) => {
   } catch (error) {
     try {
       await client.query('ROLLBACK');
-    } catch (_) {}
+    } catch (_) { }
 
     const statusCode = error?.statusCode || 500;
     console.error('Error al crear proyecto (G_PROJ):', error);
@@ -535,7 +535,207 @@ const descargarProyectoPdf = async (req, res) => {
   }
 };
 
+const actualizarProyecto = async (req, res) => {
+  const proyectoId = Number(req.params.id);
+  if (!Number.isInteger(proyectoId) || proyectoId <= 0) {
+    return res.status(400).json({ error: 'ID de proyecto invalido.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    // -----------------------------
+    // 1) Inputs base (requeridos para update)
+    // -----------------------------
+    // Nota: Permitimos actualización parcial de algunos campos, pero validamos integridad si vienen.
+    // Para simplificar, asumimos que el frontend manda el objeto completo o los campos a cambiar.
+
+    // Obtenemos el proyecto actual para comparar o rellenar si fuera necesario (opcional, aqui haremos update directo de lo que venga)
+
+    // Validaciones basicas de formato si vienen los campos
+    const nombre = req.body.nombre !== undefined ? asTrimString(req.body.nombre) : undefined;
+    const descripcion = req.body.descripcion !== undefined ? asTrimString(req.body.descripcion) : undefined;
+
+    if (nombre !== undefined && !nombre) {
+      return res.status(400).json({ error: 'El nombre del proyecto no puede quedar vacio.' });
+    }
+    if (nombre !== undefined && nombre.length > 100) {
+      return res.status(400).json({ error: 'El nombre del proyecto no puede exceder 100 caracteres.' });
+    }
+    if (descripcion !== undefined && !descripcion) {
+      return res.status(400).json({ error: 'La descripción del proyecto no puede quedar vacia.' });
+    }
+    if (descripcion !== undefined && descripcion.length > 400) {
+      return res.status(400).json({ error: 'La descripción del proyecto no puede exceder 400 caracteres.' });
+    }
+
+    // Fechas
+    const fecha_inicio = req.body.fecha_inicio !== undefined ? parseOptionalDateISO(req.body.fecha_inicio, 'fecha_inicio') : undefined;
+    const fecha_cierre = req.body.fecha_cierre !== undefined ? parseOptionalDateISO(req.body.fecha_cierre, 'fecha_cierre') : undefined;
+
+    if (fecha_inicio && fecha_cierre && fecha_cierre < fecha_inicio) {
+      return res.status(400).json({ error: 'La fecha de cierre no puede ser menor a la fecha de inicio.' });
+    }
+
+    // Finanzas
+    const total_facturado = req.body.total_facturado !== undefined ? parseOptionalDecimalNonNeg(req.body.total_facturado, 'total_facturado') : undefined;
+    const total_facturado_moneda = req.body.total_facturado_moneda !== undefined ? normalizeMonedaCode(req.body.total_facturado_moneda) : undefined;
+
+    const costo_total = req.body.costo_total !== undefined ? parseOptionalDecimalNonNeg(req.body.costo_total, 'costo_total') : undefined;
+    const costo_total_moneda = req.body.costo_total_moneda !== undefined ? normalizeMonedaCode(req.body.costo_total_moneda) : undefined;
+
+    const margen_estimado = req.body.margen_estimado !== undefined ? parseOptionalDecimal(req.body.margen_estimado, 'margen_estimado') : undefined;
+    const margen_moneda = req.body.margen_moneda !== undefined ? normalizeMonedaCode(req.body.margen_moneda) : undefined;
+    const margen_es_forzado = req.body.margen_es_forzado !== undefined ? Boolean(req.body.margen_es_forzado) : undefined;
+
+    // Status
+    const statusRaw = req.body.status !== undefined ? asTrimString(req.body.status) : undefined;
+    const status = statusRaw ? statusRaw.toUpperCase() : undefined;
+    if (status && !ALLOWED_STATUS.has(status)) {
+      return res.status(400).json({
+        error: `Status inválido. Valores permitidos: ${Array.from(ALLOWED_STATUS).join(', ')}`,
+      });
+    }
+
+    // Responsable (si se cambia)
+    const responsable_id = req.body.responsable_id !== undefined ? parseOptionalInt(req.body.responsable_id) : undefined;
+
+    await client.query('BEGIN');
+
+    // Validar Responsable si cambia
+    if (responsable_id) {
+      const respResult = await client.query(`SELECT id FROM public.usuarios WHERE id = $1`, [responsable_id]);
+      if (respResult.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Responsable inválido.' });
+      }
+    }
+
+    // -----------------------------
+    // 2) Update Proyecto
+    // -----------------------------
+    // Construimos dinamicamente el query
+    const updates = [];
+    const params = [proyectoId];
+    let idx = 2;
+
+    if (nombre !== undefined) { updates.push(`nombre = $${idx++}`); params.push(nombre); }
+    if (descripcion !== undefined) { updates.push(`descripcion = $${idx++}`); params.push(descripcion); }
+    if (responsable_id !== undefined) { updates.push(`responsable_id = $${idx++}`); params.push(responsable_id); }
+    if (status !== undefined) { updates.push(`status = $${idx++}`); params.push(status); }
+
+    if (fecha_inicio !== undefined) { updates.push(`fecha_inicio = $${idx++}`); params.push(fecha_inicio); }
+    if (fecha_cierre !== undefined) { updates.push(`fecha_cierre = $${idx++}`); params.push(fecha_cierre); }
+
+    if (total_facturado !== undefined) { updates.push(`total_facturado = $${idx++}`); params.push(total_facturado); }
+    if (total_facturado_moneda !== undefined) { updates.push(`total_facturado_moneda = $${idx++}`); params.push(total_facturado_moneda); }
+
+    if (costo_total !== undefined) { updates.push(`costo_total = $${idx++}`); params.push(costo_total); }
+    if (costo_total_moneda !== undefined) { updates.push(`costo_total_moneda = $${idx++}`); params.push(costo_total_moneda); }
+
+    if (margen_estimado !== undefined) { updates.push(`margen_estimado = $${idx++}`); params.push(margen_estimado); }
+    if (margen_moneda !== undefined) { updates.push(`margen_moneda = $${idx++}`); params.push(margen_moneda); }
+    if (margen_es_forzado !== undefined) { updates.push(`margen_es_forzado = $${idx++}`); params.push(margen_es_forzado); }
+
+    if (updates.length > 0) {
+      await client.query(
+        `UPDATE public.proyectos SET ${updates.join(', ')} WHERE id = $1`,
+        params
+      );
+    }
+
+    // -----------------------------
+    // 3) Sync Hitos (Insert/Update/Delete)
+    // -----------------------------
+    // hitosIn puede ser undefined (no tocar hitos), [] (borrar todos los que no vengan), o array de objetos.
+    // Si req.body.hitos no viene definido, asumimos NO TOCAR los hitos.
+    // Si req.body.hitos viene [], significa que el usuario borró todos en el front.
+
+    if (req.body.hitos !== undefined) {
+      const hitosIn = pickHitosArray(req.body);
+
+      // Obtener hitos actuales
+      const hitosActualesQ = await client.query(`SELECT id FROM public.proyectos_hitos WHERE proyecto_id = $1`, [proyectoId]);
+      const hitosActualesIds = new Set(hitosActualesQ.rows.map(h => h.id));
+
+      const hitosEntrantesIds = new Set();
+
+      for (const h of hitosIn) {
+        const nombreH = asTrimString(h.nombre);
+        const descripcionH = asTrimString(h.descripcion);
+        const targetDate = parseOptionalDateISO(h.target_date, 'hitos.target_date');
+        const fechaReal = parseOptionalDateISO(h.fecha_realizacion, 'hitos.fecha_realizacion');
+        const hId = parseOptionalInt(h.id); // Si trae ID es update, si no es insert
+
+        // Si la fila viene vacía y sin ID, la ignoramos
+        const filaVacia = !nombreH && !descripcionH && !targetDate && !fechaReal;
+        if (filaVacia && !hId) continue;
+
+        if (!nombreH) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Cada hito requiere un nombre.' });
+        }
+
+        if (hId) {
+          // Update
+          if (!hitosActualesIds.has(hId)) {
+            // El ID que mandan no pertenece a este proyecto o no existe. Lo tratamos como error o ignoramos.
+            // Mejor error para integridad.
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: `Hito con ID ${hId} no pertenece al proyecto o no existe.` });
+          }
+
+          await client.query(
+            `UPDATE public.proyectos_hitos 
+                 SET nombre = $1, descripcion = $2, target_date = $3, fecha_realizacion = $4
+                 WHERE id = $5`,
+            [nombreH, descripcionH || null, targetDate, fechaReal, hId]
+          );
+          hitosEntrantesIds.add(hId);
+        } else {
+          // Insert
+          const newH = await client.query(
+            `INSERT INTO public.proyectos_hitos (proyecto_id, nombre, descripcion, target_date, fecha_realizacion)
+                 VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+            [proyectoId, nombreH, descripcionH || null, targetDate, fechaReal]
+          );
+          hitosEntrantesIds.add(newH.rows[0].id);
+        }
+      }
+
+      // Delete: Los que estaban en BD pero no vinieron en la lista (y tenian ID)
+      const aBorrar = [...hitosActualesIds].filter(id => !hitosEntrantesIds.has(id));
+      if (aBorrar.length > 0) {
+        await client.query(
+          `DELETE FROM public.proyectos_hitos WHERE id = ANY($1::int[])`,
+          [aBorrar]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
+    // Devolver proyecto actualizado
+    const dataFinal = await getProyectoDataForPdf(client, proyectoId);
+    return res.json({
+      mensaje: 'Proyecto actualizado correctamente.',
+      proyecto: dataFinal.proyecto,
+      hitos: dataFinal.hitos
+    });
+
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch (_) { }
+    console.error('Error al actualizar proyecto (G_PROJ UPDATE):', error);
+    const statusCode = error?.statusCode || 500;
+    return res.status(statusCode).json({
+      error: error?.message || 'Error interno al actualizar proyecto.'
+    });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   crearProyecto,
+  actualizarProyecto,
   descargarProyectoPdf,
 };
