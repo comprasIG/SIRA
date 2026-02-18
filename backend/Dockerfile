@@ -1,7 +1,7 @@
 #C:\SIRA\backend\Dockerfile
 
 # 1. Usar la imagen base de Alpine
-FROM node:18-alpine AS base
+FROM node:22-alpine AS base
 
 # 2. Establecer el directorio de trabajo
 WORKDIR /app

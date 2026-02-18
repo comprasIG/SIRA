@@ -41,10 +41,10 @@ export default function FilaMaterial({
       <div className="flex-grow grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
 
         {/* Autocomplete Unificado (SKU o Nombre) */}
-        <div className="md:col-span-5">
+        <div className="md:col-span-6">
           <Autocomplete
             options={materialesOptions}
-            getOptionLabel={(option) => option.nombre || ''}
+            getOptionLabel={(option) => option ? `${option.sku} - ${option.nombre}` : ''}
             filterOptions={(x) => x}
             loading={loading}
             onInputChange={(_, newInputValue) => setSearchTerm(newInputValue)}
@@ -86,7 +86,7 @@ export default function FilaMaterial({
         </div>
 
         {/* Información de Stock */}
-        <div className="md:col-span-3 text-xs text-gray-600 bg-white p-2 rounded border border-gray-100 h-[40px] flex flex-col justify-center shadow-sm">
+        <div className="md:col-span-2 text-xs text-gray-600 bg-white p-2 rounded border border-gray-100 h-[40px] flex flex-col justify-center shadow-sm">
           {materialActual ? (
             <>
               <div className="flex justify-between">
@@ -107,11 +107,11 @@ export default function FilaMaterial({
         <div className="md:col-span-2 flex items-center">
           <input
             type="number"
-            step="any"
+            step="0.0001"
             placeholder="Cant."
             min="0"
             {...register(`items.${index}.cantidad`, { required: "Req.", valueAsNumber: true, min: { value: 0.0001, message: "> 0" } })}
-            className="w-full border-gray-300 rounded-l-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2"
+            className="w-full border-gray-300 rounded-l-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             autoComplete="off"
             data-row-index={index}
             data-field-type="cantidad"

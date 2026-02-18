@@ -2,7 +2,7 @@
 # Dockerfile
 # ---- Etapa 1: Construcción (Build) ----
 # Esta etapa se queda igual, ¡estaba perfecta!
-FROM node:18-alpine AS build
+FROM node:22-alpine AS build
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 WORKDIR /app

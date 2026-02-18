@@ -1,5 +1,6 @@
 // C:\SIRA\backend\controllers\finanzas\autorizacionOC.controller.js
 const pool = require('../../db/pool');
+const { sendEmailWithAttachments } = require('../../services/emailService');
 
 /** =========================
  *  LISTA: POR AUTORIZAR
@@ -215,13 +216,16 @@ const aprobarCredito = async (req, res) => {
     await client.query('BEGIN');
 
     const ocQuery = await client.query(
-      `SELECT oc.*, p.dias_credito 
+      `SELECT oc.*, p.dias_credito, p.razon_social AS proveedor_nombre,
+              pr.nombre AS proyecto_nombre, s.nombre AS sitio_nombre
        FROM ordenes_compra oc
-       JOIN proveedores p ON oc.proveedor_id = p.id
+       JOIN proveedores p  ON oc.proveedor_id = p.id
+       JOIN proyectos   pr ON oc.proyecto_id  = pr.id
+       JOIN sitios      s  ON oc.sitio_id     = s.id
        WHERE oc.id = $1 FOR UPDATE`,
       [ordenCompraId]
     );
-   
+
     if (ocQuery.rowCount === 0) return res.status(404).json({ error: 'OC no encontrada.' });
 
     const ocData = ocQuery.rows[0];
@@ -248,6 +252,43 @@ const aprobarCredito = async (req, res) => {
 
     await client.query('COMMIT');
     res.status(200).json({ mensaje: 'OC aprobada a crédito.', ordenCompra: updateQuery.rows[0] });
+
+    // --- Email de notificación (fire-and-forget, después del COMMIT) ---
+    try {
+      const recipientQ = await pool.query(`
+        SELECT u.correo FROM usuarios u
+        JOIN notificacion_grupo_usuarios ngu ON u.id = ngu.usuario_id
+        JOIN notificacion_grupos ng ON ngu.grupo_id = ng.id
+        WHERE ng.codigo = 'OC_APROBADA' AND u.activo = true
+      `);
+      const recipients = recipientQ.rows.map(r => r.correo);
+
+      if (recipients.length > 0) {
+        const fechaVencStr = fechaVencimiento.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
+        const totalFormatted = Number(ocData.total || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
+
+        const subject = `Autorización a Crédito | OC ${ocData.numero_oc}`;
+        const htmlBody = `
+          <p>Estimado equipo,</p>
+          <p>Se informa que la Orden de Compra <b>${ocData.numero_oc}</b> ha sido autorizada
+             bajo la modalidad de <b>Crédito a ${diasCredito} días</b>.</p>
+          <table cellpadding="6" cellspacing="0" style="border-collapse:collapse; border:1px solid #ddd; font-family:Arial,sans-serif; font-size:14px;">
+            <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;"><b>Proveedor</b></td><td style="border:1px solid #ddd;">${ocData.proveedor_nombre}</td></tr>
+            <tr><td style="border:1px solid #ddd;"><b>Proyecto</b></td><td style="border:1px solid #ddd;">${ocData.proyecto_nombre}</td></tr>
+            <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;"><b>Sitio</b></td><td style="border:1px solid #ddd;">${ocData.sitio_nombre}</td></tr>
+            <tr><td style="border:1px solid #ddd;"><b>Total OC</b></td><td style="border:1px solid #ddd;">$${totalFormatted}</td></tr>
+            <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;"><b>Días de crédito</b></td><td style="border:1px solid #ddd;">${diasCredito} días</td></tr>
+            <tr><td style="border:1px solid #ddd;"><b>Fecha de vencimiento</b></td><td style="border:1px solid #ddd;">${fechaVencStr}</td></tr>
+          </table>
+          <br>
+          <p>Favor de tomar nota para la gestión oportuna del pago antes de la fecha de vencimiento.</p>
+          <p><i>Correo automático generado por SIRA.</i></p>
+        `;
+        await sendEmailWithAttachments(recipients, subject, htmlBody, []);
+      }
+    } catch (emailErr) {
+      console.error('[aprobarCredito] Error al enviar email de notificación:', emailErr);
+    }
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error al aprobar OC a crédito:', error);

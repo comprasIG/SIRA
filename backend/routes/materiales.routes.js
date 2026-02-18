@@ -4,55 +4,41 @@ const pool = require('../db/pool'); // Asegúrate de que esta ruta sea correcta
 
 // --- RUTA ORIGINAL PARA BÚSQUEDA GENERAL (SIN CAMBIOS) ---
 // --- RUTA MODIFICADA PARA BÚSQUEDA UNIFICADA (SKU O NOMBRE) Y FILTRO DE ACTIVOS ---
+const { buildSearchConditions } = require('../utils/searchUtils');
+
+// --- RUTA MODIFICADA PARA BÚSQUEDA UNIFICADA (SKU O NOMBRE) Y FILTRO DE ACTIVOS ---
 router.get('/', async (req, res) => {
   try {
     const query = req.query.query ? req.query.query.trim() : '';
-    
-    // Si no hay query, retornamos vacío (o podríamos retornar los primeros 50 activos)
+
+    // Si no hay query, retornamos vacío
     if (!query) {
       return res.json([]);
     }
 
-    // Búsqueda unificada: Si el query machea SKU o Nombre, y el material está activo.
-    // Usamos ILIKE para case-insensitive.
-    // unaccent para ignorar tildes.
-    
-    const sql = `
-      SELECT id, nombre, sku
-      FROM catalogo_materiales
-      WHERE 
-        activo = true AND (
-          sku ILIKE $1 OR
-          unaccent(nombre) ILIKE unaccent($2)
-        )
-      ORDER BY 
-        CASE 
-          WHEN sku ILIKE $1 THEN 1  -- Prioridad exacta al SKU
-          ELSE 2 
-        END,
-        nombre ASC
-      LIMIT 50
-    `;
-    
-    // Preparamos los parámetros para busqueda parcial
-    const searchParam = `%${query}%`;
-    
-    const result = await pool.query(sql, [query, searchParam]); // El primero es para la prioridad exacta de SKU (opcional) o usas searchParam n ambos
-    // Corrección para query params:
-     const resultFixed = await pool.query(`
-      SELECT id, nombre, sku
-      FROM catalogo_materiales
-      WHERE 
-        activo = true AND (
-          sku ILIKE $1 OR
-          unaccent(nombre) ILIKE unaccent($1)
-        )
-      ORDER BY nombre ASC
-      LIMIT 50
-    `, [`%${query}%`]);
+    // Usamos la utilidad para generar condiciones
+    const { whereClause, values } = buildSearchConditions(query, 'sku', 'nombre', 1);
 
-    res.json(resultFixed.rows);
-    
+    if (!whereClause) {
+      return res.json([]);
+    }
+
+    // Construimos la consulta dinámica
+    let sql = `
+      SELECT id, nombre, sku
+      FROM catalogo_materiales
+      WHERE activo = true ${whereClause}
+    `;
+
+    // Ordenamiento:
+    // Priorizamos si el primer término coincide exactamente con el inicio del SKU o Nombre
+    // (Esto es una heurística simple, se puede refinar)
+    sql += ` ORDER BY nombre ASC LIMIT 50`;
+
+    const result = await pool.query(sql, values);
+
+    res.json(result.rows);
+
   } catch (error) {
     console.error('ERROR EN LA BÚSQUEDA DE MATERIALES:', error);
     res.status(500).json({ error: 'Error buscando materiales' });
