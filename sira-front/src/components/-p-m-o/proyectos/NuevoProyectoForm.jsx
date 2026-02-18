@@ -1,8 +1,12 @@
 // src/components/-p-m-o/proyectos/NuevoProyectoForm.jsx
-// Visual redesign — toda la lógica se mantiene idéntica al original.
+// Wizard de 4 pasos — toda la lógica idéntica al original.
 
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../../api/api';
+import {
+  Dialog, DialogTitle, DialogContent, DialogActions, Button,
+  Typography, Stack, Box, Divider,
+} from '@mui/material';
 
 /* ─────────────────────────────────────────────
    UTILIDADES (sin cambios)
@@ -107,12 +111,55 @@ function FieldLabel({ children, required = false, hint }) {
   );
 }
 
-function Divider({ label }) {
+function Divider2({ label }) {
   return (
     <div className="flex items-center gap-3 py-1">
       <div className="flex-1 border-t border-dashed border-gray-200" />
       <span className="text-[11px] font-medium tracking-wide text-gray-400">{label}</span>
       <div className="flex-1 border-t border-dashed border-gray-200" />
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   WIZARD STEPPER
+───────────────────────────────────────────── */
+
+function WizardStepper({ steps, currentStep, onNavigate }) {
+  return (
+    <div className="flex items-start">
+      {steps.map((label, i) => {
+        const isDone = i < currentStep;
+        const isActive = i === currentStep;
+        return (
+          <React.Fragment key={i}>
+            {i > 0 && (
+              <div className="flex-1 flex items-center" style={{ paddingTop: '11px' }}>
+                <div className={`h-px w-full ${i <= currentStep ? 'bg-blue-300' : 'bg-gray-200'}`} />
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => onNavigate(i)}
+              className="flex flex-col items-center gap-1 flex-shrink-0 group"
+            >
+              <span className={`
+                inline-flex h-[22px] w-[22px] items-center justify-center rounded-full text-[10px] font-bold transition-all
+                ${isDone ? 'bg-blue-600 text-white' : ''}
+                ${isActive ? 'bg-blue-600 text-white ring-[3px] ring-blue-100' : ''}
+                ${!isDone && !isActive ? 'bg-gray-100 text-gray-400 group-hover:bg-gray-200' : ''}
+              `}>
+                {isDone ? '✓' : i + 1}
+              </span>
+              <span className={`text-[10px] font-medium leading-none hidden sm:block whitespace-nowrap
+                ${isActive ? 'text-blue-700' : isDone ? 'text-gray-500' : 'text-gray-400'}
+              `}>
+                {label}
+              </span>
+            </button>
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 }
@@ -151,7 +198,17 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  /* ── Wizard state ── */
+  const [step, setStep] = useState(0);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const STEP_LABELS = ['Identidad', 'Finanzas', 'Planificación', 'Hitos'];
+  const TOTAL_STEPS = STEP_LABELS.length;
+  const isLastStep = step === TOTAL_STEPS - 1;
   const isEditMode = Boolean(proyectoId);
+
+  /* ── Validación del paso 0 (campos obligatorios) ── */
+  const step0Valid = Boolean(sitioId && responsableId && nombre.trim() && descripcion.trim());
 
   /* ── Normalizadores (idénticos) ── */
   const normalizarUsuarios = (raw) => {
@@ -287,6 +344,13 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
     setMargenMoneda((p) => p || margenSugerido.moneda);
   }, [margenSugerido, margenEsForzado, margenEstimado]);
 
+  /* ── Duración ── */
+  const duracionDias = useMemo(() => {
+    if (!fechaInicio || !fechaCierre) return null;
+    const diff = Math.round((new Date(fechaCierre) - new Date(fechaInicio)) / 86_400_000);
+    return diff >= 0 ? diff : null;
+  }, [fechaInicio, fechaCierre]);
+
   /* ── Handlers (idénticos) ── */
   const resetForm = () => {
     setSitioId(''); setResponsableId(''); setBusquedaResponsable('');
@@ -294,6 +358,7 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
     setNombre(''); setDescripcion(''); setFechaInicio(''); setFechaCierre('');
     setTotalFacturado(''); setCostoTotal(''); setMargenEstimado('');
     setMargenEsForzado(false); setHitos([]); setHitosOpen(true);
+    setStep(0); setError(''); setSuccessMsg('');
   };
 
   const handleResponsableInputChange = (e) => {
@@ -348,22 +413,22 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
     window.URL.revokeObjectURL(url);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  /* ── Submit desacoplado del evento form ── */
+  const doSubmit = async () => {
     setError(''); setSuccessMsg('');
     if (Object.values({ sitioId, responsableId, nombre, descripcion }).some((v) => !String(v || '').trim())) {
-      setError('Completa los campos obligatorios.'); return;
+      setError('Completa los campos obligatorios.'); setStep(0); return;
     }
-    if (nombre.trim().length > 100) { setError('El nombre no puede exceder 100 caracteres.'); return; }
-    if (descripcion.trim().length > 400) { setError('La descripción no puede exceder 400 caracteres.'); return; }
+    if (nombre.trim().length > 100) { setError('El nombre no puede exceder 100 caracteres.'); setStep(0); return; }
+    if (descripcion.trim().length > 400) { setError('La descripción no puede exceder 400 caracteres.'); setStep(0); return; }
     if (fechaInicio && fechaCierre && fechaCierre < fechaInicio) {
-      setError('La fecha de cierre no puede ser anterior a la de inicio.'); return;
+      setError('La fecha de cierre no puede ser anterior a la de inicio.'); setStep(2); return;
     }
     for (const [key, value] of Object.entries({ totalFacturado, costoTotal })) {
-      if (!isNonNegNumberOrEmpty(value)) { setError(`${key} debe ser un número válido (>= 0).`); return; }
+      if (!isNonNegNumberOrEmpty(value)) { setError(`${key} debe ser un número válido (>= 0).`); setStep(1); return; }
     }
     if (margenEstimado !== '' && !Number.isFinite(Number(margenEstimado))) {
-      setError('El margen estimado debe ser un número válido.'); return;
+      setError('El margen estimado debe ser un número válido.'); setStep(1); return;
     }
     const hitosPayload = (hitos || [])
       .map((h) => ({ id: h.id || undefined, nombre: (h.nombre || '').trim(), descripcion: (h.descripcion || '').trim() || null, target_date: h.target_date || null, fecha_realizacion: h.fecha_realizacion || null }))
@@ -411,12 +476,49 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
     }
   };
 
-  /* ── Cálculo de duración en días ── */
-  const duracionDias = useMemo(() => {
-    if (!fechaInicio || !fechaCierre) return null;
-    const diff = Math.round((new Date(fechaCierre) - new Date(fechaInicio)) / 86_400_000);
-    return diff >= 0 ? diff : null;
-  }, [fechaInicio, fechaCierre]);
+  /* ── Navegación wizard ── */
+  const handleNavigate = (i) => {
+    setError('');
+    setStep(i);
+  };
+
+  const handleNext = () => {
+    if (step === 0 && !step0Valid) {
+      setError('Completa los campos obligatorios antes de continuar.');
+      return;
+    }
+    setError('');
+    if (step < TOTAL_STEPS - 1) setStep((s) => s + 1);
+  };
+
+  const handlePrev = () => {
+    setError('');
+    if (step > 0) setStep((s) => s - 1);
+  };
+
+  const handleFinalAction = () => {
+    if (!step0Valid) {
+      setError('Completa los campos obligatorios en Identidad.');
+      setStep(0);
+      return;
+    }
+    if (fechaInicio && fechaCierre && fechaCierre < fechaInicio) {
+      setError('La fecha de cierre no puede ser anterior a la de inicio.');
+      setStep(2);
+      return;
+    }
+    if (isEditMode) {
+      doSubmit();
+    } else {
+      setConfirmOpen(true);
+    }
+  };
+
+  /* ── Helper para mostrar montos en el modal ── */
+  const fmtMonto = (v, m) =>
+    v !== '' && v != null && Number.isFinite(Number(v))
+      ? `${Number(v).toLocaleString('es-MX', { minimumFractionDigits: 2 })} ${m}`
+      : null;
 
   /* ── Selector de moneda ── */
   function MonedaSelect({ value, onChange }) {
@@ -469,22 +571,21 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
   /* ── RENDER ── */
   return (
     <div className="space-y-0">
-      {/* ── Estilo global para ocultar flechas en inputs number ── */}
       <style>{`
         .no-spin::-webkit-outer-spin-button,
         .no-spin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .no-spin { -moz-appearance: textfield; }
       `}</style>
 
-      <form onSubmit={handleSubmit} noValidate>
+      <form onSubmit={(e) => e.preventDefault()} noValidate>
 
         {/* ══════════════════════════════════════════════════
             HEADER STICKY
         ══════════════════════════════════════════════════ */}
-        <div className="sticky top-0 z-20 -mx-4 mb-6 border-b border-gray-100 bg-white/95 px-4 py-3 backdrop-blur-md">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="sticky top-0 z-20 -mx-4 mb-6 border-b border-gray-100 bg-white/95 px-4 pt-3 pb-2 backdrop-blur-md">
 
-            {/* Título + subtítulo */}
+          {/* Fila 1: título + botones de navegación */}
+          <div className="flex items-center justify-between gap-3 mb-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-gray-400 tracking-wide uppercase">G_PROJ</span>
@@ -493,36 +594,536 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
                   {isEditMode ? 'Editar proyecto' : 'Nuevo proyecto'}
                 </h1>
               </div>
-              {/* Mensajes inline */}
+            </div>
+
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Limpiar — solo en creación, paso 0 */}
+              {!isEditMode && step === 0 && (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  disabled={saving}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-50 hover:border-gray-300 disabled:opacity-50"
+                >
+                  Limpiar
+                </button>
+              )}
+
+              {/* Anterior */}
+              {step > 0 && (
+                <button
+                  type="button"
+                  onClick={handlePrev}
+                  disabled={saving}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 hover:border-gray-300 disabled:opacity-50"
+                >
+                  ← Anterior
+                </button>
+              )}
+
+              {/* Siguiente / Acción final */}
+              {!isLastStep ? (
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  disabled={saving}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm shadow-blue-200 transition hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Siguiente →
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleFinalAction}
+                  disabled={saving || !step0Valid}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-blue-200 transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? (
+                    <>
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      Guardando…
+                    </>
+                  ) : (
+                    isEditMode ? 'Guardar cambios' : 'Crear proyecto'
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Fila 2: stepper */}
+          <WizardStepper
+            steps={STEP_LABELS}
+            currentStep={step}
+            onNavigate={handleNavigate}
+          />
+
+          {/* Fila 3: mensajes */}
+          {(error || successMsg) && (
+            <div className="mt-2">
               {error && (
-                <p className="mt-0.5 text-xs text-red-600 flex items-center gap-1">
+                <p className="text-xs text-red-600 flex items-center gap-1">
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-500" />
                   {error}
                 </p>
               )}
               {successMsg && (
-                <p className="mt-0.5 text-xs text-emerald-600 flex items-center gap-1">
+                <p className="text-xs text-emerald-600 flex items-center gap-1">
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
                   {successMsg}
                 </p>
               )}
             </div>
+          )}
+        </div>
 
-            {/* Acciones */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {!isEditMode && (
+        {/* ══════════════════════════════════════════════════
+            PASO 1 — IDENTIDAD
+        ══════════════════════════════════════════════════ */}
+        {step === 0 && (
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <SectionHeader
+              n="01"
+              title="Identidad del proyecto"
+              subtitle="Los campos marcados con * son obligatorios."
+            />
+
+            {/* Sitio + Cliente */}
+            <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <FieldLabel required>Sitio</FieldLabel>
+                <select
+                  className={inputCls}
+                  value={sitioId}
+                  onChange={(e) => setSitioId(e.target.value)}
+                >
+                  <option value="">Selecciona un sitio…</option>
+                  {sitios.map((s) => (
+                    <option key={s.id} value={s.id}>{s.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <FieldLabel>Cliente</FieldLabel>
+                <input
+                  type="text"
+                  className={disabledCls}
+                  value={selectedSitio ? (selectedSitio.cliente_nombre || 'Sin cliente') : '—'}
+                  disabled
+                />
+              </div>
+            </div>
+
+            {/* Responsable */}
+            <div className="relative mb-4">
+              <FieldLabel required>Responsable del proyecto</FieldLabel>
+              <div className="relative">
+                <input
+                  type="text"
+                  className={`${inputCls} pr-9`}
+                  placeholder="Busca por nombre, correo o departamento…"
+                  value={busquedaResponsable}
+                  onChange={handleResponsableInputChange}
+                  onFocus={() => setShowListaResponsables(true)}
+                  onBlur={() => setTimeout(() => setShowListaResponsables(false), 180)}
+                  autoComplete="off"
+                />
                 <button
                   type="button"
-                  onClick={resetForm}
-                  disabled={saving}
-                  className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-600 transition hover:bg-gray-50 hover:border-gray-300 disabled:opacity-50"
+                  onClick={toggleListaResponsables}
+                  className="absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400 transition hover:text-gray-600"
                 >
-                  Limpiar
+                  <ChevronUpDownIcon className="h-4 w-4" />
                 </button>
+              </div>
+
+              {showListaResponsables && (
+                <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-xl ring-1 ring-black/5">
+                  {responsablesFiltrados.length === 0 ? (
+                    <div className="px-4 py-5 text-center text-xs text-gray-400">
+                      No se encontraron usuarios
+                    </div>
+                  ) : (
+                    responsablesFiltrados.map((u) => {
+                      const initials = (getNombreUsuario(u) || '?')[0].toUpperCase();
+                      return (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => handleSelectResponsable(u)}
+                          className="flex w-full items-center gap-3 border-b border-gray-50 px-3 py-2.5 text-left last:border-0 transition hover:bg-blue-50/60"
+                        >
+                          <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
+                            {initials}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-gray-800">
+                              {getNombreUsuario(u) || '(Sin nombre)'}
+                            </p>
+                            <p className="truncate text-[11px] text-gray-400">
+                              {getCorreoUsuario(u) || '—'}
+                              {getDepartamentoUsuario(u) ? ` · ${getDepartamentoUsuario(u)}` : ''}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               )}
+
+              {responsableSeleccionado && (
+                <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 py-1 pl-1.5 pr-3">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
+                    {(getNombreUsuario(responsableSeleccionado) || '?')[0].toUpperCase()}
+                  </span>
+                  <span className="text-xs font-medium text-blue-800">
+                    {getNombreUsuario(responsableSeleccionado)}
+                  </span>
+                  <CheckIcon className="h-3.5 w-3.5 text-blue-500" />
+                </div>
+              )}
+            </div>
+
+            {/* Nombre */}
+            <div className="mb-4">
+              <FieldLabel required hint={`${nombre.length}/100`}>
+                Nombre del proyecto
+              </FieldLabel>
+              <input
+                type="text"
+                className={inputCls}
+                placeholder="Ej. Instalación de biodigestor…"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                maxLength={100}
+              />
+            </div>
+
+            {/* Descripción */}
+            <div>
+              <FieldLabel required hint={`${descripcion.length}/400`}>
+                Descripción
+              </FieldLabel>
+              <textarea
+                className={`${inputCls} min-h-24 resize-none leading-relaxed`}
+                placeholder="Objetivo, alcance y resultados esperados del proyecto…"
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                maxLength={400}
+              />
+            </div>
+
+            {/* Botón avanzar al pie de la sección */}
+            <div className="mt-5 flex justify-end">
               <button
-                type="submit"
-                disabled={saving || !sitioId || !responsableId || !nombre.trim() || !descripcion.trim()}
+                type="button"
+                onClick={handleNext}
+                disabled={!step0Valid || saving}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Siguiente →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════
+            PASO 2 — FINANZAS
+        ══════════════════════════════════════════════════ */}
+        {step === 1 && (
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <SectionHeader
+              n="02"
+              title="Finanzas"
+              subtitle="Opcional. El margen se calcula cuando facturado y costo usan la misma moneda."
+            />
+
+            <div className="space-y-3">
+              <div>
+                <FieldLabel>Total facturado</FieldLabel>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.0001"
+                    className={`${inputCls} no-spin flex-1 font-mono`}
+                    placeholder="0.00"
+                    value={totalFacturado}
+                    onChange={(e) => setTotalFacturado(e.target.value)}
+                  />
+                  <MonedaSelect value={totalFacturadoMoneda} onChange={setTotalFacturadoMoneda} />
+                </div>
+              </div>
+
+              <Divider2 label="menos" />
+
+              <div>
+                <FieldLabel>Costo del proyecto</FieldLabel>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.0001"
+                    className={`${inputCls} no-spin flex-1 font-mono`}
+                    placeholder="0.00"
+                    value={costoTotal}
+                    onChange={(e) => setCostoTotal(e.target.value)}
+                  />
+                  <MonedaSelect value={costoTotalMoneda} onChange={setCostoTotalMoneda} />
+                </div>
+              </div>
+
+              <Divider2 label="= margen" />
+
+              <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3.5">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <FieldLabel>Margen estimado</FieldLabel>
+                  {margenSugerido && (
+                    <button
+                      type="button"
+                      onClick={usarMargenSugerido}
+                      className="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                    >
+                      ← Usar sugerido
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.0001"
+                    className={`${inputCls} no-spin flex-1 font-mono font-semibold ${margenSugerido?.negativo ? 'text-red-600' : 'text-gray-900'}`}
+                    placeholder="0.00"
+                    value={margenEstimado}
+                    onChange={(e) => onChangeMargenEstimado(e.target.value)}
+                  />
+                  <MonedaSelect value={margenMoneda} onChange={setMargenMoneda} />
+                </div>
+                {margenSugerido?.value != null && (
+                  <p className="mt-2 text-[11px] text-gray-400">
+                    Sugerido:{' '}
+                    <span className={`font-semibold ${margenSugerido.negativo ? 'text-red-500' : 'text-gray-700'}`}>
+                      {margenSugerido.value} {margenSugerido.moneda}
+                    </span>
+                    {margenEsForzado && (
+                      <span className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 border border-amber-200">
+                        editado
+                      </span>
+                    )}
+                  </p>
+                )}
+                {!margenSugerido && (
+                  <p className="mt-2 text-[11px] text-gray-400">
+                    Se calcula automáticamente cuando las monedas coinciden.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-between">
+              <button type="button" onClick={handlePrev} disabled={saving}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-50">
+                ← Anterior
+              </button>
+              <button type="button" onClick={handleNext} disabled={saving}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-blue-200 transition hover:bg-blue-700 disabled:opacity-50">
+                Siguiente →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════
+            PASO 3 — PLANIFICACIÓN
+        ══════════════════════════════════════════════════ */}
+        {step === 2 && (
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <SectionHeader n="03" title="Planificación" subtitle="Fechas de inicio y cierre del proyecto." />
+
+            <div className="space-y-3">
+              <div>
+                <FieldLabel>Fecha de inicio</FieldLabel>
+                <input
+                  type="date"
+                  className={inputCls}
+                  value={fechaInicio}
+                  onChange={(e) => setFechaInicio(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <FieldLabel>Fecha de cierre</FieldLabel>
+                <input
+                  type="date"
+                  className={inputCls}
+                  value={fechaCierre}
+                  min={fechaInicio || undefined}
+                  onChange={(e) => setFechaCierre(e.target.value)}
+                />
+              </div>
+
+              {duracionDias !== null && (
+                <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2">
+                  <span className="text-xs font-medium text-blue-700">
+                    {duracionDias === 0 ? 'Mismo día' : `${duracionDias} día${duracionDias !== 1 ? 's' : ''} de duración`}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex justify-between">
+              <button type="button" onClick={handlePrev} disabled={saving}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-50">
+                ← Anterior
+              </button>
+              <button type="button" onClick={handleNext} disabled={saving}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-blue-200 transition hover:bg-blue-700 disabled:opacity-50">
+                Siguiente →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════
+            PASO 4 — HITOS
+        ══════════════════════════════════════════════════ */}
+        {step === 3 && (
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <SectionHeader
+              n="04"
+              title="Hitos"
+              subtitle={hitos.length > 0 ? `${hitos.length} hito${hitos.length !== 1 ? 's' : ''} definido${hitos.length !== 1 ? 's' : ''}` : 'Entregables clave. Opcional.'}
+              action={
+                <button
+                  type="button"
+                  onClick={addHito}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-blue-700"
+                >
+                  <PlusIcon className="h-3.5 w-3.5" />
+                  Añadir
+                </button>
+              }
+            />
+
+            {hitos.length === 0 ? (
+              <div className="rounded-xl border-2 border-dashed border-gray-100 py-8 text-center">
+                <p className="text-2xl leading-none mb-2">🏁</p>
+                <p className="text-xs text-gray-400">No hay hitos definidos aún.</p>
+                <p className="text-[11px] text-gray-300 mt-1">Haz clic en "Añadir" para empezar.</p>
+              </div>
+            ) : (
+              <div>
+                {hitos.length > 1 && (
+                  <div className="mb-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setHitosOpen((p) => !p)}
+                      className="text-[11px] font-medium text-gray-400 underline decoration-gray-300 underline-offset-2 transition hover:text-gray-600"
+                    >
+                      {hitosOpen ? 'Ocultar lista' : 'Mostrar lista'}
+                    </button>
+                  </div>
+                )}
+
+                {hitosOpen && (
+                  <div className="relative space-y-0">
+                    {hitos.length > 1 && (
+                      <div className="absolute left-[7px] top-5 bottom-5 w-px bg-gray-100" />
+                    )}
+
+                    {hitos.map((h, i) => {
+                      const estado = getEstadoHito(h);
+                      return (
+                        <div key={h._tmpId} className="relative pl-6 pb-4 last:pb-0">
+                          <HitoDot estado={estado} />
+
+                          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+                            <div className="mb-2.5 flex items-center justify-between gap-2">
+                              <span className="text-[11px] font-semibold text-gray-400 tabular-nums">#{i + 1}</span>
+                              <EstadoBadge estado={estado} />
+                            </div>
+
+                            <input
+                              type="text"
+                              className={`${inputCls} mb-2 text-xs`}
+                              placeholder="Nombre del hito *"
+                              value={h.nombre}
+                              onChange={(e) => updateHito(h._tmpId, { nombre: e.target.value })}
+                            />
+
+                            <textarea
+                              className={`${inputCls} mb-2 min-h-12 resize-none text-xs leading-relaxed`}
+                              placeholder="Descripción (opcional)"
+                              value={h.descripcion}
+                              onChange={(e) => updateHito(h._tmpId, { descripcion: e.target.value })}
+                            />
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="mb-1 block text-[10px] font-medium text-gray-500">Objetivo</label>
+                                <input
+                                  type="date"
+                                  className={`${inputCls} text-xs`}
+                                  value={h.target_date}
+                                  onChange={(e) => updateHito(h._tmpId, { target_date: e.target.value })}
+                                />
+                              </div>
+
+                              <div>
+                                <label className="mb-1 block text-[10px] font-medium text-gray-500">Realizado</label>
+                                <div className="flex gap-1">
+                                  <input
+                                    type="date"
+                                    className={`${inputCls} min-w-0 flex-1 text-xs`}
+                                    value={h.fecha_realizacion}
+                                    onChange={(e) => updateHito(h._tmpId, { fecha_realizacion: e.target.value })}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => markHitoDoneToday(h._tmpId)}
+                                    title="Marcar como realizado hoy"
+                                    className="flex-shrink-0 rounded-lg border border-gray-200 bg-white px-2 text-xs font-semibold text-gray-500 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+                                  >
+                                    ✓
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="mt-2.5 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => removeHito(h._tmpId)}
+                                className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 transition hover:text-red-500"
+                              >
+                                <TrashIcon className="h-3 w-3" />
+                                Eliminar
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Navegación final */}
+            <div className="mt-5 flex justify-between">
+              <button type="button" onClick={handlePrev} disabled={saving}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-50">
+                ← Anterior
+              </button>
+              <button
+                type="button"
+                onClick={handleFinalAction}
+                disabled={saving || !step0Valid}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-blue-200 transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving ? (
@@ -536,434 +1137,86 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
               </button>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* ══════════════════════════════════════════════════
-            GRID PRINCIPAL
-        ══════════════════════════════════════════════════ */}
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_356px]">
-
-          {/* ── COLUMNA IZQUIERDA ── */}
-          <div className="space-y-5">
-
-            {/* ── 01 IDENTIDAD ── */}
-            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-              <SectionHeader
-                n="01"
-                title="Identidad del proyecto"
-                subtitle="Los campos marcados con * son obligatorios."
-              />
-
-              {/* Sitio + Cliente */}
-              <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <FieldLabel required>Sitio</FieldLabel>
-                  <select
-                    className={inputCls}
-                    value={sitioId}
-                    onChange={(e) => setSitioId(e.target.value)}
-                  >
-                    <option value="">Selecciona un sitio…</option>
-                    {sitios.map((s) => (
-                      <option key={s.id} value={s.id}>{s.nombre}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <FieldLabel>Cliente</FieldLabel>
-                  <input
-                    type="text"
-                    className={disabledCls}
-                    value={selectedSitio ? (selectedSitio.cliente_nombre || 'Sin cliente') : '—'}
-                    disabled
-                  />
-                </div>
-              </div>
-
-              {/* Responsable */}
-              <div className="relative mb-4">
-                <FieldLabel required>Responsable del proyecto</FieldLabel>
-                <div className="relative">
-                  <input
-                    type="text"
-                    className={`${inputCls} pr-9`}
-                    placeholder="Busca por nombre, correo o departamento…"
-                    value={busquedaResponsable}
-                    onChange={handleResponsableInputChange}
-                    onFocus={() => setShowListaResponsables(true)}
-                    onBlur={() => setTimeout(() => setShowListaResponsables(false), 180)}
-                    autoComplete="off"
-                  />
-                  <button
-                    type="button"
-                    onClick={toggleListaResponsables}
-                    className="absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400 transition hover:text-gray-600"
-                  >
-                    <ChevronUpDownIcon className="h-4 w-4" />
-                  </button>
-                </div>
-
-                {/* Dropdown de resultados */}
-                {showListaResponsables && (
-                  <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-xl ring-1 ring-black/5">
-                    {responsablesFiltrados.length === 0 ? (
-                      <div className="px-4 py-5 text-center text-xs text-gray-400">
-                        No se encontraron usuarios
-                      </div>
-                    ) : (
-                      responsablesFiltrados.map((u) => {
-                        const initials = (getNombreUsuario(u) || '?')[0].toUpperCase();
-                        return (
-                          <button
-                            key={u.id}
-                            type="button"
-                            onClick={() => handleSelectResponsable(u)}
-                            className="flex w-full items-center gap-3 border-b border-gray-50 px-3 py-2.5 text-left last:border-0 transition hover:bg-blue-50/60"
-                          >
-                            <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
-                              {initials}
-                            </span>
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-semibold text-gray-800">
-                                {getNombreUsuario(u) || '(Sin nombre)'}
-                              </p>
-                              <p className="truncate text-[11px] text-gray-400">
-                                {getCorreoUsuario(u) || '—'}
-                                {getDepartamentoUsuario(u) ? ` · ${getDepartamentoUsuario(u)}` : ''}
-                              </p>
-                            </div>
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
-
-                {/* Chip del responsable seleccionado */}
-                {responsableSeleccionado && (
-                  <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 py-1 pl-1.5 pr-3">
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
-                      {(getNombreUsuario(responsableSeleccionado) || '?')[0].toUpperCase()}
-                    </span>
-                    <span className="text-xs font-medium text-blue-800">
-                      {getNombreUsuario(responsableSeleccionado)}
-                    </span>
-                    <CheckIcon className="h-3.5 w-3.5 text-blue-500" />
-                  </div>
-                )}
-              </div>
-
-              {/* Nombre */}
-              <div className="mb-4">
-                <FieldLabel required hint={`${nombre.length}/100`}>
-                  Nombre del proyecto
-                </FieldLabel>
-                <input
-                  type="text"
-                  className={inputCls}
-                  placeholder="Ej. Instalación de biodigestor…"
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  maxLength={100}
-                />
-              </div>
-
-              {/* Descripción */}
-              <div>
-                <FieldLabel required hint={`${descripcion.length}/400`}>
-                  Descripción
-                </FieldLabel>
-                <textarea
-                  className={`${inputCls} min-h-24 resize-none leading-relaxed`}
-                  placeholder="Objetivo, alcance y resultados esperados del proyecto…"
-                  value={descripcion}
-                  onChange={(e) => setDescripcion(e.target.value)}
-                  maxLength={400}
-                />
-              </div>
-            </div>
-
-            {/* ── 02 FINANZAS ── */}
-            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-              <SectionHeader
-                n="02"
-                title="Finanzas"
-                subtitle="Opcional. El margen se calcula cuando facturado y costo usan la misma moneda."
-              />
-
-              <div className="space-y-3">
-                {/* Total facturado */}
-                <div>
-                  <FieldLabel>Total facturado</FieldLabel>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      min="0"
-                      step="0.0001"
-                      className={`${inputCls} no-spin flex-1 font-mono`}
-                      placeholder="0.00"
-                      value={totalFacturado}
-                      onChange={(e) => setTotalFacturado(e.target.value)}
-                    />
-                    <MonedaSelect value={totalFacturadoMoneda} onChange={setTotalFacturadoMoneda} />
-                  </div>
-                </div>
-
-                <Divider label="menos" />
-
-                {/* Costo */}
-                <div>
-                  <FieldLabel>Costo del proyecto</FieldLabel>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      min="0"
-                      step="0.0001"
-                      className={`${inputCls} no-spin flex-1 font-mono`}
-                      placeholder="0.00"
-                      value={costoTotal}
-                      onChange={(e) => setCostoTotal(e.target.value)}
-                    />
-                    <MonedaSelect value={costoTotalMoneda} onChange={setCostoTotalMoneda} />
-                  </div>
-                </div>
-
-                <Divider label="= margen" />
-
-                {/* Margen */}
-                <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3.5">
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <FieldLabel>Margen estimado</FieldLabel>
-                    {margenSugerido && (
-                      <button
-                        type="button"
-                        onClick={usarMargenSugerido}
-                        className="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                      >
-                        ← Usar sugerido
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      step="0.0001"
-                      className={`${inputCls} no-spin flex-1 font-mono font-semibold ${margenSugerido?.negativo ? 'text-red-600' : 'text-gray-900'}`}
-                      placeholder="0.00"
-                      value={margenEstimado}
-                      onChange={(e) => onChangeMargenEstimado(e.target.value)}
-                    />
-                    <MonedaSelect value={margenMoneda} onChange={setMargenMoneda} />
-                  </div>
-                  {margenSugerido?.value != null && (
-                    <p className="mt-2 text-[11px] text-gray-400">
-                      Sugerido:{' '}
-                      <span className={`font-semibold ${margenSugerido.negativo ? 'text-red-500' : 'text-gray-700'}`}>
-                        {margenSugerido.value} {margenSugerido.moneda}
-                      </span>
-                      {margenEsForzado && (
-                        <span className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 border border-amber-200">
-                          editado
-                        </span>
-                      )}
-                    </p>
-                  )}
-                  {!margenSugerido && (
-                    <p className="mt-2 text-[11px] text-gray-400">
-                      Se calcula automáticamente cuando las monedas coinciden.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ── COLUMNA DERECHA ── */}
-          <div className="space-y-5">
-
-            {/* ── 03 PLANIFICACIÓN ── */}
-            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-              <SectionHeader n="03" title="Planificación" subtitle="Fechas de inicio y cierre del proyecto." />
-
-              <div className="space-y-3">
-                <div>
-                  <FieldLabel>Fecha de inicio</FieldLabel>
-                  <input
-                    type="date"
-                    className={inputCls}
-                    value={fechaInicio}
-                    onChange={(e) => setFechaInicio(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <FieldLabel>Fecha de cierre</FieldLabel>
-                  <input
-                    type="date"
-                    className={inputCls}
-                    value={fechaCierre}
-                    min={fechaInicio || undefined}
-                    onChange={(e) => setFechaCierre(e.target.value)}
-                  />
-                </div>
-
-                {/* Indicador de duración */}
-                {duracionDias !== null && (
-                  <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2">
-                    <span className="text-xs font-medium text-blue-700">
-                      {duracionDias === 0 ? 'Mismo día' : `${duracionDias} día${duracionDias !== 1 ? 's' : ''} de duración`}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* ── 04 HITOS ── */}
-            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-              <SectionHeader
-                n="04"
-                title="Hitos"
-                subtitle={hitos.length > 0 ? `${hitos.length} hito${hitos.length !== 1 ? 's' : ''} definido${hitos.length !== 1 ? 's' : ''}` : 'Entregables clave. Opcional.'}
-                action={
-                  <button
-                    type="button"
-                    onClick={addHito}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-blue-700"
-                  >
-                    <PlusIcon className="h-3.5 w-3.5" />
-                    Añadir
-                  </button>
-                }
-              />
-
-              {hitos.length === 0 ? (
-                /* Estado vacío */
-                <div className="rounded-xl border-2 border-dashed border-gray-100 py-8 text-center">
-                  <p className="text-2xl leading-none mb-2">🏁</p>
-                  <p className="text-xs text-gray-400">No hay hitos definidos aún.</p>
-                  <p className="text-[11px] text-gray-300 mt-1">Haz clic en "Añadir" para empezar.</p>
-                </div>
-              ) : (
-                <div>
-                  {/* Toggle ocultar/mostrar cuando hay muchos */}
-                  {hitos.length > 1 && (
-                    <div className="mb-3 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setHitosOpen((p) => !p)}
-                        className="text-[11px] font-medium text-gray-400 underline decoration-gray-300 underline-offset-2 transition hover:text-gray-600"
-                      >
-                        {hitosOpen ? 'Ocultar lista' : 'Mostrar lista'}
-                      </button>
-                    </div>
-                  )}
-
-                  {hitosOpen && (
-                    /* Timeline de hitos */
-                    <div className="relative space-y-0">
-                      {/* Línea vertical del timeline */}
-                      {hitos.length > 1 && (
-                        <div className="absolute left-[7px] top-5 bottom-5 w-px bg-gray-100" />
-                      )}
-
-                      {hitos.map((h, i) => {
-                        const estado = getEstadoHito(h);
-                        return (
-                          <div key={h._tmpId} className="relative pl-6 pb-4 last:pb-0">
-                            <HitoDot estado={estado} />
-
-                            {/* Tarjeta del hito */}
-                            <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
-                              {/* Header del hito */}
-                              <div className="mb-2.5 flex items-center justify-between gap-2">
-                                <span className="text-[11px] font-semibold text-gray-400 tabular-nums">
-                                  #{i + 1}
-                                </span>
-                                <EstadoBadge estado={estado} />
-                              </div>
-
-                              {/* Nombre */}
-                              <input
-                                type="text"
-                                className={`${inputCls} mb-2 text-xs`}
-                                placeholder="Nombre del hito *"
-                                value={h.nombre}
-                                onChange={(e) => updateHito(h._tmpId, { nombre: e.target.value })}
-                              />
-
-                              {/* Descripción */}
-                              <textarea
-                                className={`${inputCls} mb-2 min-h-12 resize-none text-xs leading-relaxed`}
-                                placeholder="Descripción (opcional)"
-                                value={h.descripcion}
-                                onChange={(e) => updateHito(h._tmpId, { descripcion: e.target.value })}
-                              />
-
-                              {/* Fechas */}
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <label className="mb-1 block text-[10px] font-medium text-gray-500">
-                                    Objetivo
-                                  </label>
-                                  <input
-                                    type="date"
-                                    className={`${inputCls} text-xs`}
-                                    value={h.target_date}
-                                    onChange={(e) => updateHito(h._tmpId, { target_date: e.target.value })}
-                                  />
-                                </div>
-
-                                <div>
-                                  <label className="mb-1 block text-[10px] font-medium text-gray-500">
-                                    Realizado
-                                  </label>
-                                  <div className="flex gap-1">
-                                    <input
-                                      type="date"
-                                      className={`${inputCls} min-w-0 flex-1 text-xs`}
-                                      value={h.fecha_realizacion}
-                                      onChange={(e) => updateHito(h._tmpId, { fecha_realizacion: e.target.value })}
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => markHitoDoneToday(h._tmpId)}
-                                      title="Marcar como realizado hoy"
-                                      className="flex-shrink-0 rounded-lg border border-gray-200 bg-white px-2 text-xs font-semibold text-gray-500 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
-                                    >
-                                      ✓
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Eliminar */}
-                              <div className="mt-2.5 flex justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => removeHito(h._tmpId)}
-                                  className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 transition hover:text-red-500"
-                                >
-                                  <TrashIcon className="h-3 w-3" />
-                                  Eliminar
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-          </div>
-        </div>
       </form>
+
+      {/* ══════════════════════════════════════════════════
+          MODAL DE CONFIRMACIÓN (solo creación)
+      ══════════════════════════════════════════════════ */}
+      <Dialog
+        open={confirmOpen}
+        onClose={() => !saving && setConfirmOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{
+          pb: 1.5,
+          backgroundImage: (t) => `linear-gradient(135deg, rgba(37,99,235,0.10) 0%, rgba(37,99,235,0.03) 65%, #fff 100%)`,
+          borderBottom: '1px solid rgba(37,99,235,0.08)',
+        }}>
+          <Typography variant="overline" color="primary" sx={{ letterSpacing: 1.4, display: 'block' }}>
+            G_PROJ / Nuevo proyecto
+          </Typography>
+          <Typography variant="h6" fontWeight={700} color="text.primary">
+            Confirmar creación
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            Revisa los datos antes de continuar.
+          </Typography>
+        </DialogTitle>
+
+        <DialogContent sx={{ py: 3 }}>
+          <Stack spacing={1.5}>
+            {[
+              ['Nombre', nombre],
+              ['Sitio', selectedSitio?.nombre || '—'],
+              ['Cliente', selectedSitio ? (selectedSitio.cliente_nombre || 'Sin cliente') : '—'],
+              ['Responsable', responsableSeleccionado ? getNombreUsuario(responsableSeleccionado) : '—'],
+              fechaInicio ? ['Fecha inicio', fechaInicio] : null,
+              fechaCierre ? ['Fecha cierre', fechaCierre] : null,
+              fmtMonto(totalFacturado, totalFacturadoMoneda) ? ['Total facturado', fmtMonto(totalFacturado, totalFacturadoMoneda)] : null,
+              fmtMonto(costoTotal, costoTotalMoneda) ? ['Costo total', fmtMonto(costoTotal, costoTotalMoneda)] : null,
+              fmtMonto(margenEstimado, margenMoneda) ? ['Margen estimado', fmtMonto(margenEstimado, margenMoneda)] : null,
+              hitos.length > 0 ? ['Hitos', `${hitos.length} hito${hitos.length !== 1 ? 's' : ''}`] : null,
+            ].filter(Boolean).map(([label, value]) => (
+              <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ minWidth: 110, flexShrink: 0 }}>
+                  {label}
+                </Typography>
+                <Typography variant="body2" fontWeight={500} sx={{ textAlign: 'right' }}>
+                  {value}
+                </Typography>
+              </Box>
+            ))}
+          </Stack>
+
+          <Box sx={{ mt: 3, p: 2, bgcolor: 'rgba(37,99,235,0.05)', borderRadius: 2, border: '1px solid rgba(37,99,235,0.15)' }}>
+            <Typography variant="body2" color="primary.main" fontWeight={500}>
+              Al confirmar: se creará el proyecto, se descargará el PDF y se enviará una notificación por correo electrónico.
+            </Typography>
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+          <Button
+            onClick={() => setConfirmOpen(false)}
+            color="inherit"
+            disabled={saving}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => { setConfirmOpen(false); doSubmit(); }}
+            variant="contained"
+            disabled={saving}
+            sx={{ px: 3 }}
+          >
+            {saving ? 'Creando…' : 'Confirmar y crear'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 }
