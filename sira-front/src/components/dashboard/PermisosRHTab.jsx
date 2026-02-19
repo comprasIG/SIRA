@@ -68,7 +68,7 @@ export default function PermisosRHTab() {
                     animation: `${shimmer} 3s linear infinite`,
                 }}
             >
-                Permisos RH
+                Permisos y Vacaciones RH
             </Typography>
 
             <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
