@@ -158,6 +158,9 @@ app.use('/api/ui-preferencias', uiPreferenciasRoutes);
 const ocDirectaRoutes = require('./routes/oc-directa.routes');
 app.use('/api/oc-directa', ocDirectaRoutes);
 
+//rutas de vacaciones
+const vacacionesRoutes = require('./routes/vacaciones/vacaciones.routes');
+app.use('/api/vacaciones', vacacionesRoutes);
 
 
 // Ruta base de prueba
