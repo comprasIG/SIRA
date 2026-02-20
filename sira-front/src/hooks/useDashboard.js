@@ -26,6 +26,7 @@ const DEFAULT_FILTERS = {
   departamento_id: '',   // Todos (solo para Compras)
   sitio: '',             // Todos
   proyecto: '',          // Todos
+  search: '',            // Búsqueda de texto libre
 };
 
 function uniqSorted(arr) {
@@ -80,6 +81,26 @@ function filterRfqs(rfqs, filters, excludeKey = null) {
       out = out.filter((r) => (r.ordenes || []).some((oc) => isActiveStatus(oc.oc_status)));
     } else if (want) {
       out = out.filter((r) => (r.ordenes || []).some((oc) => oc.oc_status === want));
+    }
+  }
+
+  // Búsqueda de texto libre: rfq_code, sitio, proyecto, usuario_creador,
+  // departamento_nombre, numero_oc, proveedor_nombre
+  if (excludeKey !== 'search' && filters.search) {
+    const q = filters.search.toLowerCase().trim();
+    if (q) {
+      out = out.filter((r) => {
+        const campos = [
+          r.rfq_code,
+          r.sitio,
+          r.proyecto,
+          r.usuario_creador,
+          r.departamento_nombre,
+          ...(r.ordenes || []).map((oc) => oc.numero_oc),
+          ...(r.ordenes || []).map((oc) => oc.proveedor_nombre),
+        ];
+        return campos.some((c) => c && String(c).toLowerCase().includes(q));
+      });
     }
   }
 

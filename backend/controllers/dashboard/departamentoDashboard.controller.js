@@ -46,6 +46,8 @@ const getDepartamentoDashboard = async (req, res) => {
           r.rfq_code,
           r.status as rfq_status,
           r.departamento_id,
+          d.nombre as departamento_nombre,
+          u.nombre as usuario_creador,
           s.nombre as sitio,
           s.id as sitio_id,
           p.nombre as proyecto,
@@ -53,6 +55,8 @@ const getDepartamentoDashboard = async (req, res) => {
         FROM requisiciones r
         JOIN sitios s ON r.sitio_id = s.id
         JOIN proyectos p ON r.proyecto_id = p.id
+        LEFT JOIN departamentos d ON r.departamento_id = d.id
+        LEFT JOIN usuarios u ON r.usuario_id = u.id
         WHERE r.rfq_code IS NOT NULL
           AND r.departamento_id = $1
       )
@@ -65,11 +69,15 @@ const getDepartamentoDashboard = async (req, res) => {
         rb.proyecto_id,
         rb.rfq_status,
         rb.departamento_id,
+        rb.departamento_nombre,
+        rb.usuario_creador,
         oc.id as oc_id,
         oc.numero_oc,
-        oc.status as oc_status
+        oc.status as oc_status,
+        prov.razon_social as proveedor_nombre
       FROM rfq_base rb
       LEFT JOIN ordenes_compra oc ON rb.rfq_id = oc.rfq_id
+      LEFT JOIN proveedores prov ON oc.proveedor_id = prov.id
       ORDER BY rb.rfq_id DESC;
     `;
 
@@ -86,6 +94,8 @@ const getDepartamentoDashboard = async (req, res) => {
           proyecto_id: row.proyecto_id,
           rfq_status: row.rfq_status,
           departamento_id: row.departamento_id,
+          departamento_nombre: row.departamento_nombre || null,
+          usuario_creador: row.usuario_creador || null,
           ordenes: [],
         };
       }
@@ -94,6 +104,7 @@ const getDepartamentoDashboard = async (req, res) => {
           id: row.oc_id,
           numero_oc: row.numero_oc,
           oc_status: row.oc_status,
+          proveedor_nombre: row.proveedor_nombre || null,
         });
       }
       return acc;

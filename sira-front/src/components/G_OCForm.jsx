@@ -9,7 +9,18 @@ import { toast } from 'react-toastify';
 import api from '../api/api';
 
 export default function G_OCForm() {
-  const { ocs, kpis, filters, options, loading, handleFilterChange, resetFilters, refresh } = useG_OC();
+  const {
+    ocs,
+    kpis,
+    activeKpi,
+    filters,
+    options,
+    loading,
+    handleFilterChange,
+    handleKpiClick,
+    resetFilters,
+    refresh
+  } = useG_OC();
 
   const {
     previewOpen,
@@ -93,7 +104,7 @@ export default function G_OCForm() {
       </Typography>
 
       {/* KPI Section */}
-      <KPISection kpis={kpis} />
+      <KPISection kpis={kpis} activeKpi={activeKpi} onKpiClick={handleKpiClick} />
 
       {/* Filters Section */}
       <FilterSection

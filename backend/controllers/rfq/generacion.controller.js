@@ -90,7 +90,8 @@ const getRfqDetalle = async (req, res) => {
       SELECT
         rd.*,
         cm.nombre AS material,
-        cm.sku   AS sku,
+        cm.sku    AS sku,
+        cu.simbolo AS unidad,
         EXISTS (
           SELECT 1
           FROM ordenes_compra_detalle ocd
@@ -98,6 +99,7 @@ const getRfqDetalle = async (req, res) => {
         ) AS oc_generada
       FROM requisiciones_detalle rd
       JOIN catalogo_materiales cm ON cm.id = rd.material_id
+      LEFT JOIN catalogo_unidades cu ON cu.id = cm.unidad_de_compra
       WHERE rd.requisicion_id = $1
       ORDER BY rd.rfq_sort_index ASC, rd.id ASC
       `,

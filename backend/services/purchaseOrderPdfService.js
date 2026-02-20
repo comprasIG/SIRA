@@ -155,58 +155,75 @@ function drawHeader(doc, oc) {
  * ==============================================================================================*/
 
 function drawInfoSection(doc, oc) {
-  const startY = SAFE_TOP_Y + 55;
+  const startY = SAFE_TOP_Y + 55; // = 110
 
-  // Bajamos un poco para no pelear con logo
-  const leftX = MARGIN_LEFT;
-  const leftY = startY + 6;
+  // Columnas con separación clara: izq termina en x=295, der empieza en x=315
+  const LEFT_X  = MARGIN_LEFT; // 50
+  const LEFT_W  = 245;
+  const RIGHT_X = MARGIN_LEFT + 265; // 315
+  const RIGHT_W = PAGE_WIDTH - MARGIN_RIGHT - RIGHT_X; // 247
 
-  const rightX = 300;
-
-  const proveedorNombre = getProveedorNombre(oc);
-  const rfqCode = String(oc?.rfq_code ?? '').trim();
-  const sitio = safeText(oc?.sitio_nombre);
-  const proyecto = String(oc?.proyecto_nombre ?? '').trim();
-
-  const usuarioNombre = safeText(oc?.usuario_nombre);
-  const usuarioCorreo = String(oc?.usuario_correo ?? '').trim();
-
-  // Lugar entrega: usar nombre si existe
+  const proveedorNombre    = getProveedorNombre(oc);
+  const rfqCode            = String(oc?.rfq_code ?? '').trim();
+  const sitio              = safeText(oc?.sitio_nombre);
+  const proyecto           = String(oc?.proyecto_nombre ?? '').trim();
+  const usuarioNombre      = safeText(oc?.usuario_nombre);
+  const usuarioCorreo      = String(oc?.usuario_correo ?? '').trim();
   const lugarEntregaNombre = String(oc?.lugar_entrega_nombre ?? '').trim();
-  const lugarEntregaRaw = String(oc?.lugar_entrega ?? '').trim();
-  const lugarEntrega = lugarEntregaNombre || lugarEntregaRaw;
+  const lugarEntregaRaw    = String(oc?.lugar_entrega ?? '').trim();
+  const lugarEntrega       = lugarEntregaNombre || lugarEntregaRaw;
 
   doc.save();
 
-  // Proveedor en 1 línea
-  doc.font('Helvetica-Bold').fontSize(11).fillColor('#111111');
-  doc.text('Proveedor: ', leftX, leftY, { continued: true });
-  doc.font('Helvetica').fontSize(10).fillColor('#111111');
-  doc.text(proveedorNombre);
+  // ── COLUMNA IZQUIERDA: Proveedor ──────────────────────────────────
+  let leftY = startY;
+
+  doc.font('Helvetica-Bold').fontSize(10).fillColor('#111111');
+  doc.text('Proveedor:', LEFT_X, leftY, { width: LEFT_W });
+  leftY += 13;
 
   doc.font('Helvetica').fontSize(10).fillColor('#111111');
-  doc.text(`RFC: ${safeText(oc?.proveedor_rfc)}`, leftX, leftY + 18, { width: 260 });
+  const provH = doc.heightOfString(proveedorNombre, { width: LEFT_W });
+  doc.text(proveedorNombre, LEFT_X, leftY, { width: LEFT_W });
+  leftY += provH + 5;
 
-  // Derecha
+  doc.text(`RFC: ${safeText(oc?.proveedor_rfc)}`, LEFT_X, leftY, { width: LEFT_W });
+  leftY += 14;
+
+  // ── COLUMNA DERECHA: Entrega ──────────────────────────────────────
+  let rightY = startY;
+
   doc.font('Helvetica-Bold').fontSize(11).fillColor('#111111');
-  doc.text('Entrega', rightX, startY);
+  doc.text('Entrega', RIGHT_X, rightY, { width: RIGHT_W });
+  rightY += 16;
 
   doc.font('Helvetica').fontSize(10).fillColor('#111111');
 
   const sitioProyecto = proyecto ? `${sitio} - ${proyecto}` : sitio;
-  doc.text(`Sitio: ${sitioProyecto}`, rightX, startY + 14, { width: 260 });
+  const sitioH = doc.heightOfString(`Sitio: ${sitioProyecto}`, { width: RIGHT_W });
+  doc.text(`Sitio: ${sitioProyecto}`, RIGHT_X, rightY, { width: RIGHT_W });
+  rightY += sitioH + 4;
 
-  if (rfqCode) doc.text(`RFQ: ${rfqCode}`, rightX, startY + 28, { width: 260 });
+  if (rfqCode) {
+    doc.text(`RFQ: ${rfqCode}`, RIGHT_X, rightY, { width: RIGHT_W });
+    rightY += 14;
+  }
 
-  // Generado por (2 renglones fijos)
-  doc.text(`Generado por: ${usuarioNombre}`, rightX, startY + 42, { width: 260 });
-  if (usuarioCorreo) doc.text(`Correo: ${usuarioCorreo}`, rightX, startY + 56, { width: 260 });
+  doc.text(`Generado por: ${usuarioNombre}`, RIGHT_X, rightY, { width: RIGHT_W });
+  rightY += 14;
 
-  // Lugar de entrega
-  if (lugarEntrega) doc.text(`Lugar de entrega: ${lugarEntrega}`, rightX, startY + 70, { width: 260 });
+  if (usuarioCorreo) {
+    doc.text(`Correo: ${usuarioCorreo}`, RIGHT_X, rightY, { width: RIGHT_W });
+    rightY += 14;
+  }
 
-  // Línea separadora
-  const lineY = startY + 98;
+  if (lugarEntrega) {
+    doc.text(`Lugar de entrega: ${lugarEntrega}`, RIGHT_X, rightY, { width: RIGHT_W });
+    rightY += 14;
+  }
+
+  // ── LÍNEA SEPARADORA (debajo de la columna más alta) ──────────────
+  const lineY = Math.max(leftY, rightY) + 8;
   doc.lineWidth(1).strokeColor('#333333');
   doc.moveTo(MARGIN_LEFT, lineY).lineTo(PAGE_WIDTH - MARGIN_RIGHT, lineY).stroke();
 

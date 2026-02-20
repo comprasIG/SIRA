@@ -2,6 +2,7 @@
 const path = require("path");
 const pool = require("../../db/pool");
 const { sendEmailWithAttachments } = require("../../services/emailService");
+const { pushNotification } = require("../../services/notificationStore");
 const { uploadOcPaymentReceipt, getOcFolderWebLink } = require("../../services/googleDrive");
 
 /** Correos por grupo (usa client o pool indistintamente) */
@@ -267,6 +268,16 @@ const registrarPago = async (req, res) => {
           const attachments = [{ filename: path.basename(fileName), content: archivo.buffer }];
           await sendEmailWithAttachments(recipients, subject, htmlBody, attachments);
         }
+        const esSpei = metodo_pago === "SPEI" && ocBefore.status === "CONFIRMAR_SPEI";
+        pushNotification({
+          tipo: esSpei ? 'SPEI' : 'PAGO',
+          titulo: esSpei
+            ? `Comprobante SPEI registrado — OC ${numero_oc}`
+            : `Pago registrado (${tipoCanonico}) — OC ${numero_oc}`,
+          cuerpo: `${proveedor_nombre} · $${Number(montoAplicar).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
+          numero_oc,
+          proveedor: proveedor_nombre,
+        });
       } catch (emailErr) {
         console.error("Error al enviar email de pago:", emailErr);
         // No fallamos el request, solo logueamos
