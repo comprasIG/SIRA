@@ -7,6 +7,7 @@ const router = express.Router();
 const verifyFirebaseToken = require("../middleware/verifyFirebaseToken");
 const loadSiraUser = require("../middleware/loadSiraUser");
 const dashboardController = require("../controllers/dashboard.controller");
+
 // Importar el controlador específico para obtener detalles de OC
 const ordenCompraDashboardController = require("../controllers/dashboard/ordenCompraDashboard.controller");
 // Controlador de proyectos para el tab de Proyectos en dashboards
@@ -33,5 +34,9 @@ router.patch("/requisicion/:id/status", dashboardController.updateRequisicionSta
 router.get("/proyectos", getProyectosDashboard);
 router.get("/proyectos/:id/detalle", getProyectoDetalle);
 router.patch("/proyectos/:id/status", updateProyectoStatus);
+
+// Analytics para modal TV (solo SSD)
+router.get("/analytics", dashboardController.getAnalyticsDashboard);
+router.get("/notificaciones", dashboardController.getNotificaciones);
 
 module.exports = router;

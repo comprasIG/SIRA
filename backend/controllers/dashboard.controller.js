@@ -1,4 +1,5 @@
 const pool = require('../db/pool');
+const { getRecent: getRecentNotifications } = require('../services/notificationStore');
 
 /* =========================================================================
    UTILIDADES: ENUMS DINÁMICOS DE POSTGRESQL
@@ -103,10 +104,14 @@ const getComprasDashboard = async (req, res) => {
           p.nombre as proyecto,
           p.id as proyecto_id,
           r.status as rfq_status,
-          r.departamento_id
+          r.departamento_id,
+          d.nombre as departamento_nombre,
+          u.nombre as usuario_creador
         FROM requisiciones r
         JOIN sitios s ON r.sitio_id = s.id
         JOIN proyectos p ON r.proyecto_id = p.id
+        LEFT JOIN departamentos d ON r.departamento_id = d.id
+        LEFT JOIN usuarios u ON r.usuario_id = u.id
         WHERE r.rfq_code IS NOT NULL
       )
       SELECT
@@ -117,11 +122,16 @@ const getComprasDashboard = async (req, res) => {
         rb.proyecto,
         rb.proyecto_id,
         rb.rfq_status,
+        rb.departamento_id,
+        rb.departamento_nombre,
+        rb.usuario_creador,
         oc.id as oc_id,
         oc.numero_oc,
-        oc.status as oc_status
+        oc.status as oc_status,
+        prov.razon_social as proveedor_nombre
       FROM rfq_base rb
       LEFT JOIN ordenes_compra oc ON rb.rfq_id = oc.rfq_id
+      LEFT JOIN proveedores prov ON oc.proveedor_id = prov.id
     `;
 
     const conditions = [];
@@ -181,6 +191,9 @@ const getComprasDashboard = async (req, res) => {
           proyecto: row.proyecto,
           proyecto_id: row.proyecto_id,
           rfq_status: row.rfq_status,
+          departamento_id: row.departamento_id,
+          departamento_nombre: row.departamento_nombre || null,
+          usuario_creador: row.usuario_creador || null,
           ordenes: []
         };
       }
@@ -188,7 +201,8 @@ const getComprasDashboard = async (req, res) => {
         acc[row.rfq_id].ordenes.push({
           id: row.oc_id,
           numero_oc: row.numero_oc,
-          oc_status: row.oc_status
+          oc_status: row.oc_status,
+          proveedor_nombre: row.proveedor_nombre || null,
         });
       }
       return acc;
@@ -236,9 +250,113 @@ const updateRequisicionStatus = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/dashboard/analytics
+ * KPIs globales para el modal de TV del dashboard SSD.
+ */
+const getAnalyticsDashboard = async (req, res) => {
+  try {
+    // 1) RFQ activas
+    const rfqQ = await pool.query(`
+      SELECT COUNT(*)::int AS rfq_activas
+      FROM requisiciones
+      WHERE rfq_code IS NOT NULL
+        AND status NOT IN ('ENTREGADA', 'CANCELADA')
+    `);
+
+    // 2) OC por status relevante
+    const ocQ = await pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'POR_AUTORIZAR')::int  AS oc_por_autorizar,
+        COUNT(*) FILTER (WHERE status = 'CONFIRMAR_SPEI')::int AS oc_confirmar_spei,
+        COUNT(*) FILTER (WHERE status = 'APROBADA')::int       AS oc_por_recolectar,
+        COUNT(*) FILTER (WHERE status = 'EN_PROCESO')::int     AS oc_en_proceso
+      FROM ordenes_compra
+      WHERE status NOT IN ('CANCELADA', 'RECHAZADA')
+    `);
+
+    // 3) Tiempo promedio en días (creación → actualización de OCs fuera del estado inicial)
+    let dias_promedio_oc = null;
+    try {
+      const tpQ = await pool.query(`
+        SELECT ROUND(AVG(EXTRACT(EPOCH FROM (actualizado_en - fecha_creacion)) / 86400.0))::int AS dias
+        FROM ordenes_compra
+        WHERE status NOT IN ('POR_AUTORIZAR', 'CANCELADA', 'RECHAZADA', 'CONFIRMAR_SPEI')
+          AND fecha_creacion IS NOT NULL
+          AND actualizado_en IS NOT NULL
+          AND actualizado_en > fecha_creacion
+      `);
+      dias_promedio_oc = tpQ.rows[0]?.dias ?? null;
+    } catch (_) {
+      // creado_en may not exist on this DB; graceful fallback
+    }
+
+    // 4) Proyectos EN_EJECUCION con gasto por moneda
+    const proyectosQ = await pool.query(`
+      SELECT
+        p.id,
+        p.nombre,
+        p.status,
+        s.nombre AS sitio_nombre,
+        u.nombre AS responsable_nombre
+      FROM proyectos p
+      LEFT JOIN sitios s ON p.sitio_id = s.id
+      LEFT JOIN usuarios u ON p.responsable_id = u.id
+      WHERE p.activo = true
+        AND p.status = 'EN_EJECUCION'
+        AND (s.nombre IS NULL OR UPPER(TRIM(s.nombre)) <> 'UNIDADES')
+      ORDER BY p.nombre ASC
+    `);
+
+    const gastoQ = await pool.query(`
+      SELECT
+        oc.proyecto_id,
+        ocd.moneda,
+        SUM(ocd.cantidad * ocd.precio_unitario)::numeric AS total
+      FROM ordenes_compra oc
+      JOIN ordenes_compra_detalle ocd ON ocd.orden_compra_id = oc.id
+      WHERE oc.status NOT IN ('RECHAZADA', 'CANCELADA')
+        AND oc.proyecto_id IS NOT NULL
+      GROUP BY oc.proyecto_id, ocd.moneda
+    `);
+
+    const gastoMap = {};
+    gastoQ.rows.forEach(({ proyecto_id, moneda, total }) => {
+      if (!gastoMap[proyecto_id]) gastoMap[proyecto_id] = [];
+      gastoMap[proyecto_id].push({ moneda, total: Number(total) });
+    });
+
+    const proyectos = proyectosQ.rows.map((p) => ({
+      ...p,
+      gasto_por_moneda: gastoMap[p.id] || [],
+    }));
+
+    res.json({
+      rfq_activas: rfqQ.rows[0]?.rfq_activas ?? 0,
+      ...ocQ.rows[0],
+      dias_promedio_oc,
+      proyectos,
+      generado_en: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[getAnalyticsDashboard]', error);
+    res.status(500).json({ error: 'Error al generar analytics.' });
+  }
+};
+
+/**
+ * GET /api/dashboard/notificaciones
+ * Devuelve las notificaciones del store en memoria (últimos 3 min).
+ */
+const getNotificaciones = (_req, res) => {
+  res.json(getRecentNotifications());
+};
+
 module.exports = {
   getComprasDashboard,
   getDepartamentosConRfq,
   getStatusOptions,
   updateRequisicionStatus,
+  getAnalyticsDashboard,
+  getNotificaciones,
 };
