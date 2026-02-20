@@ -12,6 +12,7 @@ import dashboardConfig from './dashboardConfig';
 import { useDashboard } from '../../hooks/useDashboard';
 import ProyectosTab from './ProyectosTab';
 import PermisosRHTab from './PermisosRHTab';
+import HitosTab from './HitosTab';
 import AnalyticsModal from './AnalyticsModal';
 
 /* ── Instagram-style gradient spin animation ── */
@@ -103,7 +104,17 @@ export default function DashboardBase({ mode }) {
   const [activeTab, setActiveTab] = useState(0);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const showProyectos = config.showProyectosTab !== false;
+  const showHitos = config.showHitosTab !== false && showProyectos;
   const isSSD = mode === 'SSD';
+
+  // Tab index mapping when hitos tab is visible:
+  //   0 = TO DO, 1 = Requisiciones, 2 = Proyectos, 3 = Permisos RH
+  // When hitos tab is hidden (showHitos=false, showProyectos=true):
+  //   0 = Requisiciones, 1 = Proyectos, 2 = Permisos RH
+  // When showProyectos=false: no tabs, only Requisiciones
+  const tabRequisiciones = showHitos ? 1 : 0;
+  const tabProyectos     = showHitos ? 2 : 1;
+  const tabPermisos      = showHitos ? 3 : 2;
 
   const {
     loading,
@@ -163,7 +174,7 @@ export default function DashboardBase({ mode }) {
         <AnalyticsModal open={analyticsOpen} onClose={() => setAnalyticsOpen(false)} />
       )}
 
-      {/* ── Tabs with animated gradient border (solo si Proyectos habilitado) ── */}
+      {/* ── Tabs (solo si Proyectos habilitado) ── */}
       {showProyectos && (
         <Paper
           sx={{
@@ -184,6 +195,14 @@ export default function DashboardBase({ mode }) {
               '& .MuiTabs-flexContainer': { gap: 0.5 },
             }}
           >
+            {showHitos && (
+              <Tab
+                icon={<AssignmentIcon />}
+                iconPosition="start"
+                label="TO DO"
+                sx={tabSx}
+              />
+            )}
             <Tab icon={<AssignmentIcon />} iconPosition="start" label="Requisiciones" sx={tabSx} />
             <Tab icon={<AccountTreeIcon />} iconPosition="start" label="Proyectos" sx={tabSx} />
             <Tab icon={<BadgeIcon />} iconPosition="start" label="Permisos RH" sx={tabSx} />
@@ -191,8 +210,11 @@ export default function DashboardBase({ mode }) {
         </Paper>
       )}
 
-      {/* ─── Tab 0 / Único contenido: Requisiciones ─── */}
-      {(activeTab === 0 || !showProyectos) && (
+      {/* ─── Tab TO DO: Hitos (primer tab por default) ─── */}
+      {showHitos && activeTab === 0 && <HitosTab />}
+
+      {/* ─── Tab Requisiciones ─── */}
+      {(activeTab === tabRequisiciones || !showProyectos) && (
         <>
           <Paper sx={paperSx}>
             <KpiRow kpiData={kpis} />
@@ -227,11 +249,11 @@ export default function DashboardBase({ mode }) {
         </>
       )}
 
-      {/* ─── Tab 1: Proyectos (solo si habilitado) ─── */}
-      {showProyectos && activeTab === 1 && <ProyectosTab mode={mode} />}
+      {/* ─── Tab Proyectos ─── */}
+      {showProyectos && activeTab === tabProyectos && <ProyectosTab mode={mode} />}
 
-      {/* ─── Tab 2: Permisos RH (solo si habilitado) ─── */}
-      {showProyectos && activeTab === 2 && <PermisosRHTab />}
+      {/* ─── Tab Permisos RH ─── */}
+      {showProyectos && activeTab === tabPermisos && <PermisosRHTab />}
     </Box>
   );
 }

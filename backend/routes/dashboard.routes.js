@@ -12,6 +12,8 @@ const dashboardController = require("../controllers/dashboard.controller");
 const ordenCompraDashboardController = require("../controllers/dashboard/ordenCompraDashboard.controller");
 // Controlador de proyectos para el tab de Proyectos en dashboards
 const { getProyectosDashboard, updateProyectoStatus, getProyectoDetalle } = require("../controllers/dashboard/proyectosDashboard.controller");
+// Controlador de hitos (KPI TO DO)
+const { getHitosDashboard, marcarHitoRealizado, marcarHitoPendiente } = require("../controllers/dashboard/hitosDashboard.controller");
 
 router.use(verifyFirebaseToken, loadSiraUser);
 
@@ -34,6 +36,11 @@ router.patch("/requisicion/:id/status", dashboardController.updateRequisicionSta
 router.get("/proyectos", getProyectosDashboard);
 router.get("/proyectos/:id/detalle", getProyectoDetalle);
 router.patch("/proyectos/:id/status", updateProyectoStatus);
+
+// KPI TO DO: Hitos con responsable asignado
+router.get("/hitos", getHitosDashboard);
+router.patch("/hitos/:id/realizado", marcarHitoRealizado);
+router.patch("/hitos/:id/pendiente", marcarHitoPendiente);
 
 // Analytics para modal TV (solo SSD)
 router.get("/analytics", dashboardController.getAnalyticsDashboard);

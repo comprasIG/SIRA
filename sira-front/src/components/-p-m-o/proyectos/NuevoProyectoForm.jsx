@@ -284,12 +284,19 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
             if (u) { setBusquedaResponsable(getNombreUsuario(u)); setResponsableSeleccionado(u); }
           }
           if (Array.isArray(iv.hitos)) {
-            setHitos(iv.hitos.map((h) => ({
-              ...h,
-              _tmpId: makeTmpId(),
-              target_date: h.target_date ? h.target_date.split('T')[0] : '',
-              fecha_realizacion: h.fecha_realizacion ? h.fecha_realizacion.split('T')[0] : '',
-            })));
+            setHitos(iv.hitos.map((h) => {
+              const respUser = h.responsable_id
+                ? satUsuarios.find((u) => String(u.id) === String(h.responsable_id))
+                : null;
+              return {
+                ...h,
+                _tmpId: makeTmpId(),
+                target_date: h.target_date ? h.target_date.split('T')[0] : '',
+                fecha_realizacion: h.fecha_realizacion ? h.fecha_realizacion.split('T')[0] : '',
+                responsable_id: h.responsable_id || '',
+                _responsableNombre: respUser ? getNombreUsuario(respUser) : '',
+              };
+            }));
           }
         } else {
           setTotalFacturadoMoneda((p) => p || fallback);
@@ -377,7 +384,7 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
   };
 
   const addHito = () => {
-    setHitos((p) => [...p, { _tmpId: makeTmpId(), nombre: '', descripcion: '', target_date: '', fecha_realizacion: '' }]);
+    setHitos((p) => [...p, { _tmpId: makeTmpId(), nombre: '', descripcion: '', target_date: '', fecha_realizacion: '', responsable_id: '', _responsableNombre: '' }]);
     setHitosOpen(true);
   };
   const removeHito = (id) => setHitos((p) => p.filter((h) => h._tmpId !== id));
@@ -431,8 +438,8 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
       setError('El margen estimado debe ser un número válido.'); setStep(1); return;
     }
     const hitosPayload = (hitos || [])
-      .map((h) => ({ id: h.id || undefined, nombre: (h.nombre || '').trim(), descripcion: (h.descripcion || '').trim() || null, target_date: h.target_date || null, fecha_realizacion: h.fecha_realizacion || null }))
-      .filter((h) => Object.values(h).some(Boolean));
+      .map((h) => ({ id: h.id || undefined, nombre: (h.nombre || '').trim(), descripcion: (h.descripcion || '').trim() || null, target_date: h.target_date || null, fecha_realizacion: h.fecha_realizacion || null, responsable_id: h.responsable_id ? Number(h.responsable_id) : null }))
+      .filter((h) => h.nombre || h.descripcion || h.target_date || h.fecha_realizacion);
 
     const payload = {
       responsable_id: Number(responsableId), sitio_id: Number(sitioId),
@@ -565,6 +572,95 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
     const map = { REALIZADO: 'bg-emerald-500', VENCIDO: 'bg-red-400', PENDIENTE: 'bg-amber-400' };
     return (
       <span className={`absolute left-[3px] top-[18px] h-2.5 w-2.5 rounded-full ring-2 ring-white ${map[estado] ?? map.PENDIENTE}`} />
+    );
+  }
+
+  /* ── Selector de responsable para un hito individual ── */
+  function HitoResponsableSelector({ hito, usuarios, getNombreUsuario, getDepartamentoUsuario, onSelect, onClear, inputCls }) {
+    const [busqueda, setBusqueda] = React.useState(hito._responsableNombre || '');
+    const [showLista, setShowLista] = React.useState(false);
+
+    // Sync búsqueda cuando el hito cambia desde fuera
+    React.useEffect(() => {
+      setBusqueda(hito._responsableNombre || '');
+    }, [hito._responsableNombre]);
+
+    const filtrados = React.useMemo(() => {
+      const term = busqueda.trim().toLowerCase();
+      if (!term) return usuarios.slice(0, 30);
+      const tokens = term.split(/\s+/).filter(Boolean);
+      return usuarios.filter((u) => {
+        const h = `${getNombreUsuario(u)} ${getDepartamentoUsuario(u)}`.toLowerCase();
+        return tokens.every((t) => h.includes(t));
+      });
+    }, [usuarios, busqueda]);
+
+    const handleSelect = (u) => {
+      setBusqueda(getNombreUsuario(u));
+      setShowLista(false);
+      onSelect(u);
+    };
+
+    const handleClear = () => {
+      setBusqueda('');
+      onClear();
+    };
+
+    return (
+      <div className="relative mb-2">
+        <label className="mb-1 block text-[10px] font-medium text-gray-500">Responsable del hito</label>
+        <div className="flex gap-1">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              className={`${inputCls} pr-6 text-xs`}
+              placeholder="Busca usuario…"
+              value={busqueda}
+              onChange={(e) => { setBusqueda(e.target.value); if (!e.target.value) onClear(); }}
+              onFocus={() => setShowLista(true)}
+              onBlur={() => setTimeout(() => setShowLista(false), 180)}
+              autoComplete="off"
+            />
+            {hito.responsable_id && (
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); handleClear(); }}
+                className="absolute inset-y-0 right-1 flex items-center text-gray-300 hover:text-red-400"
+                title="Quitar responsable"
+              >
+                <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {showLista && (
+          <div className="absolute left-0 right-0 top-full z-40 mt-0.5 max-h-44 overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-xl ring-1 ring-black/5">
+            {filtrados.length === 0 ? (
+              <div className="px-3 py-4 text-center text-xs text-gray-400">Sin resultados</div>
+            ) : (
+              filtrados.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); handleSelect(u); }}
+                  className={`flex w-full items-center gap-2.5 border-b border-gray-50 px-3 py-2 text-left last:border-0 transition hover:bg-blue-50/60 ${String(hito.responsable_id) === String(u.id) ? 'bg-blue-50' : ''}`}
+                >
+                  <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
+                    {(getNombreUsuario(u) || '?')[0].toUpperCase()}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-[11px] font-semibold text-gray-800">{getNombreUsuario(u)}</p>
+                    <p className="truncate text-[10px] text-gray-400">{getDepartamentoUsuario(u) || '—'}</p>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
     );
   }
 
@@ -1063,7 +1159,18 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
                               onChange={(e) => updateHito(h._tmpId, { descripcion: e.target.value })}
                             />
 
-                            <div className="grid grid-cols-2 gap-2">
+                            {/* Responsable del hito */}
+                            <HitoResponsableSelector
+                              hito={h}
+                              usuarios={usuarios}
+                              getNombreUsuario={getNombreUsuario}
+                              getDepartamentoUsuario={getDepartamentoUsuario}
+                              onSelect={(u) => updateHito(h._tmpId, { responsable_id: String(u.id), _responsableNombre: getNombreUsuario(u) })}
+                              onClear={() => updateHito(h._tmpId, { responsable_id: '', _responsableNombre: '' })}
+                              inputCls={inputCls}
+                            />
+
+                            <div className="grid grid-cols-2 gap-2 mt-2">
                               <div>
                                 <label className="mb-1 block text-[10px] font-medium text-gray-500">Objetivo</label>
                                 <input
