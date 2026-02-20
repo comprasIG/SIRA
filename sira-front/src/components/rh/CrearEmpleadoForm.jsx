@@ -3,13 +3,13 @@ import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
 
 // Configuración de URL (ajustar según tu entorno)
-const API_BASE_URL = import.meta.env.VITE_API_URL; // Esta es la URL base del backend
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado }) {
-  // Estado inicial del formulario
+  // Estado inicial del formulario actualizado
   const [formData, setFormData] = useState({
     num_empl: '',
-    empleado: '', // Nombre completo
+    empleado: '',
     fecha_ingreso: '',
     rfc: '',
     nss: '',
@@ -18,17 +18,33 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
     fecha_nacimiento: '',
     empresa: '',
     puesto: '',
-    departamento: '',
-    status_laboral: 'Activo' // Valor por defecto
+    departamento_id: '', // <-- Cambiado de 'departamento' a 'departamento_id'
+    status_laboral: 'Activo'
   });
 
+  const [listaDeptos, setListaDeptos] = useState([]); // <-- Nuevo estado para guardar los departamentos
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // --- NUEVO EFECTO: Cargar Departamentos ---
+  useEffect(() => {
+    const fetchDepartamentos = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/empleados/departamentos`); // <-- URL actualizada
+        if (response.ok) {
+          const data = await response.json();
+          setListaDeptos(data);
+        }
+      } catch (err) {
+        console.error("Error al cargar departamentos:", err);
+      }
+    };
+    fetchDepartamentos();
+  }, []);
 
   // Efecto para rellenar datos si estamos editando
   useEffect(() => {
     if (empleadoAEditar) {
-      // Formateamos las fechas para que el input type="date" las entienda (YYYY-MM-DD)
       const formatearParaInput = (fecha) => {
         if (!fecha) return '';
         return new Date(fecha).toISOString().split('T')[0];
@@ -38,6 +54,8 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
         ...empleadoAEditar,
         fecha_ingreso: formatearParaInput(empleadoAEditar.fecha_ingreso),
         fecha_nacimiento: formatearParaInput(empleadoAEditar.fecha_nacimiento),
+        // Aseguramos que tome el ID si viene en el objeto de edición
+        departamento_id: empleadoAEditar.departamento_id || '' 
       });
     }
   }, [empleadoAEditar]);
@@ -67,16 +85,16 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData)
+        // formData ahora contiene 'departamento_id'
+        body: JSON.stringify(formData) 
       });
 
       if (!response.ok) {
         throw new Error('Error al guardar la información');
       }
 
-      // Si todo sale bien
-      onGuardado(); // Avisamos al padre para que recargue la tabla
-      onClose();    // Cerramos el modal
+      onGuardado();
+      onClose();
 
     } catch (err) {
       console.error(err);
@@ -119,11 +137,7 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
             <div className="md:col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">No. Empleado</label>
               <input 
-                type="text" 
-                name="num_empl"
-                value={formData.num_empl}
-                onChange={handleChange}
-                required
+                type="text" name="num_empl" value={formData.num_empl} onChange={handleChange} required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                 placeholder="Ej: 10045"
               />
@@ -132,11 +146,7 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
               <input 
-                type="text" 
-                name="empleado"
-                value={formData.empleado}
-                onChange={handleChange}
-                required
+                type="text" name="empleado" value={formData.empleado} onChange={handleChange} required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                 placeholder="Ej: Juan Pérez"
               />
@@ -145,10 +155,7 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Nacimiento</label>
               <input 
-                type="date" 
-                name="fecha_nacimiento"
-                value={formData.fecha_nacimiento}
-                onChange={handleChange}
+                type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento} onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
               />
             </div>
@@ -156,9 +163,7 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Género</label>
               <select 
-                name="genero" 
-                value={formData.genero} 
-                onChange={handleChange}
+                name="genero" value={formData.genero} onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
               >
                 <option value="">Seleccione</option>
@@ -176,36 +181,25 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">RFC</label>
               <input 
-                type="text" 
-                name="rfc"
-                value={formData.rfc}
-                onChange={handleChange}
+                type="text" name="rfc" value={formData.rfc} onChange={handleChange} maxLength={13}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition uppercase"
                 placeholder="RFC con Homoclave"
-                maxLength={13}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">CURP</label>
               <input 
-                type="text" 
-                name="curp"
-                value={formData.curp}
-                onChange={handleChange}
+                type="text" name="curp" value={formData.curp} onChange={handleChange} maxLength={18}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition uppercase"
                 placeholder="CURP"
-                maxLength={18}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">NSS</label>
               <input 
-                type="text" 
-                name="nss"
-                value={formData.nss}
-                onChange={handleChange}
+                type="text" name="nss" value={formData.nss} onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                 placeholder="Número de Seguro Social"
               />
@@ -217,11 +211,9 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
             </div>
 
             <div>
-             <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
               <select 
-                name="empresa" 
-                value={formData.empresa} 
-                onChange={handleChange}
+                name="empresa" value={formData.empresa} onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
               >
                 <option value="">Seleccione</option>
@@ -230,29 +222,29 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
               </select>
             </div>
 
+            {/* --- SELECT DE DEPARTAMENTOS ACTUALIZADO --- */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Departamento</label>
               <select 
-                name="departamento" 
-                value={formData.departamento} 
+                name="departamento_id" // <-- Apuntamos a departamento_id
+                value={formData.departamento_id} 
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
               >
                 <option value="">Seleccione</option>
-                <option value="BIOENERGY">BIOENERGY</option>
-                <option value="ADMINISTRACION">ADMINISTRACION</option>
-                <option value="DESARROLLO E INVESTIGACION">DESARROLLO E INVESTIGACION</option>
-                <option value="COMERCIALIZACION">COMERCIALIZACION</option>
-                <option value="OPERACIONES">OPERACIONES</option>
+                {/* Mapeamos la lista que viene de la base de datos */}
+                {listaDeptos.map((dep) => (
+                  <option key={dep.id} value={dep.id}>
+                    {dep.nombre}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Puesto</label>
               <select 
-                name="puesto" 
-                value={formData.puesto} 
-                onChange={handleChange}
+                name="puesto" value={formData.puesto} onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
               >
                 <option value="">Seleccione</option>
@@ -264,7 +256,7 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
                 <option value="AUXILIAR">AUXILIAR</option>
                 <option value="AYUDANTE GENERAL">AYUDANTE GENERAL</option>
                 <option value="SOLDADOR A">SOLDADOR A</option>
-                 <option value="SOLDADOR B">SOLDADOR B</option>
+                <option value="SOLDADOR B">SOLDADOR B</option>
                 <option value="INSTALADOR">INSTALADOR</option>
                 <option value="INGENIERO">INGENIERO</option>
                 <option value="PERSONAL DE LIMPIEZA">PERSONAL DE LIMPIEZA</option>
@@ -275,10 +267,7 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Ingreso</label>
               <input 
-                type="date" 
-                name="fecha_ingreso"
-                value={formData.fecha_ingreso}
-                onChange={handleChange}
+                type="date" name="fecha_ingreso" value={formData.fecha_ingreso} onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
               />
             </div>
@@ -286,9 +275,7 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Estatus Laboral</label>
               <select 
-                name="status_laboral" 
-                value={formData.status_laboral} 
-                onChange={handleChange}
+                name="status_laboral" value={formData.status_laboral} onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
               >
                 <option value="Seleccione">Seleccione</option>
