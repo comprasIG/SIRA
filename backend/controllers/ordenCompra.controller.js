@@ -182,7 +182,17 @@ WHERE oc.id = $1;
  * ==============================================================================================*/
 const getOcs = async (req, res) => {
   try {
-    const { status, proyecto, sitio, proveedor, search, fecha_inicio, fecha_fin, exclude_status } = req.query;
+    const {
+      status,
+      proyecto,
+      sitio,
+      proveedor,
+      search,
+      fecha_inicio,
+      fecha_fin,
+      exclude_status,
+      sort_by
+    } = req.query;
 
     let query = `
             SELECT 
@@ -192,97 +202,122 @@ const getOcs = async (req, res) => {
                 oc.total,
                 (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) AS moneda,
                 oc.status,
+                oc.proyecto_id,
+                oc.sitio_id,
+                oc.proveedor_id,
                 p.nombre AS proyecto,
                 s.nombre AS sitio,
                 prov.razon_social AS proveedor,
+                prov.razon_social AS proveedor_razon_social,
+                prov.marca AS proveedor_marca,
+                d.nombre AS departamento_requisicion,
                 u.nombre AS usuario_creador
             FROM ordenes_compra oc
             LEFT JOIN proyectos p ON oc.proyecto_id = p.id
             LEFT JOIN sitios s ON oc.sitio_id = s.id
             LEFT JOIN proveedores prov ON oc.proveedor_id = prov.id
             LEFT JOIN usuarios u ON oc.usuario_id = u.id
+            LEFT JOIN requisiciones r ON oc.rfq_id = r.id
+            LEFT JOIN departamentos d ON r.departamento_id = d.id
             WHERE 1=1
         `;
 
     const params = [];
     let paramIndex = 1;
+    const addParam = (value) => {
+      params.push(value);
+      return `$${paramIndex++}`;
+    };
 
     if (status && status !== 'TODAS') {
-      query += ` AND oc.status = $${paramIndex++}`;
-      params.push(status);
+      if (status === 'ABIERTAS') {
+        query += ` AND oc.status::text NOT IN ('ENTREGADA', 'RECHAZADA', 'CANCELADA')`;
+      } else {
+        query += ` AND oc.status = ${addParam(status)}`;
+      }
     }
 
     if (exclude_status) {
-      const excluded = exclude_status.split(',').map(s => s.trim());
+      const excluded = exclude_status
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
       if (excluded.length > 0) {
-        query += ` AND oc.status NOT IN (${excluded.map((_, i) => `$${paramIndex + i}`).join(', ')})`;
-        params.push(...excluded);
-        paramIndex += excluded.length;
+        query += ` AND oc.status::text <> ALL(${addParam(excluded)}::text[])`;
       }
     }
 
     if (proyecto) {
-      query += ` AND (p.nombre ILIKE $${paramIndex} OR CAST(oc.proyecto_id AS TEXT) = $${paramIndex})`;
-      params.push(`%${proyecto}%`); // Support partial match or ID if exact
-      paramIndex++;
+      const proyectoValue = String(proyecto).trim();
+      if (/^\d+$/.test(proyectoValue)) {
+        query += ` AND oc.proyecto_id = ${addParam(Number(proyectoValue))}`;
+      } else {
+        query += ` AND p.nombre ILIKE ${addParam(`%${proyectoValue}%`)}`;
+      }
     }
 
     if (sitio) {
-      query += ` AND (s.nombre ILIKE $${paramIndex} OR CAST(oc.sitio_id AS TEXT) = $${paramIndex})`;
-      params.push(`%${sitio}%`);
-      paramIndex++;
+      const sitioValue = String(sitio).trim();
+      if (/^\d+$/.test(sitioValue)) {
+        query += ` AND oc.sitio_id = ${addParam(Number(sitioValue))}`;
+      } else {
+        query += ` AND s.nombre ILIKE ${addParam(`%${sitioValue}%`)}`;
+      }
     }
 
     if (proveedor) {
-      query += ` AND prov.razon_social ILIKE $${paramIndex++}`;
-      params.push(`%${proveedor}%`);
+      const proveedorValue = String(proveedor).trim();
+      if (/^\d+$/.test(proveedorValue)) {
+        query += ` AND oc.proveedor_id = ${addParam(Number(proveedorValue))}`;
+      } else {
+        const searchProvider = addParam(`%${proveedorValue}%`);
+        query += ` AND (prov.razon_social ILIKE ${searchProvider} OR prov.marca ILIKE ${searchProvider})`;
+      }
     }
 
     if (search) {
+      const searchParam = addParam(`%${String(search).trim()}%`);
       query += ` AND (
-                oc.numero_oc ILIKE $${paramIndex} OR 
-                prov.razon_social ILIKE $${paramIndex} OR 
-                p.nombre ILIKE $${paramIndex} OR
-                CAST(oc.id AS TEXT) ILIKE $${paramIndex}
+                oc.numero_oc ILIKE ${searchParam} OR
+                CAST(oc.id AS TEXT) ILIKE ${searchParam} OR
+                prov.razon_social ILIKE ${searchParam} OR
+                prov.marca ILIKE ${searchParam} OR
+                p.nombre ILIKE ${searchParam} OR
+                s.nombre ILIKE ${searchParam} OR
+                d.nombre ILIKE ${searchParam}
              )`;
-      params.push(`%${search}%`);
-      paramIndex++;
     }
 
     if (fecha_inicio) {
-      query += ` AND oc.fecha_creacion >= $${paramIndex++}`;
-      params.push(fecha_inicio);
+      query += ` AND oc.fecha_creacion >= ${addParam(fecha_inicio)}::date`;
     }
 
     if (fecha_fin) {
-      query += ` AND oc.fecha_creacion <= $${paramIndex++}`;
-      params.push(fecha_fin);
+      query += ` AND oc.fecha_creacion < (${addParam(fecha_fin)}::date + INTERVAL '1 day')`;
     }
 
-    query += ` ORDER BY oc.fecha_creacion DESC`;
+    const sortMap = {
+      numero_oc_desc: 'oc.numero_oc DESC NULLS LAST, oc.id DESC',
+      numero_oc_asc: 'oc.numero_oc ASC NULLS LAST, oc.id ASC',
+      fecha_desc: 'oc.fecha_creacion DESC, oc.id DESC',
+      fecha_asc: 'oc.fecha_creacion ASC, oc.id ASC'
+    };
+    query += ` ORDER BY ${sortMap[sort_by] || sortMap.fecha_desc}`;
 
     const result = await pool.query(query, params);
 
-    // Calculate KPIs from the FULL dataset (or separated query if pagination were used)
-    // For now, calculating from result is okay if result is not paginated yet.
-    // Better: separate query for KPIs to always show totals regardless of filters?
-    // Usually KPIs reflect the *current view* or *global state*.
-    // User asked: "1 KPI que pueden ser una por cada estado... y el recuento". 
-    // Let's do a quick aggregate query for the KPIs globally (or respecting static filters like project?)
-    // For simplicity/performance now: calculate from the fetched list regarding the applied filters, 
-    // OR fetch global stats. Let's fetch global status counts.
-
-    const kpiQuery = `
-            SELECT 
-                COUNT(*) AS total,
-                SUM(CASE WHEN status = 'ENTREGADA' THEN 1 ELSE 0 END) AS entregadas,
-                SUM(CASE WHEN status = 'RECHAZADA' THEN 1 ELSE 0 END) AS rechazadas,
-                SUM(CASE WHEN status = 'POR_AUTORIZAR' THEN 1 ELSE 0 END) AS por_autorizar,
-                SUM(CASE WHEN status NOT IN ('ENTREGADA', 'RECHAZADA', 'CANCELADA') THEN 1 ELSE 0 END) AS abiertas
-            FROM ordenes_compra
-        `;
-    const kpiResult = await pool.query(kpiQuery);
-    const kpisRaw = kpiResult.rows[0];
+    const kpisRaw = result.rows.reduce(
+      (acc, oc) => {
+        const currentStatus = oc?.status;
+        acc.total += 1;
+        if (currentStatus === 'ENTREGADA') acc.entregadas += 1;
+        if (currentStatus === 'POR_AUTORIZAR') acc.por_autorizar += 1;
+        if (currentStatus === 'RECHAZADA' || currentStatus === 'CANCELADA') acc.rechazadas += 1;
+        if (!['ENTREGADA', 'RECHAZADA', 'CANCELADA'].includes(currentStatus)) acc.abiertas += 1;
+        return acc;
+      },
+      { total: 0, entregadas: 0, rechazadas: 0, por_autorizar: 0, abiertas: 0 }
+    );
 
     const kpis = {
       total: parseInt(kpisRaw.total || 0),
