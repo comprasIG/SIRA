@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 
 // --- IMPORTACIONES DE ICONOS MATERIAL UI (MUI) ---
 import GroupIcon from '@mui/icons-material/Group';
@@ -13,19 +13,20 @@ import WorkIcon from '@mui/icons-material/Work';
 import CakeIcon from '@mui/icons-material/Cake';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-// Nuevos iconos para las acciones
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+
 // --- IMPORTACIÓN DEL FORMULARIO DE CREACIÓN/EDICIÓN ---
 import CrearEmpleadoForm from './CrearEmpleadoForm';
 
 // --- LECTURA DE LA VARIABLE DE ENTORNO ---
-const API_BASE_URL = import.meta.env.VITE_API_URL; // Esta es la URL base del backend
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 export default function VerEmpleados() {
   const [empleados, setEmpleados] = useState([]);
+  const [listaDeptos, setListaDeptos] = useState([]); // NUEVO: Estado para los departamentos
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -37,7 +38,7 @@ export default function VerEmpleados() {
   const [empleadoSeleccionado, setEmpleadoSeleccionado] = useState(null);
   // Estados para el formulario de creación/edición
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
-  const [empleadoParaEditar, setEmpleadoParaEditar] = useState(null); // Diferente al de 'seleccionar' para ver
+  const [empleadoParaEditar, setEmpleadoParaEditar] = useState(null);
 
   // --- CARGA DE DATOS ---
   const fetchEmpleados = async () => {
@@ -56,36 +57,47 @@ export default function VerEmpleados() {
     }
   };
 
+  // NUEVO: Función para traer la lista oficial de departamentos
+  const fetchDepartamentos = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/empleados/departamentos`);
+      if (response.ok) {
+        const data = await response.json();
+        setListaDeptos(data);
+      }
+    } catch (err) {
+      console.error("Error al cargar departamentos:", err);
+    }
+  };
+
   useEffect(() => {
     fetchEmpleados();
+    fetchDepartamentos(); // Cargamos ambas cosas al montar el componente
   }, []);
 
-  // --- LÓGICA DE ACCIONES (NUEVO) ---
-
+  // --- LÓGICA DE ACCIONES ---
   const handleCrearEmpleado = () => {
-   setEmpleadoParaEditar(null); // Limpiamos para crear uno nuevo
-  setMostrarFormulario(true);
+    setEmpleadoParaEditar(null);
+    setMostrarFormulario(true);
   };
 
   const handleEditarEmpleado = (empleado, e) => {
     e.stopPropagation();
-  setEmpleadoParaEditar(empleado); // Pasamos los datos del empleado a editar
-  setMostrarFormulario(true);
+    setEmpleadoParaEditar(empleado);
+    setMostrarFormulario(true);
   };
 
   const handleEliminarEmpleado = async (id, nombre, e) => {
-   e.stopPropagation(); 
+    e.stopPropagation(); 
     if (window.confirm(`¿Estás seguro de que deseas eliminar a ${nombre}?`)) {
       try {
-        // Enviamos la orden al Backend (¡Asegúrate que esta línea exista!)
         const response = await fetch(`${API_BASE_URL}/api/empleados/${id}`, { 
             method: 'DELETE' 
         });
 
         if (!response.ok) throw new Error("Error al borrar en servidor");
 
-        // Si el servidor dijo OK, borramos de la lista visual
-        setEmpleados(empleados.filter(e => e.id !== id));
+        setEmpleados(empleados.filter(emp => emp.id !== id));
         alert("Empleado eliminado correctamente");
 
       } catch (error) {
@@ -95,24 +107,20 @@ export default function VerEmpleados() {
     }
   };
 
-  // --- LÓGICA DE FILTROS Y CÁLCULOS (IGUAL QUE ANTES) ---
-  const departamentos = useMemo(() => {
-    const deps = empleados.map(e => e.departamento).filter(Boolean);
-    return [...new Set(deps)];
-  }, [empleados]);
-
+  // --- LÓGICA DE FILTROS Y CÁLCULOS ---
   const empleadosFiltrados = empleados.filter((emp) => {
     const termino = busqueda.toLowerCase();
     const coincideNombre = emp.empleado?.toLowerCase().includes(termino);
     const coincideNum = emp.num_empl?.toString().toLowerCase().includes(termino);
-    const coincideDepto = filtroDepartamento ? emp.departamento === filtroDepartamento : true;
+    // NUEVO: Filtramos comparando con el alias 'nombre_departamento' que viene del JOIN
+    const coincideDepto = filtroDepartamento ? emp.nombre_departamento === filtroDepartamento : true;
     return (coincideNombre || coincideNum) && coincideDepto;
   });
 
   const kpis = {
     total: empleados.length,
     activos: empleadosFiltrados.length,
-    totalDeptos: departamentos.length
+    totalDeptos: listaDeptos.length // NUEVO: Usamos la longitud de la lista real
   };
 
   const formatearFecha = (fechaString) => {
@@ -144,34 +152,21 @@ export default function VerEmpleados() {
     return `${textoAnios}${textoMeses}`;
   };
 
-  // Función para definir colores según el status
   const getStatusColor = (status) => {
-    if (!status) return 'bg-gray-100 text-gray-800'; // Color por defecto (Gris)
-    
+    if (!status) return 'bg-gray-100 text-gray-800';
     const s = status.toLowerCase();
-
-    if (s.includes('activo')) {
-      return 'bg-green-100 text-green-800'; // Verde
-    } 
-    else if (s.includes('inactivo')) {
-      return 'bg-orange-100 text-orange-800'; // Naranja (Alerta/Pausa)
-    } 
-    else if (s.includes('baja') || s.includes('baja')) {
-      return 'bg-red-100 text-red-800'; // Rojo (Peligro/Final)
-    } 
-    else if (s.includes('vacaciones')) {
-      return 'bg-blue-100 text-blue-800'; // Azul (Info/Médico)
-    }
-    
-    return 'bg-gray-100 text-gray-800'; // Gris para cualquier otro
+    if (s.includes('activo')) return 'bg-green-100 text-green-800';
+    else if (s.includes('inactivo')) return 'bg-orange-100 text-orange-800';
+    else if (s.includes('baja')) return 'bg-red-100 text-red-800';
+    else if (s.includes('vacaciones')) return 'bg-blue-100 text-blue-800';
+    return 'bg-gray-100 text-gray-800';
   };
 
   // --- RENDERIZADO ---
-
   return (
     <div className="p-6 bg-gray-50 min-h-screen font-sans text-gray-800">
       
-      {/* HEADER CON BOTÓN DE CREAR (NUEVO) */}
+      {/* HEADER */}
       <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Directorio de Empleados</h1>
@@ -210,9 +205,16 @@ export default function VerEmpleados() {
         </div>
         <div className="relative w-full md:w-1/3 flex items-center gap-2">
           <FilterListIcon sx={{ fontSize: 18 }} className="text-gray-400 absolute left-3" />
-          <select className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white appearance-none cursor-pointer" value={filtroDepartamento} onChange={(e) => setFiltroDepartamento(e.target.value)}>
+          <select 
+            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white appearance-none cursor-pointer" 
+            value={filtroDepartamento} 
+            onChange={(e) => setFiltroDepartamento(e.target.value)}
+          >
             <option value="">Todos los departamentos</option>
-            {departamentos.map(dep => (<option key={dep} value={dep}>{dep}</option>))}
+            {/* NUEVO: Mapeamos la lista de departamentos que viene de la base de datos */}
+            {listaDeptos.map(dep => (
+              <option key={dep.id} value={dep.nombre}>{dep.nombre}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -238,7 +240,6 @@ export default function VerEmpleados() {
                 empleadosFiltrados.map((emp) => (
                   <tr 
                     key={emp.id} 
-                    // Al hacer click en la fila, solo vemos detalles
                     onClick={() => setEmpleadoSeleccionado(emp)}
                     className="hover:bg-blue-50 transition-colors cursor-pointer group"
                   >
@@ -255,7 +256,11 @@ export default function VerEmpleados() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono">{emp.num_empl}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-col"><span className="text-sm font-medium text-gray-700">{emp.departamento}</span><span className="text-xs text-gray-400">{emp.empresa}</span></div>
+                      <div className="flex flex-col">
+                        {/* NUEVO: Mostramos nombre_departamento */}
+                        <span className="text-sm font-medium text-gray-700">{emp.nombre_departamento}</span>
+                        <span className="text-xs text-gray-400">{emp.empresa}</span>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{emp.puesto}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -264,10 +269,9 @@ export default function VerEmpleados() {
                         </span>
                     </td>
 
-                    {/* COLUMNA DE ACCIONES (NUEVO) */}
+                    {/* COLUMNA DE ACCIONES */}
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex items-center justify-center gap-2">
-                        {/* Botón Ver (Ojo) */}
                         <button 
                           onClick={(e) => { e.stopPropagation(); setEmpleadoSeleccionado(emp); }}
                           className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
@@ -276,7 +280,6 @@ export default function VerEmpleados() {
                           <VisibilityIcon sx={{ fontSize: 20 }} />
                         </button>
                         
-                        {/* Botón Editar (Lápiz) */}
                         <button 
                           onClick={(e) => handleEditarEmpleado(emp, e)}
                           className="p-1 text-gray-400 hover:text-orange-500 transition-colors"
@@ -285,7 +288,6 @@ export default function VerEmpleados() {
                           <EditIcon sx={{ fontSize: 20 }} />
                         </button>
 
-                        {/* Botón Eliminar (Basura) */}
                         <button 
                           onClick={(e) => handleEliminarEmpleado(emp.id, emp.empleado, e)}
                           className="p-1 text-gray-400 hover:text-red-600 transition-colors"
@@ -326,7 +328,11 @@ export default function VerEmpleados() {
               <div className="mb-6 border-b border-gray-100 pb-4">
                 <h2 className="text-3xl font-bold text-gray-900">{empleadoSeleccionado.empleado}</h2>
                 <div className="flex items-center text-blue-700 font-medium mt-1 gap-2"><WorkIcon sx={{ fontSize: 18 }} />{empleadoSeleccionado.puesto}</div>
-                <div className="flex items-center text-gray-500 text-sm mt-1 gap-2"><BusinessIcon sx={{ fontSize: 18 }} />{empleadoSeleccionado.departamento} en <strong>{empleadoSeleccionado.empresa}</strong></div>
+                {/* NUEVO: Mostramos nombre_departamento en el Modal */}
+                <div className="flex items-center text-gray-500 text-sm mt-1 gap-2">
+                  <BusinessIcon sx={{ fontSize: 18 }} />
+                  {empleadoSeleccionado.nombre_departamento} en <strong>{empleadoSeleccionado.empresa}</strong>
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
@@ -351,16 +357,17 @@ export default function VerEmpleados() {
           </div>
         </div>
       )}
+
+      {/* FORMULARIO CREAR/EDITAR */}
       {mostrarFormulario && (
-  <CrearEmpleadoForm 
-    empleadoAEditar={empleadoParaEditar}
-    onClose={() => setMostrarFormulario(false)}
-    onGuardado={() => {
-      fetchEmpleados(); // Recargamos la tabla
-      // Opcional: Mostrar alerta de éxito
-    }}
-  />
-)}
+        <CrearEmpleadoForm 
+          empleadoAEditar={empleadoParaEditar}
+          onClose={() => setMostrarFormulario(false)}
+          onGuardado={() => {
+            fetchEmpleados(); // Recargamos la tabla para ver el nuevo registro/cambios
+          }}
+        />
+      )}
     </div>
   );
 }
