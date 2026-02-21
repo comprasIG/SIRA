@@ -1,9 +1,8 @@
 // sira-front/src/components/-requisiciones/Unidades.jsx
 import React, { useState, useMemo } from 'react';
 import { Box, Typography, CircularProgress, Grid, Alert } from '@mui/material';
-// --- ¡MODIFICADO! Importamos MÁS cosas del hook ---
 import { useUnidades } from '../../hooks/useUnidades';
-import { useAuth } from '../../context/authContext'; 
+import { useAuth } from '../../context/authContext';
 
 import UnidadKPIs from './UnidadKPIs';
 import UnidadFiltros from './UnidadFiltros';
@@ -11,55 +10,45 @@ import UnidadCard from './UnidadCard';
 import ModalSolicitarServicio from './ModalSolicitarServicio';
 import ModalVerHistorial from './ModalVerHistorial';
 import ModalAgregarRegistro from './ModalAgregarRegistro';
+import ModalVerUnidad from './ModalVerUnidad';
+
+const MODAL_INIT = {
+  servicio: false,
+  historial: false,
+  registroManual: false,
+  detalle: false,
+  unidadSeleccionada: null,
+};
 
 export default function Unidades() {
-  // --- ¡MODIFICADO! El hook ahora nos da todo ---
-  const { 
-    unidades, 
-    loading, 
-    refetchUnidades, 
-    filters, 
-    setFilters, 
-    filterOptions, 
-    resetFilters 
+  const {
+    unidades, loading, refetchUnidades,
+    filters, setFilters, filterOptions, resetFilters,
   } = useUnidades();
-  
+
   const { usuario } = useAuth();
-  
-  // --- ¡MODIFICADO! El estado del modal sigue siendo local ---
-  const [modalState, setModalState] = useState({ 
-    servicio: false, 
-    historial: false, 
-    registroManual: false, 
-    unidadSeleccionada: null 
-  });
-  
-  // (Funciones de modales sin cambios)
-  const handleOpenServicioModal = (unidad) => {
-    setModalState({ servicio: true, historial: false, registroManual: false, unidadSeleccionada: unidad });
+  const [modalState, setModalState] = useState(MODAL_INIT);
+
+  const openModal = (tipo, unidad) => {
+    setModalState({ ...MODAL_INIT, [tipo]: true, unidadSeleccionada: unidad });
   };
-  const handleOpenHistorialModal = (unidad) => {
-    setModalState({ servicio: false, historial: true, registroManual: false, unidadSeleccionada: unidad });
-  };
-  const handleOpenRegistroModal = (unidad) => {
-    setModalState({ servicio: false, historial: false, registroManual: true, unidadSeleccionada: unidad });
-  };
-  const handleCloseModal = () => {
-    setModalState({ servicio: false, historial: false, registroManual: false, unidadSeleccionada: null });
-  };
+  const handleCloseModal = () => setModalState(MODAL_INIT);
+
   const handleAccionCompletada = () => {
     refetchUnidades();
+    handleCloseModal();
   };
-  
-  // Lógica para saber si el usuario puede filtrar (sin cambios)
+
+  // Re-fetch sin cerrar el modal de historial cuando se cierra una alerta
+  const handleAlertaCerrada = () => {
+    refetchUnidades();
+  };
+
   const puedeVerTodo = useMemo(() => {
     if (!usuario) return false;
-    return usuario.es_superusuario || ['FIN', 'SSD'].includes(usuario.departamento_codigo);
+    // La verificacion real viene del backend; aqui solo sirve para mostrar/ocultar filtro de dpto
+    return usuario.es_superusuario || usuario.puede_ver_todas_unidades === true;
   }, [usuario]);
-
-  // --- ¡ELIMINADO! ---
-  // Ya no necesitamos 'unidadesFiltradas' ni 'filterOptions'
-  // La API nos da la lista ya filtrada.
 
   if (loading || !usuario) {
     return (
@@ -75,10 +64,8 @@ export default function Unidades() {
         Flotilla Vehicular
       </Typography>
 
-      {/* --- ¡MODIFICADO! Le pasamos 'unidades' (la lista filtrada) --- */}
       <UnidadKPIs unidades={unidades} />
 
-      {/* --- ¡MODIFICADO! Le pasamos todas las props nuevas --- */}
       <UnidadFiltros
         filters={filters}
         setFilters={setFilters}
@@ -87,9 +74,10 @@ export default function Unidades() {
         usuarioPuedeVerTodo={puedeVerTodo}
       />
 
-      {/* --- ¡MODIFICADO! Usamos 'unidades' directamente --- */}
-      {loading && unidades.length === 0 && <CircularProgress sx={{ display: 'block', margin: '20px auto' }} />}
-      
+      {loading && unidades.length === 0 && (
+        <CircularProgress sx={{ display: 'block', margin: '20px auto' }} />
+      )}
+
       {!loading && unidades.length === 0 && (
         <Alert severity="info" sx={{ mt: 3 }}>
           No se encontraron unidades para tu departamento o que coincidan con los filtros.
@@ -99,17 +87,18 @@ export default function Unidades() {
       <Grid container spacing={3} sx={{ mt: 1 }}>
         {unidades.map((unidad) => (
           <Grid item key={unidad.id} xs={12} sm={6} md={4} lg={3}>
-            <UnidadCard 
-              unidad={unidad} 
-              onAbrirServicio={() => handleOpenServicioModal(unidad)}
-              onAbrirHistorial={() => handleOpenHistorialModal(unidad)}
-              onAbrirRegistro={() => handleOpenRegistroModal(unidad)}
+            <UnidadCard
+              unidad={unidad}
+              onAbrirServicio={() => openModal('servicio', unidad)}
+              onAbrirHistorial={() => openModal('historial', unidad)}
+              onAbrirRegistro={() => openModal('registroManual', unidad)}
+              onAbrirDetalle={() => openModal('detalle', unidad)}
             />
           </Grid>
         ))}
       </Grid>
 
-      {/* ... (Modales se quedan igual) ... */}
+      {/* Modales */}
       {modalState.unidadSeleccionada && (
         <>
           <ModalSolicitarServicio
@@ -118,18 +107,25 @@ export default function Unidades() {
             unidad={modalState.unidadSeleccionada}
             onReqCreada={handleAccionCompletada}
           />
-          
+
           <ModalVerHistorial
             open={modalState.historial}
             onClose={handleCloseModal}
             unidad={modalState.unidadSeleccionada}
+            onAlertaCerrada={handleAlertaCerrada}
           />
-          
+
           <ModalAgregarRegistro
             open={modalState.registroManual}
             onClose={handleCloseModal}
             unidad={modalState.unidadSeleccionada}
             onRegistroCreado={handleAccionCompletada}
+          />
+
+          <ModalVerUnidad
+            open={modalState.detalle}
+            onClose={handleCloseModal}
+            unidad={modalState.unidadSeleccionada}
           />
         </>
       )}

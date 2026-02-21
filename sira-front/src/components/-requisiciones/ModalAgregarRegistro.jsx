@@ -1,9 +1,11 @@
 // sira-front/src/components/-requisiciones/ModalAgregarRegistro.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Modal, Box, Typography, Stack, TextField, Button,
-  CircularProgress, Autocomplete, Alert
+  Modal, Box, Typography, Stack, TextField, Button, CircularProgress,
+  Autocomplete, Alert, FormControlLabel, Checkbox, Collapse, Divider,
 } from '@mui/material';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useUnidadServicios } from '../../hooks/useUnidadServicios';
 import { toast } from 'react-toastify';
 
@@ -13,105 +15,163 @@ const styleModal = {
   left: '50%',
   transform: 'translate(-50%, -50%)',
   width: '90%',
-  maxWidth: 500,
+  maxWidth: 520,
   bgcolor: 'background.paper',
   boxShadow: 24,
   p: 4,
   borderRadius: 2,
+  maxHeight: '90vh',
+  overflowY: 'auto',
 };
 
-const TIPOS_MANUALES = ['INCIDENCIA', 'OTRO', 'COMBUSTIBLE'];
+function FormNuevoTipo({ onCrear, onCancelar, isSubmitting }) {
+  const [nombre, setNombre] = useState('');
+  const [descripcion, setDescripcion] = useState('');
+  const [requiereNumSerie, setRequiereNumSerie] = useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!nombre.trim()) { toast.error('El nombre es obligatorio.'); return; }
+    onCrear({ nombre: nombre.trim(), descripcion: descripcion.trim(), requiere_num_serie: requiereNumSerie });
+  };
+
+  return (
+    <Box component="form" onSubmit={handleSubmit}>
+      <Stack spacing={2} sx={{ mt: 1 }}>
+        <TextField label="Nombre del nuevo tipo" required fullWidth value={nombre} onChange={e => setNombre(e.target.value)} size="small" />
+        <TextField label="Descripcion (opcional)" fullWidth value={descripcion} onChange={e => setDescripcion(e.target.value)} size="small" />
+        <FormControlLabel
+          control={<Checkbox checked={requiereNumSerie} onChange={e => setRequiereNumSerie(e.target.checked)} />}
+          label="Requiere numero de serie"
+        />
+        <Stack direction="row" spacing={1} justifyContent="flex-end">
+          <Button size="small" onClick={onCancelar} disabled={isSubmitting}>Cancelar</Button>
+          <Button size="small" variant="contained" type="submit" disabled={isSubmitting}
+            startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : null}>
+            Crear
+          </Button>
+        </Stack>
+      </Stack>
+    </Box>
+  );
+}
 
 export default function ModalAgregarRegistro({ open, onClose, unidad, onRegistroCreado }) {
-  const { datosModal, loadingDatosModal, isSubmitting, agregarRegistroManual } = useUnidadServicios();
-
-  const tiposDeEventoManuales = useMemo(() => {
-    return datosModal.tiposDeEvento.filter(tipo => TIPOS_MANUALES.includes(tipo.codigo));
-  }, [datosModal.tiposDeEvento]);
+  const {
+    eventoTipos, loadingEventoTipos, isSubmitting,
+    agregarRegistroManual, crearEventoTipo,
+  } = useUnidadServicios();
 
   const [eventoTipo, setEventoTipo] = useState(null);
   const [kilometraje, setKilometraje] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [costoTotal, setCostoTotal] = useState('');
   const [numerosSerie, setNumerosSerie] = useState('');
+  const [esAlerta, setEsAlerta] = useState(false);
+  const [mostrarNuevoTipo, setMostrarNuevoTipo] = useState(false);
 
   useEffect(() => {
     if (unidad) {
       setEventoTipo(null);
       setDescripcion('');
-      // ======== ¡CORRECCIÓN! Usamos unidad.km (con typeof) para mostrar 0km ========
-      setKilometraje((typeof unidad.km === 'number') ? unidad.km : '');
-      // =========================================================================
+      setKilometraje(typeof unidad.km === 'number' ? unidad.km : '');
       setCostoTotal('');
       setNumerosSerie('');
+      setEsAlerta(false);
+      setMostrarNuevoTipo(false);
     }
   }, [unidad, open]);
+
+  // Solo tipos que NO generan requisicion (manuales)
+  const tiposManuales = useMemo(
+    () => eventoTipos.filter(t => !t.genera_requisicion),
+    [eventoTipos]
+  );
+
+  // Si el tipo es INCIDENCIA, activar alerta por defecto
+  useEffect(() => {
+    if (eventoTipo?.codigo === 'INCIDENCIA') {
+      setEsAlerta(true);
+    }
+  }, [eventoTipo]);
+
+  const handleCrearNuevoTipo = async (datos) => {
+    const nuevo = await crearEventoTipo(datos);
+    if (nuevo) {
+      setEventoTipo(nuevo);
+      setMostrarNuevoTipo(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const kmNum = parseInt(kilometraje, 10);
 
-    if (!eventoTipo) {
-      toast.error('Por favor, selecciona un tipo de evento.');
-      return;
-    }
-    if (!kmNum && kmNum !== 0) {
-      toast.error('El kilometraje es obligatorio.');
-      return;
-    }
+    if (!eventoTipo) { toast.error('Selecciona un tipo de evento.'); return; }
+    if (!kmNum && kmNum !== 0) { toast.error('El kilometraje es obligatorio.'); return; }
     if (typeof unidad.km === 'number' && kmNum < unidad.km) {
-      toast.error(`El kilometraje no puede ser menor al último registrado (${unidad.km} km).`);
+      toast.error('El kilometraje no puede ser menor al ultimo registrado (' + unidad.km.toLocaleString('es-MX') + ' km).');
       return;
     }
-    if (!descripcion.trim()) {
-      toast.error('La descripción es obligatoria.');
-      return;
-    }
+    if (!descripcion.trim()) { toast.error('La descripcion es obligatoria.'); return; }
 
-    // ==========================================================
-    // --- ¡AQUÍ ESTÁ LA CORRECCIÓN CLAVE! ---
-    // Enviamos el 'unidad.id' real
-    // ==========================================================
     const payload = {
-      unidad_id: unidad.id, // <<< CORREGIDO
+      unidad_id:      unidad.id,
       evento_tipo_id: eventoTipo.id,
-      kilometraje: kmNum,
-      descripcion: descripcion,
-      costo_total: costoTotal || 0,
-      numeros_serie: numerosSerie || null,
+      kilometraje:    kmNum,
+      descripcion,
+      costo_total:    costoTotal || 0,
+      numeros_serie:  numerosSerie?.trim() || null,
+      es_alerta:      esAlerta,
     };
-    // ==========================================================
 
     const exito = await agregarRegistroManual(payload);
-    if (exito) {
-      onRegistroCreado(); 
-      onClose();     
-    }
+    if (exito) { onRegistroCreado?.(); onClose(); }
   };
 
   return (
     <Modal open={open} onClose={onClose}>
       <Box sx={styleModal}>
-        <Typography variant="h6" component="h2">
-          Agregar Registro Manual:
-        </Typography>
+        <Typography variant="h6">Registrar Evento:</Typography>
         <Typography variant="h5" fontWeight="bold" color="primary.main" gutterBottom>
           {unidad?.unidad} ({unidad?.no_eco})
         </Typography>
-        
-        {loadingDatosModal ? <CircularProgress /> : (
+
+        {loadingEventoTipos ? <CircularProgress sx={{ display: 'block', mt: 2 }} /> : (
           <Box component="form" onSubmit={handleSubmit} noValidate>
             <Stack spacing={2.5} sx={{ mt: 2 }}>
-              
-              <Autocomplete
-                options={tiposDeEventoManuales}
-                getOptionLabel={(option) => option.nombre}
-                value={eventoTipo}
-                onChange={(e, newValue) => setEventoTipo(newValue)}
-                renderInput={(params) => (
-                  <TextField {...params} label="Tipo de Evento" required />
-                )}
-              />
+
+              <Stack direction="row" spacing={1} alignItems="flex-start">
+                <Autocomplete
+                  options={tiposManuales}
+                  getOptionLabel={(o) => o.nombre}
+                  value={eventoTipo}
+                  onChange={(_, v) => { setEventoTipo(v); setEsAlerta(false); }}
+                  fullWidth
+                  renderInput={(params) => <TextField {...params} label="Tipo de Evento" required />}
+                />
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<AddCircleOutlineIcon />}
+                  onClick={() => setMostrarNuevoTipo(!mostrarNuevoTipo)}
+                  sx={{ mt: 0.5, whiteSpace: 'nowrap' }}
+                  title="Crear nuevo tipo de evento"
+                >
+                  Nuevo
+                </Button>
+              </Stack>
+
+              <Collapse in={mostrarNuevoTipo}>
+                <Box sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" gutterBottom>Crear tipo de evento personalizado</Typography>
+                  <FormNuevoTipo
+                    onCrear={handleCrearNuevoTipo}
+                    onCancelar={() => setMostrarNuevoTipo(false)}
+                    isSubmitting={isSubmitting}
+                  />
+                </Box>
+              </Collapse>
 
               <TextField
                 label="Kilometraje Actual"
@@ -120,53 +180,93 @@ export default function ModalAgregarRegistro({ open, onClose, unidad, onRegistro
                 fullWidth
                 value={kilometraje}
                 onChange={(e) => setKilometraje(e.target.value)}
-                helperText={`Último registro: ${(typeof unidad?.km === 'number') ? unidad.km : 'N/A'} km`}
+                helperText={'Ultimo registro: ' + (typeof unidad?.km === 'number' ? unidad.km.toLocaleString('es-MX') : 'N/A') + ' km'}
               />
 
               <TextField
-                label="Descripción del Evento"
+                label="Descripcion del Evento"
                 multiline
                 rows={3}
                 fullWidth
                 required
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
-                placeholder="Describe la incidencia, carga de gasolina, o el registro manual..."
+                placeholder="Describe el evento, incidencia o carga de combustible..."
               />
-              
+
               <TextField
                 label="Costo Total (Opcional)"
                 type="number"
                 fullWidth
                 value={costoTotal}
                 onChange={(e) => setCostoTotal(e.target.value)}
-                helperText="Si el evento tuvo un costo (ej. gasolina), ingrésalo aquí."
-              />
-              
-              <TextField
-                label="Números de Serie (Opcional)"
-                fullWidth
-                value={numerosSerie}
-                onChange={(e) => setNumerosSerie(e.target.value)}
-                helperText="Para llantas, baterías, etc."
+                helperText="Si el evento tuvo un costo (ej. gasolina), ingresalo aqui."
               />
 
-              <Alert severity="warning" variant="outlined" sx={{ fontSize: '0.85rem' }}>
-                Esto agregará un registro directo a la bitácora. **No generará una requisición** ni un proceso de compra.
+              {(eventoTipo?.requiere_num_serie || (numerosSerie && numerosSerie.trim())) ? (
+                <TextField
+                  label={eventoTipo?.requiere_num_serie ? 'Numero de Serie (requerido)' : 'Numero de Serie (opcional)'}
+                  fullWidth
+                  required={eventoTipo?.requiere_num_serie}
+                  value={numerosSerie}
+                  onChange={(e) => setNumerosSerie(e.target.value)}
+                  helperText="Ej. numero de bateria, llanta, refaccion..."
+                />
+              ) : (
+                <Button
+                  size="small"
+                  variant="text"
+                  sx={{ alignSelf: 'flex-start', p: 0, fontSize: '0.78rem' }}
+                  onClick={() => setNumerosSerie(' ')}
+                >
+                  + Agregar numero de serie
+                </Button>
+              )}
+
+              <Divider />
+
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={esAlerta}
+                    onChange={(e) => setEsAlerta(e.target.checked)}
+                    color="error"
+                  />
+                }
+                label={
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <WarningAmberIcon fontSize="small" color="error" />
+                    <Typography variant="body2">
+                      Reportar como incidencia (genera alerta para compras / responsable)
+                    </Typography>
+                  </Stack>
+                }
+              />
+
+              {esAlerta && (
+                <Alert severity="warning" variant="outlined" sx={{ fontSize: '0.82rem' }}>
+                  Esta incidencia aparecera como alerta activa en el card de la unidad
+                  hasta que el equipo de compras o el responsable la cierre desde la bitacora.
+                </Alert>
+              )}
+
+              <Alert severity="info" variant="outlined" sx={{ fontSize: '0.82rem' }}>
+                Este registro se agrega directamente a la bitacora y no genera requisicion.
+                Para servicios que requieren compra, usa el boton "Servicio".
               </Alert>
 
-              <Stack direction="row" spacing={2} justifyContent="flex-end" sx={{ pt: 2 }}>
+              <Stack direction="row" spacing={2} justifyContent="flex-end" sx={{ pt: 1 }}>
                 <Button onClick={onClose} disabled={isSubmitting}>Cancelar</Button>
-                <Button 
-                  type="submit" 
-                  variant="contained" 
+                <Button
+                  type="submit"
+                  variant="contained"
                   disabled={isSubmitting}
+                  color={esAlerta ? 'error' : 'primary'}
                   startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : null}
                 >
-                  {isSubmitting ? 'Guardando...' : 'Guardar Registro'}
+                  {isSubmitting ? 'Guardando...' : esAlerta ? 'Reportar Incidencia' : 'Guardar Registro'}
                 </Button>
               </Stack>
-
             </Stack>
           </Box>
         )}
