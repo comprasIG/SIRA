@@ -88,6 +88,8 @@ export default function ModalAgregarRegistro({ open, onClose, unidad, onRegistro
     [eventoTipos]
   );
 
+  const esCombustible = eventoTipo?.codigo === 'COMBUSTIBLE';
+
   // Si el tipo es INCIDENCIA, activar alerta por defecto
   useEffect(() => {
     if (eventoTipo?.codigo === 'INCIDENCIA') {
@@ -107,10 +109,16 @@ export default function ModalAgregarRegistro({ open, onClose, unidad, onRegistro
     e.preventDefault();
     const kmNum = parseInt(kilometraje, 10);
 
+    const esCombustible = eventoTipo?.codigo === 'COMBUSTIBLE';
+
     if (!eventoTipo) { toast.error('Selecciona un tipo de evento.'); return; }
     if (!kmNum && kmNum !== 0) { toast.error('El kilometraje es obligatorio.'); return; }
     if (typeof unidad.km === 'number' && kmNum < unidad.km) {
       toast.error('El kilometraje no puede ser menor al ultimo registrado (' + unidad.km.toLocaleString('es-MX') + ' km).');
+      return;
+    }
+    if (esCombustible && (!costoTotal || parseFloat(costoTotal) <= 0)) {
+      toast.error('Para carga de combustible el costo total es obligatorio.');
       return;
     }
     if (!descripcion.trim()) { toast.error('La descripcion es obligatoria.'); return; }
@@ -195,12 +203,14 @@ export default function ModalAgregarRegistro({ open, onClose, unidad, onRegistro
               />
 
               <TextField
-                label="Costo Total (Opcional)"
+                label={esCombustible ? 'Costo Total $' : 'Costo Total (Opcional) $'}
                 type="number"
                 fullWidth
+                required={esCombustible}
                 value={costoTotal}
                 onChange={(e) => setCostoTotal(e.target.value)}
-                helperText="Si el evento tuvo un costo (ej. gasolina), ingresalo aqui."
+                helperText={esCombustible ? 'Requerido para carga de combustible.' : 'Si el evento tuvo un costo, ingresalo aqui.'}
+                inputProps={{ min: 0, step: '0.01' }}
               />
 
               {(eventoTipo?.requiere_num_serie || (numerosSerie && numerosSerie.trim())) ? (

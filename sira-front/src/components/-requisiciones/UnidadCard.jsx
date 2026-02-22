@@ -37,10 +37,8 @@ export default function UnidadCard({
 
   const bordeColor = alertasAbiertas
     ? 'error.main'
-    : servicioVencido
+    : tieneReqAbierta || servicioVencido
     ? 'warning.main'
-    : tieneReqAbierta
-    ? 'info.main'
     : 'transparent';
 
   return (
@@ -91,8 +89,8 @@ export default function UnidadCard({
                     size="small"
                     icon={<BuildIcon />}
                     label="En Servicio"
-                    color="info"
-                    variant="outlined"
+                    color="warning"
+                    variant="filled"
                   />
                 </Tooltip>
               )}

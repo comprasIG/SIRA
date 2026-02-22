@@ -22,6 +22,12 @@ router.get('/evento-tipos', ctrl.getEventoTipos);
 // POST /api/unidades/evento-tipos → crea un tipo de evento personalizado
 router.post('/evento-tipos', ctrl.crearEventoTipo);
 
+// PUT /api/unidades/evento-tipos/:id → edita un tipo de evento
+router.put('/evento-tipos/:id', ctrl.editarEventoTipo);
+
+// DELETE /api/unidades/evento-tipos/:id → desactiva un tipo de evento (soft-delete)
+router.delete('/evento-tipos/:id', ctrl.eliminarEventoTipo);
+
 // ── Alertas de incidencia ────────────────────────────────────────────────────
 // GET  /api/unidades/alertas
 router.get('/alertas', ctrl.getAlertasAbiertas);

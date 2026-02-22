@@ -285,10 +285,19 @@ const getEventoTipos = async (req, res) => {
 // Permite a cualquier usuario crear un nuevo tipo de evento personalizado.
 // ---------------------------------------------------------------------------
 const crearEventoTipo = async (req, res) => {
-  const { nombre, descripcion, requiere_num_serie } = req.body;
+  const {
+    nombre, descripcion, genera_requisicion,
+    requiere_num_serie, km_intervalo, tipo_combustible_aplica, material_sku,
+  } = req.body;
 
   if (!nombre || !nombre.trim()) {
     return res.status(400).json({ error: 'El nombre del tipo de evento es obligatorio.' });
+  }
+
+  const esServicio = genera_requisicion === true;
+
+  if (esServicio && !material_sku?.trim()) {
+    return res.status(400).json({ error: 'El SKU de material es obligatorio para tipos de servicio.' });
   }
 
   // Generar código automáticamente a partir del nombre
@@ -301,11 +310,20 @@ const crearEventoTipo = async (req, res) => {
   try {
     const { rows, rowCount } = await pool.query(
       `INSERT INTO public.unidades_evento_tipos
-         (codigo, nombre, descripcion, genera_requisicion, requiere_num_serie)
-       VALUES ($1, $2, $3, false, $4)
+         (codigo, nombre, descripcion, genera_requisicion, requiere_num_serie, km_intervalo, tipo_combustible_aplica, material_sku)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (codigo) DO NOTHING
        RETURNING id, codigo, nombre, descripcion, genera_requisicion, requiere_num_serie, km_intervalo, tipo_combustible_aplica, material_sku`,
-      [codigo, nombre.trim(), descripcion?.trim() || null, requiere_num_serie === true]
+      [
+        codigo,
+        nombre.trim(),
+        descripcion?.trim() || null,
+        esServicio,
+        requiere_num_serie === true,
+        km_intervalo ? parseInt(km_intervalo, 10) : null,
+        tipo_combustible_aplica || null,
+        material_sku?.trim() || null,
+      ]
     );
 
     if (rowCount === 0) {
@@ -537,6 +555,81 @@ const getDatosParaFiltros = async (req, res) => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// PUT /api/unidades/evento-tipos/:id
+// Edita nombre, descripcion y campos de un tipo de evento.
+// No permite cambiar genera_requisicion para no romper el flujo.
+// ---------------------------------------------------------------------------
+const editarEventoTipo = async (req, res) => {
+  const { id } = req.params;
+  const { nombre, descripcion, requiere_num_serie, km_intervalo, tipo_combustible_aplica, material_sku } = req.body;
+
+  if (!nombre || !nombre.trim()) {
+    return res.status(400).json({ error: 'El nombre es obligatorio.' });
+  }
+
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE public.unidades_evento_tipos SET
+         nombre                  = $1,
+         descripcion             = $2,
+         requiere_num_serie      = $3,
+         km_intervalo            = $4,
+         tipo_combustible_aplica = $5,
+         material_sku            = $6,
+         actualizado_en          = NOW()
+       WHERE id = $7`,
+      [
+        nombre.trim(),
+        descripcion?.trim() || null,
+        requiere_num_serie === true,
+        km_intervalo ? parseInt(km_intervalo, 10) : null,
+        tipo_combustible_aplica || null,
+        material_sku || null,
+        id,
+      ]
+    );
+
+    if (rowCount === 0) {
+      return res.status(404).json({ error: 'Tipo de evento no encontrado.' });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, codigo, nombre, descripcion, activo, genera_requisicion,
+              requiere_num_serie, km_intervalo, tipo_combustible_aplica, material_sku
+       FROM public.unidades_evento_tipos WHERE id = $1`,
+      [id]
+    );
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error al editar tipo de evento:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// DELETE /api/unidades/evento-tipos/:id
+// Soft-delete: desactiva el tipo de evento (activo = false).
+// ---------------------------------------------------------------------------
+const eliminarEventoTipo = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE public.unidades_evento_tipos
+       SET activo = false, actualizado_en = NOW()
+       WHERE id = $1 AND activo = true`,
+      [id]
+    );
+    if (rowCount === 0) {
+      return res.status(404).json({ error: 'Tipo de evento no encontrado o ya inactivo.' });
+    }
+    res.json({ mensaje: 'Tipo de evento desactivado.' });
+  } catch (error) {
+    console.error('Error al eliminar tipo de evento:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+};
+
 module.exports = {
   getUnidades,
   getUnidadDetalle,
@@ -545,6 +638,8 @@ module.exports = {
   cerrarAlerta,
   getEventoTipos,
   crearEventoTipo,
+  editarEventoTipo,
+  eliminarEventoTipo,
   crearRequisicionVehicular,
   agregarRegistroManualHistorial,
   getDatosParaFiltros,

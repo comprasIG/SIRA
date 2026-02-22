@@ -58,10 +58,10 @@ export const useUnidadServicios = () => {
     }
   };
 
-  const crearEventoTipo = async ({ nombre, descripcion, requiere_num_serie }) => {
+  const crearEventoTipo = async (datos) => {
     setIsSubmitting(true);
     try {
-      const data = await api.post('/api/unidades/evento-tipos', { nombre, descripcion, requiere_num_serie });
+      const data = await api.post('/api/unidades/evento-tipos', datos);
       toast.success(`Tipo de evento "${data.nombre}" creado.`);
       await fetchEventoTipos();
       setIsSubmitting(false);
@@ -71,6 +71,38 @@ export const useUnidadServicios = () => {
       toast.error(error?.error || 'No se pudo crear el tipo de evento.');
       setIsSubmitting(false);
       return null;
+    }
+  };
+
+  const editarEventoTipo = async (id, datos) => {
+    setIsSubmitting(true);
+    try {
+      const data = await api.put(`/api/unidades/evento-tipos/${id}`, datos);
+      toast.success(`Tipo de evento "${data.nombre}" actualizado.`);
+      await fetchEventoTipos();
+      setIsSubmitting(false);
+      return data;
+    } catch (error) {
+      console.error("Error al editar tipo de evento:", error);
+      toast.error(error?.error || 'No se pudo editar el tipo de evento.');
+      setIsSubmitting(false);
+      return null;
+    }
+  };
+
+  const eliminarEventoTipo = async (id, nombre) => {
+    setIsSubmitting(true);
+    try {
+      await api.delete(`/api/unidades/evento-tipos/${id}`);
+      toast.success(`Tipo de evento "${nombre}" desactivado.`);
+      await fetchEventoTipos();
+      setIsSubmitting(false);
+      return true;
+    } catch (error) {
+      console.error("Error al eliminar tipo de evento:", error);
+      toast.error(error?.error || 'No se pudo desactivar el tipo de evento.');
+      setIsSubmitting(false);
+      return false;
     }
   };
 
@@ -97,6 +129,8 @@ export const useUnidadServicios = () => {
     crearRequisicion,
     agregarRegistroManual,
     crearEventoTipo,
+    editarEventoTipo,
+    eliminarEventoTipo,
     cerrarAlerta,
   };
 };

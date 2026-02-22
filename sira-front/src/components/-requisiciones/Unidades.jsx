@@ -1,6 +1,7 @@
 // sira-front/src/components/-requisiciones/Unidades.jsx
 import React, { useState, useMemo } from 'react';
-import { Box, Typography, CircularProgress, Grid, Alert } from '@mui/material';
+import { Box, Typography, CircularProgress, Grid, Alert, Button, Stack } from '@mui/material';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { useUnidades } from '../../hooks/useUnidades';
 import { useAuth } from '../../context/authContext';
 
@@ -11,6 +12,7 @@ import ModalSolicitarServicio from './ModalSolicitarServicio';
 import ModalVerHistorial from './ModalVerHistorial';
 import ModalAgregarRegistro from './ModalAgregarRegistro';
 import ModalVerUnidad from './ModalVerUnidad';
+import ModalGestionarEventoTipos from './ModalGestionarEventoTipos';
 
 const MODAL_INIT = {
   servicio: false,
@@ -20,6 +22,7 @@ const MODAL_INIT = {
   unidadSeleccionada: null,
 };
 
+
 export default function Unidades() {
   const {
     unidades, loading, refetchUnidades,
@@ -28,6 +31,7 @@ export default function Unidades() {
 
   const { usuario } = useAuth();
   const [modalState, setModalState] = useState(MODAL_INIT);
+  const [modalGestionar, setModalGestionar] = useState(false);
 
   const openModal = (tipo, unidad) => {
     setModalState({ ...MODAL_INIT, [tipo]: true, unidadSeleccionada: unidad });
@@ -60,9 +64,19 @@ export default function Unidades() {
 
   return (
     <Box sx={{ p: { xs: 1, sm: 2, md: 3 }, maxWidth: 1600, margin: 'auto' }}>
-      <Typography variant="h4" fontWeight="bold" gutterBottom>
-        Flotilla Vehicular
-      </Typography>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+        <Typography variant="h4" fontWeight="bold">
+          Flotilla Vehicular
+        </Typography>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<SettingsIcon />}
+          onClick={() => setModalGestionar(true)}
+        >
+          Tipos de Evento
+        </Button>
+      </Stack>
 
       <UnidadKPIs unidades={unidades} />
 
@@ -129,6 +143,11 @@ export default function Unidades() {
           />
         </>
       )}
+
+      <ModalGestionarEventoTipos
+        open={modalGestionar}
+        onClose={() => setModalGestionar(false)}
+      />
     </Box>
   );
 }
