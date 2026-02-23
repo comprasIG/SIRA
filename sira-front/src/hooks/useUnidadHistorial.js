@@ -7,28 +7,21 @@ export const useUnidadHistorial = () => {
   const [historial, setHistorial] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // 1. Función para cargar el historial de una unidad específica
-  // ======== ¡CAMBIO! Renombramos 'unidadId' a 'idParaBuscar' ========
-  const fetchHistorial = useCallback(async (idParaBuscar) => {
-    if (!idParaBuscar) return;
-    
+  const fetchHistorial = useCallback(async (unidadId, eventoTipoId = null) => {
+    if (!unidadId) return;
     setLoading(true);
-    setHistorial([]); // Limpiamos el historial anterior
+    setHistorial([]);
     try {
-      // ======== ¡CAMBIO! Usamos la nueva variable ========
-      const data = await api.get(`/api/unidades/${idParaBuscar}/historial`);
+      const params = eventoTipoId ? `?eventoTipoId=${eventoTipoId}` : '';
+      const data = await api.get(`/api/unidades/${unidadId}/historial${params}`);
       setHistorial(data);
     } catch (error) {
-      console.error(`Error al cargar historial para ID ${idParaBuscar}:`, error);
+      console.error(`Error al cargar historial para unidad ${unidadId}:`, error);
       toast.error(error?.error || 'Error al cargar la bitácora.');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  return {
-    historial,
-    loading,
-    fetchHistorial, // Exponemos la función para que el modal la llame
-  };
+  return { historial, loading, fetchHistorial };
 };

@@ -238,6 +238,22 @@ GRANT ALL ON SEQUENCE public.departamentos_id_seq TO postgres;
 GRANT ALL ON SEQUENCE public.departamentos_id_seq TO sira_stg_user;
 GRANT SELECT, USAGE ON SEQUENCE public.departamentos_id_seq TO sira_prod_user;
 
+-- DROP SEQUENCE public.dias_ley_vacaciones_id_seq;
+
+CREATE SEQUENCE public.dias_ley_vacaciones_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.dias_ley_vacaciones_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.dias_ley_vacaciones_id_seq TO postgres;
+GRANT SELECT, USAGE ON SEQUENCE public.dias_ley_vacaciones_id_seq TO sira_prod_user;
+
 -- DROP SEQUENCE public.empleados_id_seq;
 
 CREATE SEQUENCE public.empleados_id_seq
@@ -830,6 +846,22 @@ ALTER SEQUENCE public.usuarios_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.usuarios_id_seq TO postgres;
 GRANT ALL ON SEQUENCE public.usuarios_id_seq TO sira_stg_user;
 GRANT SELECT, USAGE ON SEQUENCE public.usuarios_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.vacaciones_id_seq;
+
+CREATE SEQUENCE public.vacaciones_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.vacaciones_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.vacaciones_id_seq TO postgres;
+GRANT SELECT, USAGE ON SEQUENCE public.vacaciones_id_seq TO sira_prod_user;
 -- public.catalogo_fuentes_pago definition
 
 -- Drop table
@@ -859,7 +891,7 @@ update
 
 ALTER TABLE public.catalogo_fuentes_pago OWNER TO postgres;
 GRANT ALL ON TABLE public.catalogo_fuentes_pago TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.catalogo_fuentes_pago TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.catalogo_fuentes_pago TO sira_prod_user;
 
 
 -- public.catalogo_incidencias_recepcion definition
@@ -886,8 +918,8 @@ COMMENT ON COLUMN public.catalogo_incidencias_recepcion.descripcion IS 'Descripc
 
 ALTER TABLE public.catalogo_incidencias_recepcion OWNER TO postgres;
 GRANT ALL ON TABLE public.catalogo_incidencias_recepcion TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.catalogo_incidencias_recepcion TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.catalogo_incidencias_recepcion TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.catalogo_incidencias_recepcion TO sira_stg_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.catalogo_incidencias_recepcion TO sira_prod_user;
 
 
 -- public.catalogo_metodos_notificacion definition
@@ -915,8 +947,8 @@ COMMENT ON COLUMN public.catalogo_metodos_notificacion.codigo IS 'WHATSAPP, EMAI
 
 ALTER TABLE public.catalogo_metodos_notificacion OWNER TO postgres;
 GRANT ALL ON TABLE public.catalogo_metodos_notificacion TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.catalogo_metodos_notificacion TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.catalogo_metodos_notificacion TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.catalogo_metodos_notificacion TO sira_stg_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.catalogo_metodos_notificacion TO sira_prod_user;
 
 
 -- public.catalogo_metodos_recoleccion definition
@@ -945,8 +977,8 @@ COMMENT ON COLUMN public.catalogo_metodos_recoleccion.nombre IS 'Nombre visible 
 
 ALTER TABLE public.catalogo_metodos_recoleccion OWNER TO postgres;
 GRANT ALL ON TABLE public.catalogo_metodos_recoleccion TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.catalogo_metodos_recoleccion TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.catalogo_metodos_recoleccion TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.catalogo_metodos_recoleccion TO sira_stg_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.catalogo_metodos_recoleccion TO sira_prod_user;
 
 
 -- public.catalogo_monedas definition
@@ -966,7 +998,7 @@ CREATE TABLE public.catalogo_monedas (
 ALTER TABLE public.catalogo_monedas OWNER TO postgres;
 GRANT ALL ON TABLE public.catalogo_monedas TO postgres;
 GRANT ALL ON TABLE public.catalogo_monedas TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.catalogo_monedas TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.catalogo_monedas TO sira_prod_user;
 
 
 -- public.catalogo_paqueterias definition
@@ -989,8 +1021,8 @@ CREATE TABLE public.catalogo_paqueterias (
 
 ALTER TABLE public.catalogo_paqueterias OWNER TO postgres;
 GRANT ALL ON TABLE public.catalogo_paqueterias TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.catalogo_paqueterias TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.catalogo_paqueterias TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.catalogo_paqueterias TO sira_stg_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.catalogo_paqueterias TO sira_prod_user;
 
 
 -- public.catalogo_unidades definition
@@ -1024,7 +1056,7 @@ update
 ALTER TABLE public.catalogo_unidades OWNER TO postgres;
 GRANT ALL ON TABLE public.catalogo_unidades TO postgres;
 GRANT ALL ON TABLE public.catalogo_unidades TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.catalogo_unidades TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.catalogo_unidades TO sira_prod_user;
 
 
 -- public.clientes definition
@@ -1056,7 +1088,7 @@ update
 ALTER TABLE public.clientes OWNER TO postgres;
 GRANT ALL ON TABLE public.clientes TO postgres;
 GRANT ALL ON TABLE public.clientes TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.clientes TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.clientes TO sira_prod_user;
 
 
 -- public.departamentos definition
@@ -1087,82 +1119,28 @@ update
 ALTER TABLE public.departamentos OWNER TO postgres;
 GRANT ALL ON TABLE public.departamentos TO postgres;
 GRANT ALL ON TABLE public.departamentos TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.departamentos TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.departamentos TO sira_prod_user;
 
 
--- public.empleados definition
+-- public.dias_ley_vacaciones definition
 
 -- Drop table
 
--- DROP TABLE public.empleados;
+-- DROP TABLE public.dias_ley_vacaciones;
 
-CREATE TABLE public.empleados (
-	id serial4 NOT NULL, -- Identificador único autoincremental del empleado
-	num_empl varchar(50) NOT NULL, -- Número de empleado único por empresa
-	empleado varchar(255) NOT NULL, -- Nombre completo del empleado
-	fecha_ingreso date NOT NULL, -- Fecha de ingreso a la empresa
-	rfc varchar(15) NOT NULL, -- RFC único del empleado (13 caracteres)
-	nss varchar(15) NOT NULL, -- Número de Seguridad Social único (11 caracteres)
-	curp varchar(20) NOT NULL, -- CURP único del empleado (18 caracteres)
-	genero varchar(20) NOT NULL, -- Género del empleado: MASCULINO, FEMENINO, OTRO, NO ESPECIFICADO
-	fecha_nacimiento date NOT NULL, -- Fecha de nacimiento del empleado
-	años int4 NULL, -- Edad del empleado en años (0-100)
-	empresa varchar(255) NOT NULL, -- Nombre de la empresa donde labora
-	puesto varchar(255) NOT NULL, -- Puesto del empleado
-	departamento varchar(255) NOT NULL, -- Departamento o área del empleado
-	status_laboral varchar(50) DEFAULT 'activo'::character varying NOT NULL, -- Estado laboral: activo, inactivo, vacaciones, licencia, baja
-	created_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL, -- Fecha y hora de creación del registro
-	updated_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL, -- Fecha y hora de última actualización del registro
-	CONSTRAINT chk_edad_minima CHECK ((fecha_nacimiento <= (CURRENT_DATE - '18 years'::interval))),
-	CONSTRAINT chk_fecha_ingreso_valida CHECK ((fecha_ingreso <= CURRENT_DATE)),
-	CONSTRAINT chk_fecha_nacimiento_valida CHECK ((fecha_nacimiento <= CURRENT_DATE)),
-	CONSTRAINT chk_genero_valido CHECK (((genero)::text = ANY ((ARRAY['MASCULINO'::character varying, 'FEMENINO'::character varying, 'OTRO'::character varying, 'NO ESPECIFICADO'::character varying])::text[]))),
-	CONSTRAINT chk_status_laboral_valido CHECK (((status_laboral)::text = ANY ((ARRAY['activo'::character varying, 'inactivo'::character varying, 'vacaciones'::character varying, 'licencia'::character varying, 'baja'::character varying])::text[]))),
-	CONSTRAINT empleados_años_check CHECK ((("años" >= 0) AND ("años" <= 100))),
-	CONSTRAINT empleados_curp_key UNIQUE (curp),
-	CONSTRAINT empleados_nss_key UNIQUE (nss),
-	CONSTRAINT empleados_num_empl_key UNIQUE (num_empl),
-	CONSTRAINT empleados_pkey PRIMARY KEY (id),
-	CONSTRAINT empleados_rfc_key UNIQUE (rfc),
-	CONSTRAINT uq_empleado_empresa UNIQUE (num_empl, empresa)
+CREATE TABLE public.dias_ley_vacaciones (
+	id serial4 NOT NULL,
+	anos_antiguedad int4 NOT NULL,
+	dias_otorgados int4 NOT NULL,
+	created_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	CONSTRAINT dias_ley_vacaciones_pkey PRIMARY KEY (id)
 );
-CREATE INDEX empleados_curp_index ON public.empleados USING btree (curp);
-CREATE INDEX empleados_departamento_index ON public.empleados USING btree (departamento);
-CREATE INDEX empleados_empresa_departamento_index ON public.empleados USING btree (empresa, departamento);
-CREATE INDEX empleados_empresa_index ON public.empleados USING btree (empresa);
-CREATE INDEX empleados_fecha_ingreso_index ON public.empleados USING btree (fecha_ingreso);
-CREATE INDEX empleados_nss_index ON public.empleados USING btree (nss);
-CREATE INDEX empleados_num_empl_index ON public.empleados USING btree (num_empl);
-CREATE INDEX empleados_rfc_index ON public.empleados USING btree (rfc);
-CREATE INDEX empleados_status_laboral_empresa_index ON public.empleados USING btree (status_laboral, empresa);
-CREATE INDEX empleados_status_laboral_index ON public.empleados USING btree (status_laboral);
-COMMENT ON TABLE public.empleados IS 'Tabla para almacenar información de empleados';
-
--- Column comments
-
-COMMENT ON COLUMN public.empleados.id IS 'Identificador único autoincremental del empleado';
-COMMENT ON COLUMN public.empleados.num_empl IS 'Número de empleado único por empresa';
-COMMENT ON COLUMN public.empleados.empleado IS 'Nombre completo del empleado';
-COMMENT ON COLUMN public.empleados.fecha_ingreso IS 'Fecha de ingreso a la empresa';
-COMMENT ON COLUMN public.empleados.rfc IS 'RFC único del empleado (13 caracteres)';
-COMMENT ON COLUMN public.empleados.nss IS 'Número de Seguridad Social único (11 caracteres)';
-COMMENT ON COLUMN public.empleados.curp IS 'CURP único del empleado (18 caracteres)';
-COMMENT ON COLUMN public.empleados.genero IS 'Género del empleado: MASCULINO, FEMENINO, OTRO, NO ESPECIFICADO';
-COMMENT ON COLUMN public.empleados.fecha_nacimiento IS 'Fecha de nacimiento del empleado';
-COMMENT ON COLUMN public.empleados.años IS 'Edad del empleado en años (0-100)';
-COMMENT ON COLUMN public.empleados.empresa IS 'Nombre de la empresa donde labora';
-COMMENT ON COLUMN public.empleados.puesto IS 'Puesto del empleado';
-COMMENT ON COLUMN public.empleados.departamento IS 'Departamento o área del empleado';
-COMMENT ON COLUMN public.empleados.status_laboral IS 'Estado laboral: activo, inactivo, vacaciones, licencia, baja';
-COMMENT ON COLUMN public.empleados.created_at IS 'Fecha y hora de creación del registro';
-COMMENT ON COLUMN public.empleados.updated_at IS 'Fecha y hora de última actualización del registro';
 
 -- Permissions
 
-ALTER TABLE public.empleados OWNER TO postgres;
-GRANT ALL ON TABLE public.empleados TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.empleados TO sira_prod_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.empleados TO sira_stg_user;
+ALTER TABLE public.dias_ley_vacaciones OWNER TO postgres;
+GRANT ALL ON TABLE public.dias_ley_vacaciones TO postgres;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.dias_ley_vacaciones TO sira_prod_user;
 
 
 -- public.funciones definition
@@ -1187,7 +1165,7 @@ CREATE TABLE public.funciones (
 ALTER TABLE public.funciones OWNER TO postgres;
 GRANT ALL ON TABLE public.funciones TO postgres;
 GRANT ALL ON TABLE public.funciones TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.funciones TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.funciones TO sira_prod_user;
 
 
 -- public.notificacion_grupos definition
@@ -1215,7 +1193,7 @@ COMMENT ON COLUMN public.notificacion_grupos.codigo IS 'Código único usado por
 ALTER TABLE public.notificacion_grupos OWNER TO postgres;
 GRANT ALL ON TABLE public.notificacion_grupos TO postgres;
 GRANT ALL ON TABLE public.notificacion_grupos TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.notificacion_grupos TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.notificacion_grupos TO sira_prod_user;
 
 
 -- public.parametros_sistema definition
@@ -1235,7 +1213,7 @@ CREATE TABLE public.parametros_sistema (
 ALTER TABLE public.parametros_sistema OWNER TO postgres;
 GRANT ALL ON TABLE public.parametros_sistema TO postgres;
 GRANT ALL ON TABLE public.parametros_sistema TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.parametros_sistema TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.parametros_sistema TO sira_prod_user;
 
 
 -- public.pgmigrations definition
@@ -1255,8 +1233,8 @@ CREATE TABLE public.pgmigrations (
 
 ALTER TABLE public.pgmigrations OWNER TO postgres;
 GRANT ALL ON TABLE public.pgmigrations TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.pgmigrations TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.pgmigrations TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.pgmigrations TO sira_stg_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.pgmigrations TO sira_prod_user;
 
 
 -- public.proveedores definition
@@ -1304,7 +1282,7 @@ update
 ALTER TABLE public.proveedores OWNER TO postgres;
 GRANT ALL ON TABLE public.proveedores TO postgres;
 GRANT ALL ON TABLE public.proveedores TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.proveedores TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.proveedores TO sira_prod_user;
 
 
 -- public.roles definition
@@ -1335,7 +1313,7 @@ update
 ALTER TABLE public.roles OWNER TO postgres;
 GRANT ALL ON TABLE public.roles TO postgres;
 GRANT ALL ON TABLE public.roles TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.roles TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.roles TO sira_prod_user;
 
 
 -- public.ubicaciones_almacen definition
@@ -1370,7 +1348,7 @@ update
 ALTER TABLE public.ubicaciones_almacen OWNER TO postgres;
 GRANT ALL ON TABLE public.ubicaciones_almacen TO postgres;
 GRANT ALL ON TABLE public.ubicaciones_almacen TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.ubicaciones_almacen TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.ubicaciones_almacen TO sira_prod_user;
 
 
 -- public.unidades_evento_tipos definition
@@ -1395,8 +1373,8 @@ CREATE TABLE public.unidades_evento_tipos (
 
 ALTER TABLE public.unidades_evento_tipos OWNER TO postgres;
 GRANT ALL ON TABLE public.unidades_evento_tipos TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.unidades_evento_tipos TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.unidades_evento_tipos TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.unidades_evento_tipos TO sira_stg_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.unidades_evento_tipos TO sira_prod_user;
 
 
 -- public.catalogo_materiales definition
@@ -1437,7 +1415,86 @@ update
 ALTER TABLE public.catalogo_materiales OWNER TO postgres;
 GRANT ALL ON TABLE public.catalogo_materiales TO postgres;
 GRANT ALL ON TABLE public.catalogo_materiales TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.catalogo_materiales TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.catalogo_materiales TO sira_prod_user;
+
+
+-- public.empleados definition
+
+-- Drop table
+
+-- DROP TABLE public.empleados;
+
+CREATE TABLE public.empleados (
+	id serial4 NOT NULL, -- Identificador único autoincremental del empleado
+	num_empl varchar(50) NOT NULL, -- Número de empleado único por empresa
+	empleado varchar(255) NOT NULL, -- Nombre completo del empleado
+	fecha_ingreso date NOT NULL, -- Fecha de ingreso a la empresa
+	rfc varchar(15) NOT NULL, -- RFC único del empleado (13 caracteres)
+	nss varchar(15) NOT NULL, -- Número de Seguridad Social único (11 caracteres)
+	curp varchar(20) NOT NULL, -- CURP único del empleado (18 caracteres)
+	genero varchar(20) NOT NULL, -- Género del empleado: MASCULINO, FEMENINO, OTRO, NO ESPECIFICADO
+	fecha_nacimiento date NOT NULL, -- Fecha de nacimiento del empleado
+	años int4 NULL, -- Edad del empleado en años (0-100)
+	empresa varchar(255) NOT NULL, -- Nombre de la empresa donde labora
+	puesto varchar(255) NOT NULL, -- Puesto del empleado
+	departamento varchar(255) NOT NULL, -- Departamento o área del empleado
+	status_laboral varchar(50) DEFAULT 'activo'::character varying NOT NULL, -- Estado laboral: activo, inactivo, vacaciones, licencia, baja
+	created_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL, -- Fecha y hora de creación del registro
+	updated_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL, -- Fecha y hora de última actualización del registro
+	departamento_id int4 NULL,
+	CONSTRAINT chk_edad_minima CHECK ((fecha_nacimiento <= (CURRENT_DATE - '18 years'::interval))),
+	CONSTRAINT chk_fecha_ingreso_valida CHECK ((fecha_ingreso <= CURRENT_DATE)),
+	CONSTRAINT chk_fecha_nacimiento_valida CHECK ((fecha_nacimiento <= CURRENT_DATE)),
+	CONSTRAINT chk_genero_valido CHECK (((genero)::text = ANY ((ARRAY['MASCULINO'::character varying, 'FEMENINO'::character varying, 'OTRO'::character varying, 'NO ESPECIFICADO'::character varying])::text[]))),
+	CONSTRAINT chk_status_laboral_valido CHECK (((status_laboral)::text = ANY ((ARRAY['activo'::character varying, 'inactivo'::character varying, 'vacaciones'::character varying, 'licencia'::character varying, 'baja'::character varying])::text[]))),
+	CONSTRAINT empleados_años_check CHECK ((("años" >= 0) AND ("años" <= 100))),
+	CONSTRAINT empleados_curp_key UNIQUE (curp),
+	CONSTRAINT empleados_nss_key UNIQUE (nss),
+	CONSTRAINT empleados_num_empl_key UNIQUE (num_empl),
+	CONSTRAINT empleados_pkey PRIMARY KEY (id),
+	CONSTRAINT empleados_rfc_key UNIQUE (rfc),
+	CONSTRAINT uq_empleado_empresa UNIQUE (num_empl, empresa),
+	CONSTRAINT empleados_departamento_id_fkey FOREIGN KEY (departamento_id) REFERENCES public.departamentos(id) ON DELETE SET NULL,
+	CONSTRAINT fk_empleados_departamento FOREIGN KEY (departamento_id) REFERENCES public.departamentos(id) ON DELETE SET NULL ON UPDATE CASCADE
+);
+CREATE INDEX empleados_curp_index ON public.empleados USING btree (curp);
+CREATE INDEX empleados_departamento_id_index ON public.empleados USING btree (departamento_id);
+CREATE INDEX empleados_departamento_index ON public.empleados USING btree (departamento);
+CREATE INDEX empleados_empresa_departamento_index ON public.empleados USING btree (empresa, departamento);
+CREATE INDEX empleados_empresa_index ON public.empleados USING btree (empresa);
+CREATE INDEX empleados_fecha_ingreso_index ON public.empleados USING btree (fecha_ingreso);
+CREATE INDEX empleados_nss_index ON public.empleados USING btree (nss);
+CREATE INDEX empleados_num_empl_index ON public.empleados USING btree (num_empl);
+CREATE INDEX empleados_rfc_index ON public.empleados USING btree (rfc);
+CREATE INDEX empleados_status_laboral_empresa_index ON public.empleados USING btree (status_laboral, empresa);
+CREATE INDEX empleados_status_laboral_index ON public.empleados USING btree (status_laboral);
+COMMENT ON TABLE public.empleados IS 'Tabla para almacenar información de empleados';
+
+-- Column comments
+
+COMMENT ON COLUMN public.empleados.id IS 'Identificador único autoincremental del empleado';
+COMMENT ON COLUMN public.empleados.num_empl IS 'Número de empleado único por empresa';
+COMMENT ON COLUMN public.empleados.empleado IS 'Nombre completo del empleado';
+COMMENT ON COLUMN public.empleados.fecha_ingreso IS 'Fecha de ingreso a la empresa';
+COMMENT ON COLUMN public.empleados.rfc IS 'RFC único del empleado (13 caracteres)';
+COMMENT ON COLUMN public.empleados.nss IS 'Número de Seguridad Social único (11 caracteres)';
+COMMENT ON COLUMN public.empleados.curp IS 'CURP único del empleado (18 caracteres)';
+COMMENT ON COLUMN public.empleados.genero IS 'Género del empleado: MASCULINO, FEMENINO, OTRO, NO ESPECIFICADO';
+COMMENT ON COLUMN public.empleados.fecha_nacimiento IS 'Fecha de nacimiento del empleado';
+COMMENT ON COLUMN public.empleados.años IS 'Edad del empleado en años (0-100)';
+COMMENT ON COLUMN public.empleados.empresa IS 'Nombre de la empresa donde labora';
+COMMENT ON COLUMN public.empleados.puesto IS 'Puesto del empleado';
+COMMENT ON COLUMN public.empleados.departamento IS 'Departamento o área del empleado';
+COMMENT ON COLUMN public.empleados.status_laboral IS 'Estado laboral: activo, inactivo, vacaciones, licencia, baja';
+COMMENT ON COLUMN public.empleados.created_at IS 'Fecha y hora de creación del registro';
+COMMENT ON COLUMN public.empleados.updated_at IS 'Fecha y hora de última actualización del registro';
+
+-- Permissions
+
+ALTER TABLE public.empleados OWNER TO postgres;
+GRANT ALL ON TABLE public.empleados TO postgres;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.empleados TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.empleados TO sira_stg_user;
 
 
 -- public.inventario_actual definition
@@ -1486,7 +1543,7 @@ update
 ALTER TABLE public.inventario_actual OWNER TO postgres;
 GRANT ALL ON TABLE public.inventario_actual TO postgres;
 GRANT ALL ON TABLE public.inventario_actual TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.inventario_actual TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.inventario_actual TO sira_prod_user;
 
 
 -- public.rol_funcion definition
@@ -1508,7 +1565,7 @@ CREATE TABLE public.rol_funcion (
 ALTER TABLE public.rol_funcion OWNER TO postgres;
 GRANT ALL ON TABLE public.rol_funcion TO postgres;
 GRANT ALL ON TABLE public.rol_funcion TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.rol_funcion TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.rol_funcion TO sira_prod_user;
 
 
 -- public.sitios definition
@@ -1542,7 +1599,7 @@ update
 ALTER TABLE public.sitios OWNER TO postgres;
 GRANT ALL ON TABLE public.sitios TO postgres;
 GRANT ALL ON TABLE public.sitios TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.sitios TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.sitios TO sira_prod_user;
 
 
 -- public.usuarios definition
@@ -1583,7 +1640,7 @@ update
 ALTER TABLE public.usuarios OWNER TO postgres;
 GRANT ALL ON TABLE public.usuarios TO postgres;
 GRANT ALL ON TABLE public.usuarios TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.usuarios TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.usuarios TO sira_prod_user;
 
 
 -- public.usuarios_ui_preferencias definition
@@ -1605,7 +1662,41 @@ CREATE INDEX idx_usuarios_ui_preferencias_actualizado_en ON public.usuarios_ui_p
 
 ALTER TABLE public.usuarios_ui_preferencias OWNER TO postgres;
 GRANT ALL ON TABLE public.usuarios_ui_preferencias TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.usuarios_ui_preferencias TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.usuarios_ui_preferencias TO sira_prod_user;
+
+
+-- public.vacaciones definition
+
+-- Drop table
+
+-- DROP TABLE public.vacaciones;
+
+CREATE TABLE public.vacaciones (
+	id serial4 NOT NULL,
+	empleado_id int4 NOT NULL,
+	fecha_solicitud timestamp DEFAULT CURRENT_TIMESTAMP NULL,
+	fecha_inicio date NOT NULL,
+	fecha_fin date NOT NULL,
+	fecha_retorno date NULL,
+	dias_solicitados int4 NOT NULL,
+	periodo_antiguedad int4 NOT NULL,
+	estatus varchar(20) DEFAULT 'Pendiente'::character varying NULL,
+	observaciones text NULL,
+	aprobado_por int4 NULL,
+	fecha_aprobacion timestamp NULL,
+	created_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	CONSTRAINT vacaciones_pkey PRIMARY KEY (id),
+	CONSTRAINT vacaciones_empleado_id_fkey FOREIGN KEY (empleado_id) REFERENCES public.empleados(id) ON DELETE CASCADE
+);
+CREATE INDEX vacaciones_empleado_id_index ON public.vacaciones USING btree (empleado_id);
+CREATE INDEX vacaciones_estatus_index ON public.vacaciones USING btree (estatus);
+
+-- Permissions
+
+ALTER TABLE public.vacaciones OWNER TO postgres;
+GRANT ALL ON TABLE public.vacaciones TO postgres;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.vacaciones TO sira_prod_user;
 
 
 -- public.notificacion_grupo_usuarios definition
@@ -1628,7 +1719,7 @@ COMMENT ON TABLE public.notificacion_grupo_usuarios IS 'Tabla intermedia para la
 ALTER TABLE public.notificacion_grupo_usuarios OWNER TO postgres;
 GRANT ALL ON TABLE public.notificacion_grupo_usuarios TO postgres;
 GRANT ALL ON TABLE public.notificacion_grupo_usuarios TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.notificacion_grupo_usuarios TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.notificacion_grupo_usuarios TO sira_prod_user;
 
 
 -- public.ordenes_compra_extraordinarias definition
@@ -1664,8 +1755,8 @@ COMMENT ON COLUMN public.ordenes_compra_extraordinarias.status IS 'BORRADOR | EN
 
 ALTER TABLE public.ordenes_compra_extraordinarias OWNER TO postgres;
 GRANT ALL ON TABLE public.ordenes_compra_extraordinarias TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.ordenes_compra_extraordinarias TO sira_prod_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.ordenes_compra_extraordinarias TO sira_stg_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.ordenes_compra_extraordinarias TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.ordenes_compra_extraordinarias TO sira_stg_user;
 
 
 -- public.proyectos definition
@@ -1726,7 +1817,7 @@ update
 ALTER TABLE public.proyectos OWNER TO postgres;
 GRANT ALL ON TABLE public.proyectos TO postgres;
 GRANT ALL ON TABLE public.proyectos TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.proyectos TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.proyectos TO sira_prod_user;
 
 
 -- public.proyectos_hitos definition
@@ -1744,10 +1835,13 @@ CREATE TABLE public.proyectos_hitos (
 	fecha_realizacion date NULL,
 	creado_en timestamptz DEFAULT now() NOT NULL,
 	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	responsable_id int4 NULL,
 	CONSTRAINT proyectos_hitos_pkey PRIMARY KEY (id),
-	CONSTRAINT proyectos_hitos_proyecto_id_fkey FOREIGN KEY (proyecto_id) REFERENCES public.proyectos(id) ON DELETE CASCADE
+	CONSTRAINT proyectos_hitos_proyecto_id_fkey FOREIGN KEY (proyecto_id) REFERENCES public.proyectos(id) ON DELETE CASCADE,
+	CONSTRAINT proyectos_hitos_responsable_id_fkey FOREIGN KEY (responsable_id) REFERENCES public.usuarios(id) ON DELETE SET NULL
 );
 CREATE INDEX idx_proyectos_hitos_proyecto_id ON public.proyectos_hitos USING btree (proyecto_id);
+CREATE INDEX idx_proyectos_hitos_responsable_id ON public.proyectos_hitos USING btree (responsable_id);
 CREATE INDEX idx_proyectos_hitos_target_date ON public.proyectos_hitos USING btree (target_date);
 
 -- Table Triggers
@@ -1761,7 +1855,7 @@ update
 
 ALTER TABLE public.proyectos_hitos OWNER TO postgres;
 GRANT ALL ON TABLE public.proyectos_hitos TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.proyectos_hitos TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.proyectos_hitos TO sira_prod_user;
 GRANT ALL ON TABLE public.proyectos_hitos TO sira_stg_user;
 
 
@@ -1816,7 +1910,7 @@ insert
 ALTER TABLE public.requisiciones OWNER TO postgres;
 GRANT ALL ON TABLE public.requisiciones TO postgres;
 GRANT ALL ON TABLE public.requisiciones TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.requisiciones TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.requisiciones TO sira_prod_user;
 
 
 -- public.requisiciones_adjuntos definition
@@ -1840,7 +1934,7 @@ CREATE TABLE public.requisiciones_adjuntos (
 ALTER TABLE public.requisiciones_adjuntos OWNER TO postgres;
 GRANT ALL ON TABLE public.requisiciones_adjuntos TO postgres;
 GRANT ALL ON TABLE public.requisiciones_adjuntos TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.requisiciones_adjuntos TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.requisiciones_adjuntos TO sira_prod_user;
 
 
 -- public.requisiciones_borradores definition
@@ -1865,7 +1959,7 @@ CREATE INDEX idx_borradores_usuario ON public.requisiciones_borradores USING btr
 ALTER TABLE public.requisiciones_borradores OWNER TO postgres;
 GRANT ALL ON TABLE public.requisiciones_borradores TO postgres;
 GRANT ALL ON TABLE public.requisiciones_borradores TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.requisiciones_borradores TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.requisiciones_borradores TO sira_prod_user;
 
 
 -- public.requisiciones_detalle definition
@@ -1911,7 +2005,7 @@ update
 ALTER TABLE public.requisiciones_detalle OWNER TO postgres;
 GRANT ALL ON TABLE public.requisiciones_detalle TO postgres;
 GRANT ALL ON TABLE public.requisiciones_detalle TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.requisiciones_detalle TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.requisiciones_detalle TO sira_prod_user;
 
 
 -- public.requisiciones_opciones definition
@@ -1987,7 +2081,7 @@ update
 ALTER TABLE public.requisiciones_opciones OWNER TO postgres;
 GRANT ALL ON TABLE public.requisiciones_opciones TO postgres;
 GRANT ALL ON TABLE public.requisiciones_opciones TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.requisiciones_opciones TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.requisiciones_opciones TO sira_prod_user;
 
 
 -- public.rfq_borradores definition
@@ -2017,8 +2111,8 @@ update
 
 ALTER TABLE public.rfq_borradores OWNER TO postgres;
 GRANT ALL ON TABLE public.rfq_borradores TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.rfq_borradores TO sira_prod_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.rfq_borradores TO sira_stg_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.rfq_borradores TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.rfq_borradores TO sira_stg_user;
 
 
 -- public.rfq_proveedor_adjuntos definition
@@ -2045,7 +2139,7 @@ COMMENT ON TABLE public.rfq_proveedor_adjuntos IS 'Almacena los archivos de coti
 ALTER TABLE public.rfq_proveedor_adjuntos OWNER TO postgres;
 GRANT ALL ON TABLE public.rfq_proveedor_adjuntos TO postgres;
 GRANT ALL ON TABLE public.rfq_proveedor_adjuntos TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.rfq_proveedor_adjuntos TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.rfq_proveedor_adjuntos TO sira_prod_user;
 
 
 -- public.salidas_almacen definition
@@ -2089,7 +2183,7 @@ CREATE INDEX salidas_almacen_usuario_id_index ON public.salidas_almacen USING bt
 
 ALTER TABLE public.salidas_almacen OWNER TO postgres;
 GRANT ALL ON TABLE public.salidas_almacen TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.salidas_almacen TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.salidas_almacen TO sira_prod_user;
 
 
 -- public.unidades definition
@@ -2147,7 +2241,7 @@ delete
 ALTER TABLE public.unidades OWNER TO postgres;
 GRANT ALL ON TABLE public.unidades TO postgres;
 GRANT ALL ON TABLE public.unidades TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.unidades TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.unidades TO sira_prod_user;
 
 
 -- public.budget definition
@@ -2188,7 +2282,7 @@ update
 ALTER TABLE public.budget OWNER TO postgres;
 GRANT ALL ON TABLE public.budget TO postgres;
 GRANT ALL ON TABLE public.budget TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.budget TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.budget TO sira_prod_user;
 
 
 -- public.inventario_asignado definition
@@ -2225,7 +2319,7 @@ COMMENT ON COLUMN public.inventario_asignado.moneda IS 'Moneda del valor_unitari
 ALTER TABLE public.inventario_asignado OWNER TO postgres;
 GRANT ALL ON TABLE public.inventario_asignado TO postgres;
 GRANT ALL ON TABLE public.inventario_asignado TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.inventario_asignado TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.inventario_asignado TO sira_prod_user;
 
 
 -- public.ordenes_compra definition
@@ -2323,7 +2417,7 @@ update
 ALTER TABLE public.ordenes_compra OWNER TO postgres;
 GRANT ALL ON TABLE public.ordenes_compra TO postgres;
 GRANT ALL ON TABLE public.ordenes_compra TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.ordenes_compra TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.ordenes_compra TO sira_prod_user;
 
 
 -- public.ordenes_compra_detalle definition
@@ -2389,7 +2483,7 @@ delete
 ALTER TABLE public.ordenes_compra_detalle OWNER TO postgres;
 GRANT ALL ON TABLE public.ordenes_compra_detalle TO postgres;
 GRANT ALL ON TABLE public.ordenes_compra_detalle TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.ordenes_compra_detalle TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.ordenes_compra_detalle TO sira_prod_user;
 
 
 -- public.ordenes_compra_historial definition
@@ -2416,7 +2510,7 @@ CREATE INDEX idx_historial_orden_compra_id ON public.ordenes_compra_historial US
 ALTER TABLE public.ordenes_compra_historial OWNER TO postgres;
 GRANT ALL ON TABLE public.ordenes_compra_historial TO postgres;
 GRANT ALL ON TABLE public.ordenes_compra_historial TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.ordenes_compra_historial TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.ordenes_compra_historial TO sira_prod_user;
 
 
 -- public.pagos_oc definition
@@ -2487,7 +2581,7 @@ update
 ALTER TABLE public.pagos_oc OWNER TO postgres;
 GRANT ALL ON TABLE public.pagos_oc TO postgres;
 GRANT ALL ON TABLE public.pagos_oc TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.pagos_oc TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.pagos_oc TO sira_prod_user;
 
 
 -- public.recepciones_oc definition
@@ -2519,7 +2613,7 @@ CREATE TABLE public.recepciones_oc (
 ALTER TABLE public.recepciones_oc OWNER TO postgres;
 GRANT ALL ON TABLE public.recepciones_oc TO postgres;
 GRANT ALL ON TABLE public.recepciones_oc TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.recepciones_oc TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.recepciones_oc TO sira_prod_user;
 
 
 -- public.salidas_almacen_items definition
@@ -2550,7 +2644,7 @@ CREATE INDEX salidas_almacen_items_salida_almacen_id_index ON public.salidas_alm
 
 ALTER TABLE public.salidas_almacen_items OWNER TO postgres;
 GRANT ALL ON TABLE public.salidas_almacen_items TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.salidas_almacen_items TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.salidas_almacen_items TO sira_prod_user;
 
 
 -- public.unidades_historial definition
@@ -2585,8 +2679,8 @@ CREATE INDEX unidades_historial_unidad_id_index ON public.unidades_historial USI
 
 ALTER TABLE public.unidades_historial OWNER TO postgres;
 GRANT ALL ON TABLE public.unidades_historial TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.unidades_historial TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.unidades_historial TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.unidades_historial TO sira_stg_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.unidades_historial TO sira_prod_user;
 
 
 -- public.archivos_recoleccion_oc definition
@@ -2615,8 +2709,8 @@ COMMENT ON COLUMN public.archivos_recoleccion_oc.tipo IS 'Tipo de archivo para c
 
 ALTER TABLE public.archivos_recoleccion_oc OWNER TO postgres;
 GRANT ALL ON TABLE public.archivos_recoleccion_oc TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.archivos_recoleccion_oc TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.archivos_recoleccion_oc TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.archivos_recoleccion_oc TO sira_stg_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.archivos_recoleccion_oc TO sira_prod_user;
 
 
 -- public.historial_kpi_tiempos_entrega definition
@@ -2651,8 +2745,8 @@ COMMENT ON COLUMN public.historial_kpi_tiempos_entrega.dias_transcurridos IS 'Di
 
 ALTER TABLE public.historial_kpi_tiempos_entrega OWNER TO postgres;
 GRANT ALL ON TABLE public.historial_kpi_tiempos_entrega TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.historial_kpi_tiempos_entrega TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.historial_kpi_tiempos_entrega TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.historial_kpi_tiempos_entrega TO sira_stg_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.historial_kpi_tiempos_entrega TO sira_prod_user;
 
 
 -- public.incidencias_recepcion_oc definition
@@ -2689,8 +2783,8 @@ COMMENT ON COLUMN public.incidencias_recepcion_oc.descripcion_problema IS 'Descr
 
 ALTER TABLE public.incidencias_recepcion_oc OWNER TO postgres;
 GRANT ALL ON TABLE public.incidencias_recepcion_oc TO postgres;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.incidencias_recepcion_oc TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.incidencias_recepcion_oc TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.incidencias_recepcion_oc TO sira_stg_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.incidencias_recepcion_oc TO sira_prod_user;
 
 
 -- public.movimientos_inventario definition
@@ -2773,7 +2867,7 @@ update
 ALTER TABLE public.movimientos_inventario OWNER TO postgres;
 GRANT ALL ON TABLE public.movimientos_inventario TO postgres;
 GRANT ALL ON TABLE public.movimientos_inventario TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.movimientos_inventario TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.movimientos_inventario TO sira_prod_user;
 
 
 -- public.vw_asignaciones_por_sitio source
@@ -2799,7 +2893,7 @@ AS SELECT cm.id AS material_id,
 ALTER TABLE public.vw_asignaciones_por_sitio OWNER TO postgres;
 GRANT ALL ON TABLE public.vw_asignaciones_por_sitio TO postgres;
 GRANT ALL ON TABLE public.vw_asignaciones_por_sitio TO sira_stg_user;
-GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE public.vw_asignaciones_por_sitio TO sira_prod_user;
+GRANT UPDATE, DELETE, SELECT, INSERT ON TABLE public.vw_asignaciones_por_sitio TO sira_prod_user;
 
 
 
@@ -3564,5 +3658,5 @@ GRANT USAGE ON SCHEMA public TO public;
 GRANT ALL ON SCHEMA public TO cloudsqlsuperuser;
 GRANT USAGE ON SCHEMA public TO sira_prod_user;
 GRANT USAGE ON SCHEMA public TO sira_stg_user;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT INSERT, SELECT, UPDATE, DELETE ON TABLES TO sira_prod_user;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT UPDATE, DELETE, SELECT, INSERT ON TABLES TO sira_prod_user;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT, USAGE ON SEQUENCES TO sira_prod_user;
