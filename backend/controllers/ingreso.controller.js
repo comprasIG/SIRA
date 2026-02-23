@@ -459,148 +459,176 @@ const registrarIngreso = async (req, res) => {
           : (monedaDetalle && monedaDetalle.length === 3 ? monedaDetalle : null);
 
       // 4) Inventario + Kardex
-      if (ocInfo.entraADisponible) {
-        // DISPONIBLE (stock_actual)
-        const stockUpdateQuery = `
-          INSERT INTO public.inventario_actual
-            (material_id, ubicacion_id, stock_actual, ultimo_precio_entrada, moneda)
-          VALUES
-            ($1, $2, $3, $4, $5)
-          ON CONFLICT (material_id, ubicacion_id) DO UPDATE
-            SET stock_actual = public.inventario_actual.stock_actual + EXCLUDED.stock_actual,
-                ultimo_precio_entrada = EXCLUDED.ultimo_precio_entrada,
-                moneda = EXCLUDED.moneda,
-                actualizado_en = NOW();
-        `;
-        await client.query(stockUpdateQuery, [
-          material_id,
-          ubicacionIdFinal,
-          cantidadNum,
-          precioFinal,
-          monedaFinal,
-        ]);
+      // Primero verificamos si es un SERVICIO para NO meterlo al inventario
+      const unidadSimbolo = item.unidad_simbolo || ''; // Nos aseguramos de recibir esto del front o consultarlo
 
-        await client.query(
-          `
-          INSERT INTO public.movimientos_inventario
-            (material_id, tipo_movimiento, cantidad, usuario_id, ubicacion_id,
-             proyecto_destino_id, orden_compra_id, valor_unitario, moneda, observaciones)
-          VALUES
-            ($1, 'ENTRADA', $2, $3, $4,
-             $5, $6, $7, $8, $9)
-          `,
-          [
-            material_id,
-            cantidadNum,
-            usuarioId,
-            ubicacionIdFinal,
-            ocInfo.proyecto_id,
-            orden_compra_id,
-            precioFinal,
-            monedaFinal,
-            `Ingreso por OC (DISPONIBLE/ALMACÉN CENTRAL=${ocInfo.almacenCentralId}) - DetalleOC:${detalle_id}`,
-          ]
-        );
+      // Si no viene del front, lo consultamos (más seguro)
+      const unidadQuery = `
+        SELECT cu.simbolo 
+        FROM public.catalogo_materiales cm
+        JOIN public.catalogo_unidades cu ON cm.unidad_de_compra = cu.id
+        WHERE cm.id = $1
+      `;
+      const unidadRes = await client.query(unidadQuery, [material_id]);
+      const simboloReal = unidadRes.rows[0]?.simbolo || '';
 
+      const isServicio = ['SERV', 'SERVICIO'].includes(simboloReal.toUpperCase());
+
+      if (isServicio) {
+        // ES SERVICIO -> NO ENTRA A INVENTARIO
         ingresoDetalles.push({
           detalle_id,
           material_id,
           cantidad: cantidadNum,
-          entraADisponible: true,
-          ubicacion_id: ubicacionIdFinal,
+          entraADisponible: false, // No aplica
+          esServicio: true,
+          mensaje: 'Item de servicio/serv: se omitió ingreso a inventario.'
         });
       } else {
-        // DIRECTO A APARTADO
-        const assignedUpdateQuery = `
-          INSERT INTO public.inventario_actual
-            (material_id, ubicacion_id, asignado, ultimo_precio_entrada, moneda)
-          VALUES
-            ($1, $2, $3, $4, $5)
-          ON CONFLICT (material_id, ubicacion_id) DO UPDATE
-            SET asignado = public.inventario_actual.asignado + EXCLUDED.asignado,
-                ultimo_precio_entrada = EXCLUDED.ultimo_precio_entrada,
-                moneda = EXCLUDED.moneda,
-                actualizado_en = NOW()
-          RETURNING id;
-        `;
-
-        const invActualRes = await client.query(assignedUpdateQuery, [
-          material_id,
-          ubicacionIdFinal,
-          cantidadNum,
-          precioFinal,
-          monedaFinal,
-        ]);
-
-        const inventarioId = invActualRes.rows[0].id;
-
-        const requisicionPrincipalQuery = `
-          SELECT r.id AS requisicion_principal_id
-          FROM public.requisiciones_detalle rd
-          JOIN public.requisiciones r ON rd.requisicion_id = r.id
-          WHERE rd.id = $1
-          LIMIT 1;
-        `;
-        const reqPrincipalRes = await client.query(requisicionPrincipalQuery, [
-          updatedDetail?.requisicion_detalle_id,
-        ]);
-        if (reqPrincipalRes.rowCount === 0) {
-          throw new Error(
-            `No se pudo encontrar la requisición principal para DetalleOC:${detalle_id} (ReqDetID:${updatedDetail?.requisicion_detalle_id})`
-          );
-        }
-
-        const { requisicion_principal_id } = reqPrincipalRes.rows[0];
-
-        const assignedInsertQuery = `
-          INSERT INTO public.inventario_asignado
-            (inventario_id, requisicion_id, proyecto_id, sitio_id, cantidad, valor_unitario, moneda, asignado_en)
-          VALUES
-            ($1, $2, $3, $4, $5, $6, $7, NOW());
-        `;
-        await client.query(assignedInsertQuery, [
-          inventarioId,
-          requisicion_principal_id,
-          ocInfo.proyecto_id,
-          ocInfo.sitio_id,
-          cantidadNum,
-          precioFinal,
-          monedaFinal,
-        ]);
-
-        await client.query(
-          `
-          INSERT INTO public.movimientos_inventario
-            (material_id, tipo_movimiento, cantidad, usuario_id, ubicacion_id,
-             proyecto_destino_id, orden_compra_id, requisicion_id, valor_unitario, moneda, observaciones)
-          VALUES
-            ($1, 'ENTRADA', $2, $3, $4,
-             $5, $6, $7, $8, $9, $10)
-          `,
-          [
+        // NO ES SERVICIO -> Flujo normal de inventario
+        if (ocInfo.entraADisponible) {
+          // DISPONIBLE (stock_actual)
+          const stockUpdateQuery = `
+            INSERT INTO public.inventario_actual
+              (material_id, ubicacion_id, stock_actual, ultimo_precio_entrada, moneda)
+            VALUES
+              ($1, $2, $3, $4, $5)
+            ON CONFLICT (material_id, ubicacion_id) DO UPDATE
+              SET stock_actual = public.inventario_actual.stock_actual + EXCLUDED.stock_actual,
+                  ultimo_precio_entrada = EXCLUDED.ultimo_precio_entrada,
+                  moneda = EXCLUDED.moneda,
+                  actualizado_en = NOW();
+          `;
+          await client.query(stockUpdateQuery, [
             material_id,
-            cantidadNum,
-            usuarioId,
             ubicacionIdFinal,
-            ocInfo.proyecto_id,
-            orden_compra_id,
-            requisicion_principal_id,
+            cantidadNum,
             precioFinal,
             monedaFinal,
-            `Ingreso por OC (DIRECTO A APARTADO) - destino sitio=${ocInfo.sitio_id} proyecto=${ocInfo.proyecto_id} - DetalleOC:${detalle_id}`,
-          ]
-        );
+          ]);
 
-        ingresoDetalles.push({
-          detalle_id,
-          material_id,
-          cantidad: cantidadNum,
-          entraADisponible: false,
-          ubicacion_id: ubicacionIdFinal,
-          sitio_destino: ocInfo.sitio_id,
-          proyecto_destino: ocInfo.proyecto_id,
-          requisicion_id: requisicion_principal_id,
-        });
+          await client.query(
+            `
+            INSERT INTO public.movimientos_inventario
+              (material_id, tipo_movimiento, cantidad, usuario_id, ubicacion_id,
+              proyecto_destino_id, orden_compra_id, valor_unitario, moneda, observaciones)
+            VALUES
+              ($1, 'ENTRADA', $2, $3, $4,
+              $5, $6, $7, $8, $9)
+            `,
+            [
+              material_id,
+              cantidadNum,
+              usuarioId,
+              ubicacionIdFinal,
+              ocInfo.proyecto_id,
+              orden_compra_id,
+              precioFinal,
+              monedaFinal,
+              `Ingreso por OC (DISPONIBLE/ALMACÉN CENTRAL=${ocInfo.almacenCentralId}) - DetalleOC:${detalle_id}`,
+            ]
+          );
+
+          ingresoDetalles.push({
+            detalle_id,
+            material_id,
+            cantidad: cantidadNum,
+            entraADisponible: true,
+            ubicacion_id: ubicacionIdFinal,
+          });
+        } else {
+          // DIRECTO A APARTADO
+          const assignedUpdateQuery = `
+            INSERT INTO public.inventario_actual
+              (material_id, ubicacion_id, asignado, ultimo_precio_entrada, moneda)
+            VALUES
+              ($1, $2, $3, $4, $5)
+            ON CONFLICT (material_id, ubicacion_id) DO UPDATE
+              SET asignado = public.inventario_actual.asignado + EXCLUDED.asignado,
+                  ultimo_precio_entrada = EXCLUDED.ultimo_precio_entrada,
+                  moneda = EXCLUDED.moneda,
+                  actualizado_en = NOW()
+            RETURNING id;
+          `;
+
+          const invActualRes = await client.query(assignedUpdateQuery, [
+            material_id,
+            ubicacionIdFinal,
+            cantidadNum,
+            precioFinal,
+            monedaFinal,
+          ]);
+
+          const inventarioId = invActualRes.rows[0].id;
+
+          const requisicionPrincipalQuery = `
+            SELECT r.id AS requisicion_principal_id
+            FROM public.requisiciones_detalle rd
+            JOIN public.requisiciones r ON rd.requisicion_id = r.id
+            WHERE rd.id = $1
+            LIMIT 1;
+          `;
+          const reqPrincipalRes = await client.query(requisicionPrincipalQuery, [
+            updatedDetail?.requisicion_detalle_id,
+          ]);
+          if (reqPrincipalRes.rowCount === 0) {
+            throw new Error(
+              `No se pudo encontrar la requisición principal para DetalleOC:${detalle_id} (ReqDetID:${updatedDetail?.requisicion_detalle_id})`
+            );
+          }
+
+          const { requisicion_principal_id } = reqPrincipalRes.rows[0];
+
+          const assignedInsertQuery = `
+            INSERT INTO public.inventario_asignado
+              (inventario_id, requisicion_id, proyecto_id, sitio_id, cantidad, valor_unitario, moneda, asignado_en)
+            VALUES
+              ($1, $2, $3, $4, $5, $6, $7, NOW());
+          `;
+          await client.query(assignedInsertQuery, [
+            inventarioId,
+            requisicion_principal_id,
+            ocInfo.proyecto_id,
+            ocInfo.sitio_id,
+            cantidadNum,
+            precioFinal,
+            monedaFinal,
+          ]);
+
+          await client.query(
+            `
+            INSERT INTO public.movimientos_inventario
+              (material_id, tipo_movimiento, cantidad, usuario_id, ubicacion_id,
+              proyecto_destino_id, orden_compra_id, requisicion_id, valor_unitario, moneda, observaciones)
+            VALUES
+              ($1, 'ENTRADA', $2, $3, $4,
+              $5, $6, $7, $8, $9, $10)
+            `,
+            [
+              material_id,
+              cantidadNum,
+              usuarioId,
+              ubicacionIdFinal,
+              ocInfo.proyecto_id,
+              orden_compra_id,
+              requisicion_principal_id,
+              precioFinal,
+              monedaFinal,
+              `Ingreso por OC (DIRECTO A APARTADO) - destino sitio=${ocInfo.sitio_id} proyecto=${ocInfo.proyecto_id} - DetalleOC:${detalle_id}`,
+            ]
+          );
+
+          ingresoDetalles.push({
+            detalle_id,
+            material_id,
+            cantidad: cantidadNum,
+            entraADisponible: false,
+            ubicacion_id: ubicacionIdFinal,
+            sitio_destino: ocInfo.sitio_id,
+            proyecto_destino: ocInfo.proyecto_id,
+            requisicion_id: requisicion_principal_id,
+          });
+        }
       }
     }
 
@@ -644,6 +672,34 @@ const registrarIngreso = async (req, res) => {
         }),
       ]
     );
+
+    // ---------------------------------------------------------
+    // NUEVA LÓGICA: Verificar si la OC se completó totalmente
+    // ---------------------------------------------------------
+    const checkCompletionQuery = `
+      SELECT
+        COUNT(*) AS total_items,
+        COUNT(*) FILTER (WHERE cantidad_recibida >= cantidad) AS completed_items
+      FROM public.ordenes_compra_detalle
+      WHERE orden_compra_id = $1
+    `;
+    const completionRes = await client.query(checkCompletionQuery, [orden_compra_id]);
+    const { total_items, completed_items } = completionRes.rows[0];
+
+    // Si todos los items están completos (y hay al menos 1 item), cerramos la OC
+    if (parseInt(total_items, 10) > 0 && parseInt(completed_items, 10) === parseInt(total_items, 10)) {
+      await client.query(
+        `UPDATE public.ordenes_compra
+         SET status = 'ENTREGADA', actualizado_en = NOW()
+         WHERE id = $1`,
+        [orden_compra_id]
+      );
+
+      // También podríamos querer actualizar la requisición asociada si fuera 1:1,
+      // pero por ahora nos limitamos a cerrar la OC como pidió el usuario.
+    }
+
+
 
     await client.query("COMMIT");
     return res.status(200).json({ mensaje: "Ingreso registrado exitosamente." });

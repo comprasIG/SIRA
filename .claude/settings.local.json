@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /c/SIRA ls-files)",
+      "Bash(\"C:/SIRA/SIRA/backend/routes/roles.routes.js\":*)",
+      "Bash(\"C:/SIRA/SIRA/sira-front/src/hooks/useUnidadServicios.js\":*)",
+      "Bash(\"C:/SIRA/SIRA/sira-front/src/hooks/useRolesYPermisos.js\":*)",
+      "Bash(python3:*)",
+      "Bash(node -e:*)"
+    ]
+  }
+}

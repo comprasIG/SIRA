@@ -414,15 +414,17 @@ const crearProyecto = async (req, res) => {
           return res.status(400).json({ error: 'Cada hito requiere un nombre si se incluye en el arreglo.' });
         }
 
+        const responsableHId = parseOptionalInt(h?.responsable_id);
+
         const rH = await client.query(
           `
           INSERT INTO public.proyectos_hitos (
-            proyecto_id, nombre, descripcion, target_date, fecha_realizacion
+            proyecto_id, nombre, descripcion, target_date, fecha_realizacion, responsable_id
           )
-          VALUES ($1,$2,$3,$4,$5)
-          RETURNING id, proyecto_id, nombre, descripcion, target_date, fecha_realizacion;
+          VALUES ($1,$2,$3,$4,$5,$6)
+          RETURNING id, proyecto_id, nombre, descripcion, target_date, fecha_realizacion, responsable_id;
           `,
-          [proyecto.id, nombreH, descripcionH || null, targetDate, fechaReal]
+          [proyecto.id, nombreH, descripcionH || null, targetDate, fechaReal, responsableHId]
         );
 
         hitosInsertados.push(rH.rows[0]);
@@ -665,6 +667,7 @@ const actualizarProyecto = async (req, res) => {
         const targetDate = parseOptionalDateISO(h.target_date, 'hitos.target_date');
         const fechaReal = parseOptionalDateISO(h.fecha_realizacion, 'hitos.fecha_realizacion');
         const hId = parseOptionalInt(h.id); // Si trae ID es update, si no es insert
+        const responsableHId = parseOptionalInt(h.responsable_id);
 
         // Si la fila viene vacía y sin ID, la ignoramos
         const filaVacia = !nombreH && !descripcionH && !targetDate && !fechaReal;
@@ -685,18 +688,18 @@ const actualizarProyecto = async (req, res) => {
           }
 
           await client.query(
-            `UPDATE public.proyectos_hitos 
-                 SET nombre = $1, descripcion = $2, target_date = $3, fecha_realizacion = $4
-                 WHERE id = $5`,
-            [nombreH, descripcionH || null, targetDate, fechaReal, hId]
+            `UPDATE public.proyectos_hitos
+                 SET nombre = $1, descripcion = $2, target_date = $3, fecha_realizacion = $4, responsable_id = $5
+                 WHERE id = $6`,
+            [nombreH, descripcionH || null, targetDate, fechaReal, responsableHId, hId]
           );
           hitosEntrantesIds.add(hId);
         } else {
           // Insert
           const newH = await client.query(
-            `INSERT INTO public.proyectos_hitos (proyecto_id, nombre, descripcion, target_date, fecha_realizacion)
-                 VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-            [proyectoId, nombreH, descripcionH || null, targetDate, fechaReal]
+            `INSERT INTO public.proyectos_hitos (proyecto_id, nombre, descripcion, target_date, fecha_realizacion, responsable_id)
+                 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+            [proyectoId, nombreH, descripcionH || null, targetDate, fechaReal, responsableHId]
           );
           hitosEntrantesIds.add(newH.rows[0].id);
         }

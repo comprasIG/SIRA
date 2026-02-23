@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { Typography, Box, Paper, CircularProgress, Tabs, Tab } from '@mui/material';
+import { Typography, Box, Paper, CircularProgress, Tabs, Tab, IconButton, Tooltip } from '@mui/material';
 import { keyframes } from '@mui/system';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import BadgeIcon from '@mui/icons-material/Badge';
+import BarChartIcon from '@mui/icons-material/BarChart';
 import KpiRow from './KpiRow';
 import DashboardFilters from './DashboardFilters';
 import RfqTable from './RfqTable';
@@ -11,6 +12,8 @@ import dashboardConfig from './dashboardConfig';
 import { useDashboard } from '../../hooks/useDashboard';
 import ProyectosTab from './ProyectosTab';
 import PermisosRHTab from './PermisosRHTab';
+import HitosTab from './HitosTab';
+import AnalyticsModal from './AnalyticsModal';
 
 /* ── Instagram-style gradient spin animation ── */
 const gradientSpin = keyframes`
@@ -99,7 +102,19 @@ const paperSx = {
 export default function DashboardBase({ mode }) {
   const config = useMemo(() => dashboardConfig[mode] || {}, [mode]);
   const [activeTab, setActiveTab] = useState(0);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const showProyectos = config.showProyectosTab !== false;
+  const showHitos = config.showHitosTab !== false && showProyectos;
+  const isSSD = mode === 'SSD';
+
+  // Tab index mapping when hitos tab is visible:
+  //   0 = TO DO, 1 = Requisiciones, 2 = Proyectos, 3 = Permisos RH
+  // When hitos tab is hidden (showHitos=false, showProyectos=true):
+  //   0 = Requisiciones, 1 = Proyectos, 2 = Permisos RH
+  // When showProyectos=false: no tabs, only Requisiciones
+  const tabRequisiciones = showHitos ? 1 : 0;
+  const tabProyectos     = showHitos ? 2 : 1;
+  const tabPermisos      = showHitos ? 3 : 2;
 
   const {
     loading,
@@ -116,20 +131,50 @@ export default function DashboardBase({ mode }) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
       {/* ── Header ── */}
-      <Typography
-        variant="h5"
-        sx={{
-          fontWeight: 800,
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          letterSpacing: '-0.3px',
-        }}
-      >
-        {config.title || 'Dashboard'}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Typography
+          variant="h5"
+          sx={{
+            fontWeight: 800,
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            letterSpacing: '-0.3px',
+            flex: 1,
+          }}
+        >
+          {config.title || 'Dashboard'}
+        </Typography>
 
-      {/* ── Tabs with animated gradient border (solo si Proyectos habilitado) ── */}
+        {isSSD && (
+          <Tooltip title="Ver analytics en pantalla completa (TV)">
+            <IconButton
+              onClick={() => setAnalyticsOpen(true)}
+              size="small"
+              sx={{
+                color: 'text.secondary',
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: 2,
+                p: 0.75,
+                '&:hover': {
+                  color: 'primary.main',
+                  borderColor: 'primary.main',
+                  bgcolor: 'rgba(102,126,234,0.06)',
+                },
+              }}
+            >
+              <BarChartIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Box>
+
+      {isSSD && (
+        <AnalyticsModal open={analyticsOpen} onClose={() => setAnalyticsOpen(false)} />
+      )}
+
+      {/* ── Tabs (solo si Proyectos habilitado) ── */}
       {showProyectos && (
         <Paper
           sx={{
@@ -150,6 +195,14 @@ export default function DashboardBase({ mode }) {
               '& .MuiTabs-flexContainer': { gap: 0.5 },
             }}
           >
+            {showHitos && (
+              <Tab
+                icon={<AssignmentIcon />}
+                iconPosition="start"
+                label="TO DO"
+                sx={tabSx}
+              />
+            )}
             <Tab icon={<AssignmentIcon />} iconPosition="start" label="Requisiciones" sx={tabSx} />
             <Tab icon={<AccountTreeIcon />} iconPosition="start" label="Proyectos" sx={tabSx} />
             <Tab icon={<BadgeIcon />} iconPosition="start" label="Permisos RH" sx={tabSx} />
@@ -157,8 +210,11 @@ export default function DashboardBase({ mode }) {
         </Paper>
       )}
 
-      {/* ─── Tab 0 / Único contenido: Requisiciones ─── */}
-      {(activeTab === 0 || !showProyectos) && (
+      {/* ─── Tab TO DO: Hitos (primer tab por default) ─── */}
+      {showHitos && activeTab === 0 && <HitosTab />}
+
+      {/* ─── Tab Requisiciones ─── */}
+      {(activeTab === tabRequisiciones || !showProyectos) && (
         <>
           <Paper sx={paperSx}>
             <KpiRow kpiData={kpis} />
@@ -193,11 +249,11 @@ export default function DashboardBase({ mode }) {
         </>
       )}
 
-      {/* ─── Tab 1: Proyectos (solo si habilitado) ─── */}
-      {showProyectos && activeTab === 1 && <ProyectosTab mode={mode} />}
+      {/* ─── Tab Proyectos ─── */}
+      {showProyectos && activeTab === tabProyectos && <ProyectosTab mode={mode} />}
 
-      {/* ─── Tab 2: Permisos RH (solo si habilitado) ─── */}
-      {showProyectos && activeTab === 2 && <PermisosRHTab />}
+      {/* ─── Tab Permisos RH ─── */}
+      {showProyectos && activeTab === tabPermisos && <PermisosRHTab />}
     </Box>
   );
 }

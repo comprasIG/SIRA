@@ -1,6 +1,7 @@
 // C:\SIRA\backend\controllers\finanzas\autorizacionOC.controller.js
 const pool = require('../../db/pool');
 const { sendEmailWithAttachments } = require('../../services/emailService');
+const { pushNotification } = require('../../services/notificationStore');
 
 /** =========================
  *  LISTA: POR AUTORIZAR
@@ -286,6 +287,13 @@ const aprobarCredito = async (req, res) => {
         `;
         await sendEmailWithAttachments(recipients, subject, htmlBody, []);
       }
+      pushNotification({
+        tipo: 'CREDITO',
+        titulo: `Autorización a Crédito — OC ${ocData.numero_oc}`,
+        cuerpo: `${ocData.proveedor_nombre} · ${diasCredito} días · vence ${fechaVencimiento.toLocaleDateString('es-MX')}`,
+        numero_oc: ocData.numero_oc,
+        proveedor: ocData.proveedor_nombre,
+      });
     } catch (emailErr) {
       console.error('[aprobarCredito] Error al enviar email de notificación:', emailErr);
     }
