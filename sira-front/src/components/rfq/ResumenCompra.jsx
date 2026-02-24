@@ -99,7 +99,7 @@ function calcularBloquesResumenes(materiales, providerConfigs = {}, opcionesBloq
         esImportacionItem: opcion.es_importacion,
         proveedorMarca: opcion.proveedor.nombre || '',
       });
-      
+
       // =================================================================
       // --- ¡CORRECCIÓN DEL BUG DE BLOQUEO! ---
       // También usamos 'opcion.id_bd' aquí.
@@ -132,9 +132,21 @@ function calcularBloquesResumenes(materiales, providerConfigs = {}, opcionesBloq
 
     const iva = (esCompraImportacion || !config.isIvaActive) ? 0 : subTotal * ivaRateNum;
     const retIsr = (esCompraImportacion || !config.isIsrActive) ? 0 : subTotal * isrRateNum;
-    let total = config.isForcedTotalActive ? forcedTotalNum : subTotal + iva - retIsr;
-    
-    return { ...bloque, subTotal, iva, retIsr, total, esCompraImportacion, config, items: itemsConSubtotal };
+
+    // Descuento global
+    let descuento = 0;
+    if (config.isDiscountActive) {
+      const discountVal = parseFloat(config.discountValue) || 0;
+      if (config.discountType === 'porcentaje') {
+        descuento = subTotal * (discountVal / 100);
+      } else {
+        descuento = discountVal;
+      }
+    }
+
+    let total = config.isForcedTotalActive ? forcedTotalNum : subTotal + iva - retIsr - descuento;
+
+    return { ...bloque, subTotal, iva, retIsr, descuento, total, esCompraImportacion, config, items: itemsConSubtotal };
   });
 }
 
@@ -210,7 +222,7 @@ export default function ResumenCompra({
           Selecciona un proveedor y marca "Elegir" para ver el resumen.
         </Typography>
       ) : (
-        
+
         // --- B: Iteración de Bloques de Resumen ---
         bloquesResumenes.map((bloque, idx) => {
           const isLocked = bloque.isBlocked; // <-- La lógica de bloqueo viene de la función helper
@@ -277,9 +289,9 @@ export default function ResumenCompra({
                 ))}
               </List>
               <Divider sx={{ my: 1 }} />
-              
+
               {bloque.esCompraImportacion && <Alert severity="info" sx={{ mb: 1 }}>Compra de Importación.</Alert>}
-              
+
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Typography variant="body2">Sub Total:</Typography>
                 <Typography variant="body2">${bloque.subTotal.toFixed(2)}</Typography>
@@ -296,14 +308,22 @@ export default function ResumenCompra({
                   <Typography variant="body2">-${bloque.retIsr.toFixed(2)}</Typography>
                 </Box>
               )}
+              {bloque.descuento > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', color: 'success.main' }}>
+                  <Typography variant="body2">
+                    Descuento {bloque.config.discountType === 'porcentaje' ? `(${bloque.config.discountValue}%)` : '(Fijo)'}:
+                  </Typography>
+                  <Typography variant="body2">-${bloque.descuento.toFixed(2)}</Typography>
+                </Box>
+              )}
               <Divider sx={{ my: 1 }} />
               <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
                 <Typography variant="body1" sx={{ fontWeight: 'bold' }}>Total ({bloque.config.moneda}):</Typography>
                 <Typography variant="body1" sx={{ fontWeight: 'bold' }}>${bloque.total.toFixed(2)}</Typography>
               </Box>
-              
+
               {bloque.config.isForcedTotalActive && <Alert severity="warning" sx={{ mt: 1 }}>¡Total Forzado!</Alert>}
-              
+
               <Divider sx={{ my: 2 }} />
 
               {/* --- B.4: Sección de Archivos Adjuntos --- */}

@@ -5,7 +5,7 @@
  * de la cotización, incluyendo ahora la selección de moneda.
  */
 import React, { useState, useEffect } from 'react';
-import { Popover, Typography, TextField, FormControlLabel, Switch, Box, Select, MenuItem, FormControl, InputLabel, CircularProgress } from '@mui/material';
+import { Popover, Typography, TextField, FormControlLabel, Switch, Box, Select, MenuItem, FormControl, InputLabel, CircularProgress, InputAdornment } from '@mui/material';
 import api from '../../api/api'; // Asegúrate de que la ruta a tu API sea correcta.
 
 export default function ConfigPopover({ open, anchorEl, onClose, config, setConfig }) {
@@ -113,6 +113,51 @@ export default function ConfigPopover({ open, anchorEl, onClose, config, setConf
             control={<Switch checked={config.isForcedTotalActive} onChange={handleChange} name="isForcedTotalActive" />}
             label="Activo" sx={{ minWidth: '100px' }}
           />
+        </Box>
+
+        {/* --- NUEVA SECCIÓN: Descuento Global --- */}
+        <Box sx={{ mt: 2, p: 1.5, border: '1px solid', borderColor: config.isDiscountActive ? 'success.main' : 'grey.300', borderRadius: 1, bgcolor: config.isDiscountActive ? 'success.50' : 'transparent' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: config.isDiscountActive ? 1.5 : 0 }}>
+            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Descuento Global</Typography>
+            <FormControlLabel
+              control={<Switch checked={!!config.isDiscountActive} onChange={handleChange} name="isDiscountActive" size="small" />}
+              label="Activo" sx={{ minWidth: '80px', mr: 0 }}
+            />
+          </Box>
+          {config.isDiscountActive && (
+            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel id="discount-type-label">Tipo</InputLabel>
+                <Select
+                  labelId="discount-type-label"
+                  label="Tipo"
+                  name="discountType"
+                  value={config.discountType || 'porcentaje'}
+                  onChange={handleValueChange}
+                >
+                  <MenuItem value="porcentaje">Porcentaje (%)</MenuItem>
+                  <MenuItem value="monto">Monto Fijo ($)</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
+                label={config.discountType === 'porcentaje' ? 'Porcentaje' : 'Monto'}
+                type="number"
+                name="discountValue"
+                value={config.discountValue ?? ''}
+                onChange={handleValueChange}
+                size="small"
+                fullWidth
+                inputProps={{ step: "0.01", min: "0" }}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      {config.discountType === 'porcentaje' ? '%' : '$'}
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Box>
+          )}
         </Box>
       </Box>
     </Popover>

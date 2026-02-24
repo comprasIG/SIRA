@@ -19,7 +19,7 @@ function formatMoney(moneda, value) {
   }
 }
 
-export default function TablaSitios({ sitios, loading, onVerProyectos, onEditar }) {
+export default function TablaSitios({ sitios, loading, onVerProyectos, onEditar, onToggleActivo }) {
   if (loading) {
     return (
       <div className="flex justify-center items-center py-20 bg-white rounded-2xl border border-gray-100 shadow-sm">
@@ -65,6 +65,7 @@ export default function TablaSitios({ sitios, loading, onVerProyectos, onEditar 
               <th className="p-4 font-semibold">Ubicación</th>
               <th className="p-4 font-semibold text-center">Proyectos</th>
               <th className="p-4 font-semibold text-right">Total OC</th>
+              <th className="p-4 font-semibold text-center">Estado</th>
               <th className="p-4 font-semibold text-center">Acciones</th>
             </tr>
           </thead>
@@ -74,11 +75,17 @@ export default function TablaSitios({ sitios, loading, onVerProyectos, onEditar 
               sitios.map((sitio) => (
                 <tr
                   key={sitio.id}
-                  className="group hover:bg-gray-50 transition-colors"
+                  className={[
+                    "group transition-colors",
+                    sitio.activo === false ? "opacity-50 bg-gray-50" : "hover:bg-gray-50",
+                  ].join(" ")}
                 >
                   {/* Sitio */}
                   <td className="p-4">
-                    <p className="font-semibold text-gray-900 leading-tight">
+                    <p className={[
+                      "font-semibold leading-tight",
+                      sitio.activo === false ? "line-through text-gray-400" : "text-gray-900",
+                    ].join(" ")}>
                       {sitio.nombre}
                     </p>
                   </td>
@@ -117,6 +124,27 @@ export default function TablaSitios({ sitios, loading, onVerProyectos, onEditar 
                     {renderTotalesPorMoneda(sitio)}
                   </td>
 
+                  {/* Estado (toggle) */}
+                  <td className="p-4 text-center">
+                    <button
+                      onClick={() => onToggleActivo && onToggleActivo(sitio)}
+                      title={sitio.activo !== false ? "Desactivar sitio" : "Activar sitio"}
+                      className={[
+                        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2",
+                        sitio.activo !== false
+                          ? "bg-emerald-500 focus:ring-emerald-400"
+                          : "bg-gray-300 focus:ring-gray-400",
+                      ].join(" ")}
+                    >
+                      <span
+                        className={[
+                          "inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow",
+                          sitio.activo !== false ? "translate-x-6" : "translate-x-1",
+                        ].join(" ")}
+                      />
+                    </button>
+                  </td>
+
                   {/* Acciones */}
                   <td className="p-4">
                     <div className="flex justify-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
@@ -141,7 +169,7 @@ export default function TablaSitios({ sitios, loading, onVerProyectos, onEditar 
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="p-14 text-center">
+                <td colSpan={7} className="p-14 text-center">
                   <div className="flex flex-col items-center text-gray-400">
                     <div className="bg-gray-50 p-4 rounded-full mb-3">
                       <Visibility className="text-gray-300" style={{ fontSize: 32 }} />

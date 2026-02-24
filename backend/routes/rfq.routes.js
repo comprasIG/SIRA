@@ -48,6 +48,11 @@ router.get("/:id/borrador", borradorController.getMiBorradorRfq);
 router.post("/:id/borrador", borradorController.upsertMiBorradorRfq);
 
 // ================================================================================================
+// Materiales Adicionales (desde G_RFQ)
+// ================================================================================================
+router.post("/:id/materiales-adicionales", genController.agregarMaterialAdicional);
+
+// ================================================================================================
 // Acciones (Comprador)
 // ================================================================================================
 router.post("/:id/opciones", upload.any(), genController.guardarOpcionesRfq);
