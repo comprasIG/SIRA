@@ -8,9 +8,6 @@ import SearchIcon from '@mui/icons-material/Search';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 
-// ========================================================================
-// --- PRODUCCIÓN: DESCOMENTA ESTAS LÍNEAS PARA USAR TUS DATOS REALES ---
-// ========================================================================
 import { useAuth } from "../../context/authContext";
 import SolicitarVacacionesModal from '../SolicitarVacacionesModal';
 const API_BASE_URL = import.meta.env.VITE_API_URL;
@@ -182,15 +179,15 @@ export default function PermisosRHTab() {
             </div>
         </div>
 
-        {/* INCAPACIDADES */}
+        {/* PERMISOS POR 4 HORAS */}
         <div className="bg-white rounded-2xl shadow-sm border border-rose-100 p-6 flex flex-col relative overflow-hidden opacity-80 hover:opacity-100 transition-opacity">
             <div className="flex items-center gap-3 mb-4">
                 <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl"><SickIcon fontSize="small" /></div>
-                <h3 className="font-bold text-slate-800 text-lg">Incapacidades</h3>
+                <h3 className="font-bold text-slate-800 text-lg">Permisos por 4 Horas</h3>
             </div>
-            <p className="text-xs text-slate-500 mb-5">Registra ausencias justificadas por temas de salud (IMSS).</p>
+            <p className="text-xs text-slate-500 mb-5">Registra permisos por 4 horas para ausencias justificadas (4 horas por mes).</p>
             <button className="mt-auto w-full bg-white border-2 border-rose-100 text-rose-600 font-semibold py-2 rounded-lg hover:bg-rose-50 transition-all">
-                Registrar Incapacidad
+                Registrar Permiso
             </button>
         </div>
 

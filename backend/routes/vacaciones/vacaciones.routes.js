@@ -14,4 +14,7 @@ router.post('/solicitar', vacacionesController.solicitarVacaciones);
 // Ejemplo de uso: GET /api/vacaciones/historial
 router.get('/historial', vacacionesController.obtenerHistorialVacaciones);
 
+// 4. Ruta para actualizar el estatus (Aprobar o Rechazar)
+router.put('/:id/estatus', vacacionesController.actualizarEstatus);
+
 module.exports = router;

@@ -153,15 +153,17 @@ const obtenerHistorialVacaciones = async (req, res) => {
             SELECT 
                 v.id, 
                 e.empleado, 
+                d.nombre AS departamento,
                 'Vacaciones' AS tipo, 
+                v.fecha_solicitud,   
                 v.fecha_inicio, 
                 v.fecha_fin, 
                 v.dias_solicitados AS dias, 
                 v.estatus 
             FROM vacaciones v
             JOIN empleados e ON v.empleado_id = e.id
-            ORDER BY v.created_at DESC
-            LIMIT 50
+            LEFT JOIN departamentos d ON e.departamento_id = d.id
+            ORDER BY v.fecha_solicitud DESC
         `);
         res.json(result.rows);
     } catch (error) {
@@ -170,8 +172,32 @@ const obtenerHistorialVacaciones = async (req, res) => {
     }
 };
 
+
+// Función para actualizar el estatus de una solicitud (Aprobar o Rechazar)
+const actualizarEstatus = async (req, res) => {
+    const { id } = req.params;
+    const { estatus } = req.body; // 'Aprobada' o 'Rechazada'
+
+    try {
+        const result = await pool.query(
+            `UPDATE vacaciones SET estatus = $1, fecha_aprobacion = NOW() WHERE id = $2 RETURNING *`,
+            [estatus, id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Solicitud no encontrada" });
+        }
+
+        res.json({ mensaje: "Estatus actualizado", solicitud: result.rows[0] });
+    } catch (error) {
+        console.error("Error al actualizar estatus:", error);
+        res.status(500).json({ error: "Error interno del servidor" });
+    }
+};
+
 module.exports = {
     consultarSaldoVacaciones,
     solicitarVacaciones,
-    obtenerHistorialVacaciones
+    obtenerHistorialVacaciones,
+    actualizarEstatus
 };
