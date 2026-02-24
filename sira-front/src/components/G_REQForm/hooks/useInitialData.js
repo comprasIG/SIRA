@@ -17,6 +17,7 @@ const ALMACEN_ID = "21";
 export function useInitialData(requisicionId, reset, setValue, setArchivosExistentes) {
   const [proyectos, setProyectos] = useState([]);
   const [sitios, setSitios] = useState([]);
+  const [sitiosUnidades, setSitiosUnidades] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const isEditMode = !!requisicionId;
 
@@ -29,15 +30,15 @@ export function useInitialData(requisicionId, reset, setValue, setArchivosExiste
           api.get("/api/sitios")
         ]);
 
-        // Excluir sitio "UNIDADES" y sus proyectos asociados
-        const sitiosFiltrados = sitiosData.filter(s => s.nombre?.toUpperCase() !== 'UNIDADES');
-        const sitioUnidadesIds = new Set(
-          sitiosData.filter(s => s.nombre?.toUpperCase() === 'UNIDADES').map(s => s.id)
-        );
+        // Separar el sitio "UNIDADES" para mostrarlo como opción deshabilitada
+        const unidades = sitiosData.filter(s => s.nombre?.toUpperCase() === 'UNIDADES');
+        const sitioUnidadesIds = new Set(unidades.map(s => s.id));
+        const sitiosFiltrados = sitiosData.filter(s => !sitioUnidadesIds.has(s.id));
         const proyectosFiltrados = proyectosData.filter(p => !sitioUnidadesIds.has(p.sitio_id));
 
         setProyectos(proyectosFiltrados);
         setSitios(sitiosFiltrados);
+        setSitiosUnidades(unidades);
 
         if (isEditMode) {
           const reqData = await api.get(`/api/requisiciones/${requisicionId}`);
@@ -79,6 +80,7 @@ export function useInitialData(requisicionId, reset, setValue, setArchivosExiste
   return {
     proyectos,
     sitios,
+    sitiosUnidades,
     isLoading,
   };
 }

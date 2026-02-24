@@ -48,6 +48,7 @@ export default function useVbOcForm() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [sitios, setSitios] = useState([]);
+    const [sitiosUnidades, setSitiosUnidades] = useState([]);
     const [proyectos, setProyectos] = useState([]);
     const [providerConfigs, setProviderConfigs] = useState({});
 
@@ -112,8 +113,13 @@ export default function useVbOcForm() {
             setIsLoading(true);
             try {
                 const data = await api.get('/api/oc-directa/datos-iniciales');
-                setSitios(data.sitios || []);
-                setProyectos(data.proyectos || []);
+                const allSitios = data.sitios || [];
+                const unidades = allSitios.filter(s => s.nombre?.toUpperCase() === 'UNIDADES');
+                const sitioUnidadesIds = new Set(unidades.map(s => s.id));
+                setSitios(allSitios.filter(s => !sitioUnidadesIds.has(s.id)));
+                setSitiosUnidades(unidades);
+                const allProyectos = data.proyectos || [];
+                setProyectos(allProyectos.filter(p => !sitioUnidadesIds.has(p.sitio_id)));
             } catch (err) {
                 console.error('Error cargando datos iniciales VB_OC:', err);
                 toast.error('Error al cargar datos del formulario.');
@@ -293,6 +299,7 @@ export default function useVbOcForm() {
 
         // Datos
         sitios,
+        sitiosUnidades,
         proyectos,
         proyectosFiltrados,
         lugarEntregaOptions,

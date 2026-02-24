@@ -37,7 +37,7 @@ export default function VB_OCForm() {
   const {
     control, register, errors, watch, setValue, handleSubmit,
     fields, addItem, removeItem,
-    sitios, proyectosFiltrados, lugarEntregaOptions,
+    sitios, sitiosUnidades, proyectosFiltrados, lugarEntregaOptions,
     isLoading, isSubmitting,
     activeStep, handleNext, handleBack,
     resumenPorProveedor, providerConfigs, setProviderConfigs, defaultConfig,
@@ -183,8 +183,17 @@ export default function VB_OCForm() {
                 >
                   <option value="">Selecciona un sitio...</option>
                   {sitios.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                  {sitiosUnidades.map(s => (
+                    <option key={s.id} value="" disabled>{s.nombre} — gestionar desde la página Unidades</option>
+                  ))}
                 </select>
                 {errors.sitio_id && <span className="text-red-600 text-xs mt-1">{errors.sitio_id.message}</span>}
+                {sitiosUnidades.length > 0 && (
+                  <p className="text-xs text-blue-500 mt-1">
+                    ℹ️ Las requisiciones de servicio y refacciones para <strong>Unidades</strong> deben gestionarse desde la{' '}
+                    <a href="/unidades" className="underline font-medium hover:text-blue-700">página Unidades</a>.
+                  </p>
+                )}
               </div>
 
               {/* Proyecto */}
