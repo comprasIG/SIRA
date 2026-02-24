@@ -20,10 +20,11 @@ import AddBusinessOutlinedIcon from '@mui/icons-material/AddBusinessOutlined';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import Warehouse from '@mui/icons-material/Warehouse';
-import HelpOutline from '@mui/icons-material/HelpOutline'; 
+import HelpOutline from '@mui/icons-material/HelpOutline';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import HowToRegIcon from '@mui/icons-material/HowToReg';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
+import ThreeDRotationIcon from '@mui/icons-material/ThreeDRotation';
 
 // Nuevos Iconos importados aquí si es necesario
 import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder'; //Icono Para Nuevo Proyecto
@@ -42,7 +43,7 @@ import WorkHistoryIcon from '@mui/icons-material/WorkHistory'; // Icono Para per
 // Para cambiarlo en la base de datos, en la columna 'icono', coloca el nombre ejemplo: 'DashboardIcon'
 const iconMap = {
   DashboardIcon: <DashboardIcon sx={{ fontSize: 20 }} />, // Icono Dashboard
-  DescriptionIcon: <DescriptionIcon sx={{ fontSize: 20 }} />, 
+  DescriptionIcon: <DescriptionIcon sx={{ fontSize: 20 }} />,
   CheckCircleOutlineIcon: <CheckCircleOutlineIcon sx={{ fontSize: 20 }} />,
   ShoppingCartIcon: <ShoppingCartIcon sx={{ fontSize: 20 }} />,
   PlaylistAddCheckIcon: <PlaylistAddCheckIcon sx={{ fontSize: 20 }} />,
@@ -54,22 +55,23 @@ const iconMap = {
   AddBusinessOutlinedIcon: <AddBusinessOutlinedIcon sx={{ fontSize: 20 }} />,
   FactCheckOutlinedIcon: <FactCheckOutlinedIcon sx={{ fontSize: 20 }} />,
   AdminPanelSettingsIcon: <AdminPanelSettingsIcon sx={{ fontSize: 20 }} />,
-  Warehouse: <Warehouse sx={{ fontSize: 20 }} />, 
-  HelpOutline: <HelpOutline sx={{ fontSize: 20, color: '#fdd835' }} />, 
+  Warehouse: <Warehouse sx={{ fontSize: 20 }} />,
+  HelpOutline: <HelpOutline sx={{ fontSize: 20, color: '#fdd835' }} />,
   DirectionsCarIcon: <DirectionsCarIcon sx={{ fontSize: 20 }} />,
-  HowToRegIcon: <HowToRegIcon sx={{fontSize: 20}} />,
-  AssignmentIndIcon: <AssignmentIndIcon sx={{fontSize:20}} />
+  HowToRegIcon: <HowToRegIcon sx={{ fontSize: 20 }} />,
+  AssignmentIndIcon: <AssignmentIndIcon sx={{ fontSize: 20 }} />
   // Nuevos iconos mapeados aquí si es necesario
-  ,CreateNewFolderIcon: <CreateNewFolderIcon sx={{ fontSize: 20 }} />, // Icono Para Nuevo Proyecto
+  , CreateNewFolderIcon: <CreateNewFolderIcon sx={{ fontSize: 20 }} />, // Icono Para Nuevo Proyecto
   LocationOnIcon: <LocationOnIcon sx={{ fontSize: 20 }} />, // Icono Para Sitios
   CarCrashIcon: <CarCrashIcon sx={{ fontSize: 20 }} />, // Icono Para Unidades de Transporte
   FingerprintIcon: <FingerprintIcon sx={{ fontSize: 20 }} />, // Icono Para Control de Acceso
   TrolleyIcon: <TrolleyIcon sx={{ fontSize: 20 }} />, // Icono Para Ingresar Oc almacén
   ForkliftIcon: <ForkliftIcon sx={{ fontSize: 20 }} />, // Icono Para Salidas OC almacén
   LocalShippingIcon: <LocalShippingIcon sx={{ fontSize: 20 }} />, // Icono Para Recolección de Materiales
-  ContactPageIcon: <ContactPageIcon sx={{ fontSize: 20 }} /> ,// Icono Para contacto de proveedores
+  ContactPageIcon: <ContactPageIcon sx={{ fontSize: 20 }} />,// Icono Para contacto de proveedores
   BeachAccessIcon: <BeachAccessIcon sx={{ fontSize: 20 }} />, // Icono Para Vacaciones
-  WorkHistoryIcon: <WorkHistoryIcon sx={{ fontSize: 20 }} /> // Icono Para permisos RH
+  WorkHistoryIcon: <WorkHistoryIcon sx={{ fontSize: 20 }} />, // Icono Para permisos RH
+  ThreeDRotationIcon: <ThreeDRotationIcon sx={{ fontSize: 20 }} /> // Icono Para 3D
 };
 
 export default function Sidebar({ isOpen, toggleSidebar }) {
@@ -109,7 +111,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
       return {};
     }
     return funciones.reduce((acc, func) => {
-      const { modulo = 'General' } = func; 
+      const { modulo = 'General' } = func;
       if (!acc[modulo]) {
         acc[modulo] = [];
       }
@@ -144,7 +146,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
   // ... (Separación de módulos sin cambios) ...
   const dashboardItems = menuGroups['Dashboard'] || [];
   const configItems = menuGroups['Configuracion'] || [];
-  
+
   const processModules = Object.keys(menuGroups).filter(
     (modulo) => modulo !== 'Dashboard' && modulo !== 'Configuracion'
   );
@@ -159,9 +161,9 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
       onMouseLeave={isOpen ? startTimer : undefined}
     >
       <div className="h-16 flex items-center px-4" /> {/* Espacio para header */}
-      
+
       <nav className="p-4 space-y-2 overflow-y-auto" style={{ height: 'calc(100vh - 4rem)' }}>
-        
+
         {/* ... (Renderizado de secciones sin cambios) ... */}
         {dashboardItems.map(renderLink)}
 

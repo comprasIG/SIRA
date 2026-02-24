@@ -276,6 +276,30 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
   // =============================================================================================
   // ACCIONES: Generar OC por proveedor
   // =============================================================================================
+  // =============================================================================================
+  // ACCIONES: Cerrar definitivamente (descartar líneas sin OC)
+  // =============================================================================================
+  const handleCerrarDefinitivamente = async () => {
+    if (!window.confirm(
+      '¿Cerrar esta requisición definitivamente?\n\nLas líneas sin Orden de Compra serán descartadas. Esta acción no se puede deshacer.'
+    )) return;
+
+    setLoading(true);
+    setGlobalLoading(true);
+    try {
+      const result = await api.post(`/api/rfq/${rfqId}/cerrar`);
+      toast.success(result?.mensaje || 'Requisición cerrada definitivamente.');
+      refreshList?.();
+      onClose();
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.error || 'Error al cerrar la requisición.');
+    } finally {
+      setLoading(false);
+      setGlobalLoading(false);
+    }
+  };
+
   const handleGenerateOC = async (proveedorId) => {
     setLoading(true);
     setGlobalLoading(true);
@@ -512,6 +536,14 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
       <DialogActions>
         <Button onClick={onClose} disabled={loading}>
           Cerrar
+        </Button>
+        <Button
+          onClick={handleCerrarDefinitivamente}
+          color="error"
+          variant="outlined"
+          disabled={loading || proveedoresBloques.pendientes.length === 0}
+        >
+          Cerrar definitivamente
         </Button>
       </DialogActions>
     </Dialog>

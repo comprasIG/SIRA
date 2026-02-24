@@ -1,3 +1,4 @@
+import CatálogoDeEnsamblesPage from "./pages/CatálogoDeEnsamblesPage";
 import PermisosPage from "./pages/PermisosPage";
 import VacacionesPage from "./pages/VacPage";
 import ProveedoresPage from "./pages/ProveedoresPage";
@@ -94,6 +95,7 @@ export default function App() {
           <Route path="/Proveedores" element={<RutaProtegida permiso="PROV"><MainLayout><ProveedoresPage /></MainLayout></RutaProtegida>} />
           <Route path="/Vacaciones" element={<RutaProtegida permiso="VAC"><MainLayout><VacacionesPage /></MainLayout></RutaProtegida>} />
           <Route path="/Permisos-RH" element={<RutaProtegida permiso="PERM-RH"><MainLayout><PermisosPage /></MainLayout></RutaProtegida>} />
+                    <Route path="/catalogo-ensambles" element={<RutaProtegida permiso="CATALOGO_ENSAMBLES"><MainLayout><CatálogoDeEnsamblesPage /></MainLayout></RutaProtegida>}/>
           {/* --- AÑADIR NUEVAS RUTAS AUTOMÁTICAMENTE AQUÍ --- */}
 
           {/* Redirección y página no encontrada */}

@@ -190,7 +190,7 @@ const getRfqsPorAprobar = async (req, res) => {
       JOIN usuarios u ON r.usuario_id = u.id
       JOIN proyectos p ON r.proyecto_id = p.id
       JOIN sitios s ON r.sitio_id = s.id
-      WHERE r.status <> 'CANCELADA'
+      WHERE r.status IN ('POR_APROBAR', 'ESPERANDO_ENTREGA')
         AND EXISTS (
           SELECT 1
           FROM requisiciones_opciones ro
@@ -221,7 +221,7 @@ const rechazarRfq = async (req, res) => {
     const result = await pool.query(
       `UPDATE requisiciones
        SET status = 'COTIZANDO'
-       WHERE id = $1 AND status = 'POR_APROBAR'
+       WHERE id = $1 AND status IN ('POR_APROBAR', 'ESPERANDO_ENTREGA')
        RETURNING id`,
       [id]
     );
@@ -499,10 +499,31 @@ const generarOcsDesdeRfq = async (req, res) => {
       const sitioNombre = safeText(ocDataParaPdf.sitio_nombre, '');
       const proyectoNombre = safeText(ocDataParaPdf.proyecto_nombre, '');
 
-      // URGENTE después del consecutivo
-      const subject = esUrgente
-        ? `${numeroOcDisplay} - URGENTE - ${sitioNombre} - ${proyectoNombre} - ${proveedorNombre}`
-        : `${numeroOcDisplay} - ${sitioNombre} - ${proyectoNombre} - ${proveedorNombre}`;
+      // Detectar si es OC de reemplazo (alguna opción de este proveedor estaba en una OC cancelada)
+      const itemOpcionIds = items.map(i => i.id);
+      const canceledOcsQ = await client.query(
+        `SELECT DISTINCT oc.numero_oc
+         FROM ordenes_compra oc
+         JOIN ordenes_compra_detalle ocd ON ocd.orden_compra_id = oc.id
+         WHERE oc.rfq_id = $1
+           AND oc.status = 'CANCELADA'
+           AND ocd.comparativa_precio_id = ANY($2::int[])`,
+        [rfqId, itemOpcionIds]
+      );
+      const esReemplazo = canceledOcsQ.rowCount > 0;
+      const ocsCanceladasDisplay = canceledOcsQ.rows.map(r => formatOcForDisplay(r.numero_oc)).join(', ');
+
+      // Construir subject según urgencia y si es reemplazo
+      let subject;
+      if (esReemplazo) {
+        subject = esUrgente
+          ? `${numeroOcDisplay} - URGENTE - SUSTITUYE ${ocsCanceladasDisplay} - ${sitioNombre} - ${proyectoNombre} - ${proveedorNombre}`
+          : `${numeroOcDisplay} - SUSTITUYE ${ocsCanceladasDisplay} - ${sitioNombre} - ${proyectoNombre} - ${proveedorNombre}`;
+      } else {
+        subject = esUrgente
+          ? `${numeroOcDisplay} - URGENTE - ${sitioNombre} - ${proyectoNombre} - ${proveedorNombre}`
+          : `${numeroOcDisplay} - ${sitioNombre} - ${proyectoNombre} - ${proveedorNombre}`;
+      }
 
       const pdfFileName = `${sanitizeFileName(subject)}.pdf`;
 
@@ -546,8 +567,13 @@ const generarOcsDesdeRfq = async (req, res) => {
           ? `<p style="color:#C62828;font-weight:bold;font-size:14px;">URGENTE</p>`
           : '';
 
+        const sustitucionHtml = esReemplazo
+          ? `<p style="color:#B71C1C;font-weight:bold;">Esta OC sustituye a: ${ocsCanceladasDisplay} (cancelada(s)).</p>`
+          : '';
+
         const htmlBody = `
           ${urgentHtml}
+          ${sustitucionHtml}
           <p>Se generó una Orden de Compra y requiere autorización final.</p>
           <p>
             <b>OC:</b> ${numeroOcDisplay}<br/>
@@ -626,8 +652,72 @@ const generarOcsDesdeRfq = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/rfq/:id/cerrar
+ * Cierra definitivamente la requisición descartando las líneas seleccionadas
+ * que NO tienen una OC no-cancelada (p.ej. después de cancelar una OC y no querer reemplazarla).
+ */
+const cerrarRfqDefinitivamente = async (req, res) => {
+  const { id: rfqId } = req.params;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const rfqQ = await client.query(
+      `SELECT id, status FROM requisiciones WHERE id = $1 FOR UPDATE`,
+      [rfqId]
+    );
+
+    if (rfqQ.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'RFQ no encontrado.' });
+    }
+
+    if (rfqQ.rows[0].status === 'CANCELADA') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'El RFQ ya está CANCELADO.' });
+    }
+
+    // Deseleccionar opciones que NO tienen OC no-cancelada
+    const deselQ = await client.query(
+      `UPDATE requisiciones_opciones
+       SET seleccionado = FALSE
+       WHERE requisicion_id = $1
+         AND seleccionado = TRUE
+         AND COALESCE(cantidad_cotizada, 0) > 0
+         AND NOT EXISTS (
+           SELECT 1
+           FROM ordenes_compra_detalle ocd
+           JOIN ordenes_compra oc ON oc.id = ocd.orden_compra_id AND oc.status <> 'CANCELADA'
+           WHERE ocd.comparativa_precio_id = requisiciones_opciones.id
+         )
+       RETURNING id`,
+      [rfqId]
+    );
+
+    await client.query(
+      `UPDATE requisiciones SET status = 'ESPERANDO_ENTREGA' WHERE id = $1`,
+      [rfqId]
+    );
+
+    await client.query('COMMIT');
+
+    res.status(200).json({
+      mensaje: 'Requisición cerrada definitivamente. Las líneas sin OC han sido descartadas.',
+      opciones_descartadas: deselQ.rowCount,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(`[VB_RFQ] Error al cerrar definitivamente RFQ ${rfqId}:`, error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   getRfqsPorAprobar,
   rechazarRfq,
   generarOcsDesdeRfq,
+  cerrarRfqDefinitivamente,
 };

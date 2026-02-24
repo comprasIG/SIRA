@@ -158,8 +158,8 @@ const _getRecipientEmailsByGroup = async (codigoGrupo, client) => {
 const getDatosIniciales = async (req, res) => {
     try {
         const [sitiosResult, proyectosResult] = await Promise.all([
-            pool.query(`SELECT id, nombre FROM sitios ORDER BY nombre`),
-            pool.query(`SELECT p.id, p.nombre, p.sitio_id FROM proyectos p WHERE p.activo = true ORDER BY p.nombre`)
+            pool.query(`SELECT id, nombre FROM sitios WHERE nombre != 'UNIDADES' ORDER BY nombre`),
+            pool.query(`SELECT p.id, p.nombre, p.sitio_id FROM proyectos p JOIN sitios s ON p.sitio_id = s.id WHERE p.activo = true AND s.nombre != 'UNIDADES' ORDER BY p.nombre`)
         ]);
 
         res.json({
@@ -266,7 +266,7 @@ const crearOcDirecta = async (req, res) => {
             `INSERT INTO requisiciones
                (usuario_id, departamento_id, proyecto_id, sitio_id,
                 fecha_requerida, lugar_entrega, comentario, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, 'ESPERANDO_ENTREGA')
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 'ABIERTA')
              RETURNING id, numero_requisicion`,
             [
                 usuarioId, departamento_id, proyecto_id, sitio_id,
@@ -275,6 +275,18 @@ const crearOcDirecta = async (req, res) => {
             ]
         );
         const { id: requisicionId, numero_requisicion } = reqInsert.rows[0];
+
+        // Simular aprobación VB_REQ: generar rfq_code y pasar a COTIZANDO
+        const consecutivoResult = await client.query(
+            "SELECT nextval('rfq_consecutivo_seq') as consecutivo"
+        );
+        const consecutivo = String(consecutivoResult.rows[0].consecutivo).padStart(4, '0');
+        const numReqPart = numero_requisicion.split('_')[1] || '';
+        const rfqCode = `${consecutivo}_R.${numReqPart}_${deptoCodigo}`;
+        await client.query(
+            `UPDATE requisiciones SET status = 'COTIZANDO', rfq_code = $1 WHERE id = $2`,
+            [rfqCode, requisicionId]
+        );
 
         // =====================================================================
         // 2) Crear REQUISICIONES_DETALLE (uno por material)
@@ -451,7 +463,7 @@ const crearOcDirecta = async (req, res) => {
             );
 
             const ocDataParaPdf = ocDataQuery.rows[0];
-            ocDataParaPdf.rfq_code = numero_requisicion; // Usar el número de requisición generado
+            ocDataParaPdf.rfq_code = rfqCode;
 
             const itemsDataQuery = await client.query(
                 `SELECT ocd.*,
@@ -527,6 +539,12 @@ const crearOcDirecta = async (req, res) => {
 
             ocsGeneradasInfo.push({ numero_oc: numeroOcDb, id: nuevaOcId });
         }
+
+        // Cerrar el ciclo: la REQ queda en ESPERANDO_ENTREGA (simula VB_RFQ aprobando OCs)
+        await client.query(
+            `UPDATE requisiciones SET status = 'ESPERANDO_ENTREGA' WHERE id = $1`,
+            [requisicionId]
+        );
 
         await client.query('COMMIT');
 

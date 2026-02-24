@@ -22,6 +22,8 @@ import SendIcon from '@mui/icons-material/Send';
 import FullScreenLoader from './ui/FullScreenLoader';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
+import { toast } from 'react-toastify';
+import api from '../api/api';
 import useVbOcForm from '../hooks/useVbOcForm';
 import FilaMaterialOC from './VB_OC/FilaMaterialOC';
 import ConfigPopover from './rfq/ConfigPopover';
@@ -35,7 +37,7 @@ export default function VB_OCForm() {
   const {
     control, register, errors, watch, setValue, handleSubmit,
     fields, addItem, removeItem,
-    sitios, proyectosFiltrados, lugarEntregaOptions,
+    sitios, sitiosUnidades, proyectosFiltrados, lugarEntregaOptions,
     isLoading, isSubmitting,
     activeStep, handleNext, handleBack,
     resumenPorProveedor, providerConfigs, setProviderConfigs, defaultConfig,
@@ -85,6 +87,27 @@ export default function VB_OCForm() {
       const result = await onSubmit(formData);
       if (result?.ocs) {
         setOcsCreadas(result.ocs);
+        for (const oc of result.ocs) {
+          try {
+            toast.info(`Preparando descarga de ${oc.numero_oc}...`);
+            const resp = await api.get(`/api/ocs/${oc.id}/pdf`, { responseType: 'blob' });
+            const blob = resp.data;
+            const cd = resp.headers?.get?.('content-disposition') ?? '';
+            const match = cd.match(/filename="(.+?)"/i);
+            const filename = match?.[1] || `${oc.numero_oc}.pdf`;
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            toast.success(`${oc.numero_oc} descargada.`);
+          } catch {
+            toast.error(`No se pudo descargar el PDF de ${oc.numero_oc}.`);
+          }
+        }
       }
     } catch {
       // Error ya manejado por el hook con toast
@@ -160,8 +183,17 @@ export default function VB_OCForm() {
                 >
                   <option value="">Selecciona un sitio...</option>
                   {sitios.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                  {sitiosUnidades.map(s => (
+                    <option key={s.id} value="" disabled>{s.nombre} — gestionar desde la página Unidades</option>
+                  ))}
                 </select>
                 {errors.sitio_id && <span className="text-red-600 text-xs mt-1">{errors.sitio_id.message}</span>}
+                {sitiosUnidades.length > 0 && (
+                  <p className="text-xs text-blue-500 mt-1">
+                    ℹ️ Las requisiciones de servicio y refacciones para <strong>Unidades</strong> deben gestionarse desde la{' '}
+                    <a href="/unidades" className="underline font-medium hover:text-blue-700">página Unidades</a>.
+                  </p>
+                )}
               </div>
 
               {/* Proyecto */}

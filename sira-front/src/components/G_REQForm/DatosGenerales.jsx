@@ -7,7 +7,7 @@ const inputStyle = "mt-1 block w-full border border-gray-300 rounded-md shadow-s
 const ALMACEN_ID = "21";
 
 export default function DatosGenerales({
-  register, errors, watch, sitios, proyectosFiltrados, handleSitioChange, handleProyectoChange,
+  register, errors, watch, sitios, sitiosUnidades = [], proyectosFiltrados, handleSitioChange, handleProyectoChange,
   archivosAdjuntos, handleFileChange, handleRemoveFile,
   archivosExistentes, handleRemoveExistingFile, isUrgent, urgencyMessage
 }) {
@@ -35,8 +35,17 @@ export default function DatosGenerales({
           <select id="sitio_id" {...register("sitio_id", { required: "Selecciona un sitio" })} className={inputStyle} onChange={handleSitioChange}>
             <option value="">Selecciona un sitio...</option>
             {sitios.map(sitio => (<option key={sitio.id} value={sitio.id}>{sitio.nombre}</option>))}
+            {sitiosUnidades.map(s => (
+              <option key={s.id} value="" disabled>{s.nombre} — gestionar desde la página Unidades</option>
+            ))}
           </select>
           {errors.sitio_id && <span className="text-red-600 text-xs mt-1">{errors.sitio_id.message}</span>}
+          {sitiosUnidades.length > 0 && (
+            <p className="text-xs text-blue-500 mt-1">
+              ℹ️ Las requisiciones de servicio y refacciones para <strong>Unidades</strong> deben gestionarse desde la{' '}
+              <a href="/unidades" className="underline font-medium hover:text-blue-700">página Unidades</a>.
+            </p>
+          )}
         </div>
         {/* Proyecto */}
         <div>
