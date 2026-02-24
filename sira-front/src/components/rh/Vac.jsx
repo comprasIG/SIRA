@@ -10,8 +10,10 @@ import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 
+
 import { useAuth } from "../../context/authContext";
 const API_BASE_URL = import.meta.env.VITE_API_URL;
+
 
 export default function Vac() {
   const [solicitudes, setSolicitudes] = useState([]);
@@ -25,6 +27,11 @@ export default function Vac() {
   const fetchSolicitudes = async () => {
     try {
       setLoading(true);
+      if (!API_BASE_URL) {
+        setSolicitudes(mockSolicitudes);
+        setLoading(false);
+        return;
+      }
 
       // En producción llamarás a la ruta que trae TODAS las solicitudes
       const response = await fetch(`${API_BASE_URL}/api/vacaciones/historial`);
@@ -48,12 +55,22 @@ export default function Vac() {
     if (!window.confirm(`¿Estás seguro de ${accion} esta solicitud?`)) return;
 
     try {
+        if (!API_BASE_URL) {
+            // Lógica para la simulación
+            setSolicitudes(prev => prev.map(sol => sol.id === id ? { ...sol, estatus: nuevoEstatus } : sol));
+            return;
+        }
+
+        // --- EN PRODUCCIÓN: LLAMADA AL BACKEND ---
+        // Debes crear este endpoint en tu backend: PUT /api/vacaciones/:id/estatus
+        
         const response = await fetch(`${API_BASE_URL}/api/vacaciones/${id}/estatus`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ estatus: nuevoEstatus })
         });
         if (!response.ok) throw new Error('Error al actualizar');
+        
 
         // Actualizamos el estado local
         setSolicitudes(prev => prev.map(sol => sol.id === id ? { ...sol, estatus: nuevoEstatus } : sol));
@@ -93,7 +110,6 @@ export default function Vac() {
     return `${fInicio} - ${fFin}`;
   };
 
-  // Esta función tomará correctamente la fecha si viene desde la base de datos
   const formatearFechaSolicitud = (fecha) => {
       if(!fecha) return "N/A";
       return new Date(fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });

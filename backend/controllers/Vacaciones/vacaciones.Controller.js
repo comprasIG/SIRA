@@ -1,4 +1,5 @@
 const pool = require("../../db/pool");
+const { generateVacacionesPdf } = require('../../services/VacacionesPdfServices');
 
 /**
  * ============================================================================
@@ -195,9 +196,79 @@ const actualizarEstatus = async (req, res) => {
     }
 };
 
+
+// Función para descargar el PDF de una solicitud de vacaciones
+const descargarPdfVacaciones = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // 1. Buscamos los datos completos de la solicitud (Nota: agregué v.empleado_id a la consulta)
+        const result = await pool.query(`
+            SELECT 
+                v.id, v.empleado_id, v.fecha_solicitud, v.fecha_inicio, v.fecha_fin, v.fecha_retorno, 
+                v.dias_solicitados, v.periodo_antiguedad, v.estatus, v.observaciones,
+                e.empleado, e.num_empl, e.puesto, e.fecha_ingreso,
+                d.nombre AS departamento
+            FROM vacaciones v
+            JOIN empleados e ON v.empleado_id = e.id
+            LEFT JOIN departamentos d ON e.departamento_id = d.id
+            WHERE v.id = $1
+        `, [id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Solicitud de vacaciones no encontrada." });
+        }
+
+        const datosVacaciones = result.rows[0];
+
+        // =========================================================================
+        // 2. CALCULAR DÍAS RESTANTES
+        // =========================================================================
+        
+        // a) Obtenemos los días que le tocan por ley en ese periodo
+        const leyResult = await pool.query(
+            `SELECT dias_otorgados FROM dias_ley_vacaciones WHERE anos_antiguedad = $1`,
+            [datosVacaciones.periodo_antiguedad]
+        );
+        const diasLey = leyResult.rows.length > 0 ? leyResult.rows[0].dias_otorgados : 0;
+
+        // b) Obtenemos todos los días que el empleado ya tiene Aprobados o Pendientes en ese periodo
+        const consumidosResult = await pool.query(
+            `SELECT SUM(dias_solicitados) as total_gastados 
+             FROM vacaciones 
+             WHERE empleado_id = $1 
+             AND periodo_antiguedad = $2 
+             AND estatus IN ('Aprobada', 'Pendiente')`,
+            [datosVacaciones.empleado_id, datosVacaciones.periodo_antiguedad]
+        );
+        const diasGastados = parseInt(consumidosResult.rows[0].total_gastados) || 0;
+
+        // c) Hacemos la resta y lo inyectamos al objeto que leerá el PDF
+        let restantes = diasLey - diasGastados;
+        datosVacaciones.dias_restantes = restantes < 0 ? 0 : restantes;
+
+        // =========================================================================
+
+        // 3. Llamar al servicio PDF del Canvas
+        const pdfBuffer = await generateVacacionesPdf(datosVacaciones);
+
+        // 4. Enviar el archivo al navegador
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=Solicitud_Vacaciones_Folio_${id}.pdf`);
+        res.setHeader('Content-Length', pdfBuffer.length);
+
+        res.end(pdfBuffer);
+
+    } catch (error) {
+        console.error("Error al generar el PDF de vacaciones:", error);
+        res.status(500).json({ error: "Error interno al generar el documento PDF." });
+    }
+};
+
 module.exports = {
     consultarSaldoVacaciones,
     solicitarVacaciones,
     obtenerHistorialVacaciones,
-    actualizarEstatus
+    actualizarEstatus,
+    descargarPdfVacaciones
 };
