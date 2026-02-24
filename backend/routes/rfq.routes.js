@@ -64,6 +64,7 @@ router.put("/:id/materiales/orden", genController.updateRfqMaterialOrder);
 // Acciones (Visto Bueno / Gerente)
 // ================================================================================================
 router.post("/:id/rechazar", vbController.rechazarRfq);
+router.post("/:id/cerrar", vbController.cerrarRfqDefinitivamente);
 router.post("/:id/generar-ocs", vbController.generarOcsDesdeRfq);
 
 // ================================================================================================

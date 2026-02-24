@@ -4,7 +4,9 @@ import KPISection from './G_OC/KPISection';
 import FilterSection from './G_OC/FilterSection';
 import OCList from './G_OC/OCList';
 import OCInfoModal from './common/OCInfoModal';
+import OcEditModal from './G_OC/OcEditModal';
 import { Box, Typography } from '@mui/material';
+import { useState } from 'react';
 import { toast } from 'react-toastify';
 import api from '../api/api';
 
@@ -21,6 +23,8 @@ export default function G_OCForm() {
     resetFilters,
     refresh
   } = useG_OC();
+
+  const [editOc, setEditOc] = useState(null);
 
   const {
     previewOpen,
@@ -41,7 +45,7 @@ export default function G_OCForm() {
         toast.info(`Sustituir OC: ${oc.numero_oc || oc.id} (Próximamente)`);
         break;
       case 'modify':
-        toast.info(`Modificar OC: ${oc.numero_oc || oc.id} (Próximamente)`);
+        setEditOc(oc);
         break;
       case 'pdf':
         handleDownloadPdf(oc);
@@ -132,6 +136,14 @@ export default function G_OCForm() {
           loading={previewLoading}
         />
       )}
+
+      {/* Edit Modal */}
+      <OcEditModal
+        open={Boolean(editOc)}
+        oc={editOc}
+        onClose={() => setEditOc(null)}
+        onSuccess={() => { refresh(); setEditOc(null); }}
+      />
     </Box>
   );
 }

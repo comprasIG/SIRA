@@ -102,7 +102,7 @@ function G_REQForm({ requisicionId, onFinish }) {
   } = useFormAttachments();
 
   // --- Datos iniciales (catálogos/edición) ---
-  const { proyectos, sitios, isLoading } = useInitialData(
+  const { proyectos, sitios, sitiosUnidades, isLoading } = useInitialData(
     requisicionId,
     reset,
     setValue,
@@ -242,6 +242,7 @@ function G_REQForm({ requisicionId, onFinish }) {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 p-4 md:p-6 bg-gray-50" autoComplete="off">
           <DatosGenerales
             register={register} errors={errors} watch={watch} sitios={sitios}
+            sitiosUnidades={sitiosUnidades}
             proyectosFiltrados={proyectosFiltrados} handleSitioChange={handleSitioChange}
             handleProyectoChange={handleProyectoChange} archivosAdjuntos={archivosAdjuntos}
             archivosExistentes={archivosExistentes} handleFileChange={handleFileChange}

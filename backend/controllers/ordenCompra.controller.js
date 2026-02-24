@@ -23,6 +23,8 @@
 
 const pool = require('../db/pool');
 const { generatePurchaseOrderPdf } = require('../services/purchaseOrderPdfService');
+const { uploadOcPdfBuffer } = require('../services/googleDrive');
+const { sendEmailWithAttachments } = require('../services/emailService');
 
 /* ================================================================================================
  * Helpers
@@ -393,8 +395,290 @@ const getOcFilters = async (req, res) => {
   }
 };
 
+/* ================================================================================================
+ * Helper: destinatarios de email por grupo
+ * ==============================================================================================*/
+const _getRecipientEmailsByGroup = async (codigoGrupo, client) => {
+  const result = await client.query(
+    `SELECT u.correo FROM usuarios u
+     JOIN notificacion_grupo_usuarios ngu ON u.id = ngu.usuario_id
+     JOIN notificacion_grupos ng ON ngu.grupo_id = ng.id
+     WHERE ng.codigo = $1 AND u.activo = true`,
+    [codigoGrupo]
+  );
+  return result.rows.map(r => r.correo);
+};
+
+/* ================================================================================================
+ * Endpoint: Datos para editar una OC (GET /api/ocs/:id/editar-datos)
+ * ==============================================================================================*/
+const getDatosParaEditar = async (req, res) => {
+  const idNum = Number(req.params.id);
+  if (!idNum || Number.isNaN(idNum)) {
+    return res.status(400).json({ error: 'Parámetro id inválido.' });
+  }
+
+  try {
+    const ocQuery = await pool.query(
+      `SELECT oc.id, oc.numero_oc, oc.proveedor_id, oc.comentarios_finanzas,
+              oc.iva_rate, oc.isr_rate, oc.impo, oc.status, oc.es_urgente,
+              p.razon_social AS proveedor_nombre, p.marca AS proveedor_marca
+       FROM ordenes_compra oc
+       JOIN proveedores p ON oc.proveedor_id = p.id
+       WHERE oc.id = $1`,
+      [idNum]
+    );
+    if (ocQuery.rowCount === 0) {
+      return res.status(404).json({ error: `OC ${idNum} no encontrada.` });
+    }
+
+    const itemsQuery = await pool.query(
+      `SELECT ocd.id, cm.nombre AS material_nombre, cu.simbolo AS unidad_simbolo,
+              ocd.cantidad, ocd.precio_unitario, ocd.moneda, ocd.plazo_entrega
+       FROM ordenes_compra_detalle ocd
+       JOIN catalogo_materiales cm ON ocd.material_id = cm.id
+       JOIN catalogo_unidades cu ON cm.unidad_de_compra = cu.id
+       WHERE ocd.orden_compra_id = $1
+       ORDER BY ocd.id ASC`,
+      [idNum]
+    );
+
+    const oc = ocQuery.rows[0];
+    res.json({
+      proveedor_id: oc.proveedor_id,
+      proveedor_nombre: safeText(oc.proveedor_nombre || oc.proveedor_marca, 'Proveedor'),
+      comentarios_finanzas: oc.comentarios_finanzas || '',
+      iva_rate: oc.iva_rate,
+      isr_rate: oc.isr_rate,
+      impo: oc.impo,
+      status: oc.status,
+      es_urgente: oc.es_urgente,
+      items: itemsQuery.rows,
+    });
+  } catch (error) {
+    console.error('[ordenCompra] getDatosParaEditar error:', error);
+    res.status(500).json({ error: error.message || 'Error interno del servidor.' });
+  }
+};
+
+/* ================================================================================================
+ * Endpoint: Editar una OC (PATCH /api/ocs/:id/editar)
+ * Body: { motivo, proveedor_id, comentarios_finanzas, items: [{id, cantidad, precio_unitario, moneda, plazo_entrega}] }
+ * ==============================================================================================*/
+const editarOc = async (req, res) => {
+  const idNum = Number(req.params.id);
+  if (!idNum || Number.isNaN(idNum)) {
+    return res.status(400).json({ error: 'Parámetro id inválido.' });
+  }
+
+  const { motivo, proveedor_id, comentarios_finanzas, items } = req.body;
+
+  if (!motivo || !String(motivo).trim()) {
+    return res.status(400).json({ error: 'El motivo de la modificación es obligatorio.' });
+  }
+  if (!items || items.length === 0) {
+    return res.status(400).json({ error: 'Debe incluir al menos una línea.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1) Verificar que la OC existe y puede editarse
+    const ocCheck = await client.query(
+      `SELECT oc.*, p.razon_social AS proveedor_razon, p.marca AS proveedor_marca,
+              proy.nombre AS proyecto_nombre, s.nombre AS sitio_nombre,
+              s_e.nombre AS lugar_entrega_nombre,
+              u.nombre AS usuario_nombre, u.correo AS usuario_correo,
+              r.rfq_code AS rfq_code,
+              d.codigo AS depto_codigo
+       FROM ordenes_compra oc
+       JOIN proveedores p ON oc.proveedor_id = p.id
+       JOIN proyectos proy ON oc.proyecto_id = proy.id
+       JOIN sitios s ON oc.sitio_id = s.id
+       LEFT JOIN sitios s_e ON s_e.id = oc.lugar_entrega::int
+       JOIN usuarios u ON oc.usuario_id = u.id
+       LEFT JOIN requisiciones r ON oc.rfq_id = r.id
+       JOIN departamentos d ON u.departamento_id = d.id
+       WHERE oc.id = $1`,
+      [idNum]
+    );
+    if (ocCheck.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: `OC ${idNum} no encontrada.` });
+    }
+    const oc = ocCheck.rows[0];
+    if (['ENTREGADA', 'CANCELADA'].includes(oc.status)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: `No se puede modificar una OC con status ${oc.status}.` });
+    }
+
+    // 2) Actualizar proveedor si cambió
+    const nuevaProvId = proveedor_id ? Number(proveedor_id) : oc.proveedor_id;
+
+    // Si el proveedor cambió, obtener su info para el PDF/email
+    let proveedorNombreFinal = safeText(oc.proveedor_razon || oc.proveedor_marca, 'PROVEEDOR');
+    if (nuevaProvId !== oc.proveedor_id) {
+      const provQuery = await client.query(
+        `SELECT razon_social, marca FROM proveedores WHERE id = $1`,
+        [nuevaProvId]
+      );
+      if (provQuery.rowCount > 0) {
+        const p = provQuery.rows[0];
+        proveedorNombreFinal = safeText(p.razon_social || p.marca, 'PROVEEDOR');
+      }
+    }
+
+    // 3) Actualizar cada línea del detalle
+    for (const item of items) {
+      const itemId = Number(item.id);
+      await client.query(
+        `UPDATE ordenes_compra_detalle
+         SET cantidad = $1, precio_unitario = $2, moneda = $3, plazo_entrega = $4
+         WHERE id = $5 AND orden_compra_id = $6`,
+        [
+          Number(item.cantidad),
+          Number(item.precio_unitario),
+          item.moneda || 'MXN',
+          item.plazo_entrega || null,
+          itemId,
+          idNum,
+        ]
+      );
+    }
+
+    // 4) Recalcular totales (usando iva_rate / isr_rate de la OC)
+    const ivaRate = toNum(oc.iva_rate);
+    const isrRate = toNum(oc.isr_rate);
+    const esImpo = oc.impo === true;
+
+    const subTotal = round4(
+      items.reduce((sum, it) => sum + toNum(it.cantidad) * toNum(it.precio_unitario), 0)
+    );
+    const iva = (!esImpo && ivaRate > 0) ? round4(subTotal * ivaRate) : 0;
+    const retIsr = (!esImpo && isrRate > 0) ? round4(subTotal * isrRate) : 0;
+    const total = round4(subTotal + iva - retIsr);
+
+    // 5) Actualizar cabecera OC
+    const comentFin = typeof comentarios_finanzas === 'string' ? comentarios_finanzas.trim() || null : null;
+    await client.query(
+      `UPDATE ordenes_compra
+       SET proveedor_id = $1, comentarios_finanzas = $2,
+           sub_total = $3, iva = $4, ret_isr = $5, total = $6,
+           actualizado_en = NOW()
+       WHERE id = $7`,
+      [nuevaProvId, comentFin, subTotal, iva, retIsr, total, idNum]
+    );
+
+    // 6) Fetch OC actualizada completa para PDF
+    const ocPdfQuery = await client.query(
+      `SELECT oc.*,
+              p.razon_social AS proveedor_razon_social,
+              p.marca        AS proveedor_marca,
+              p.rfc          AS proveedor_rfc,
+              proy.nombre    AS proyecto_nombre,
+              s.nombre       AS sitio_nombre,
+              s_e.nombre     AS lugar_entrega_nombre,
+              u.nombre       AS usuario_nombre,
+              u.correo       AS usuario_correo,
+              r.rfq_code     AS rfq_code,
+              (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) AS moneda,
+              NOW() AS fecha_aprobacion
+       FROM ordenes_compra oc
+       JOIN proveedores p ON oc.proveedor_id = p.id
+       JOIN proyectos proy ON oc.proyecto_id = proy.id
+       JOIN sitios s ON oc.sitio_id = s.id
+       LEFT JOIN sitios s_e ON s_e.id = oc.lugar_entrega::int
+       JOIN usuarios u ON oc.usuario_id = u.id
+       LEFT JOIN requisiciones r ON oc.rfq_id = r.id
+       WHERE oc.id = $1`,
+      [idNum]
+    );
+    const ocDataParaPdf = ocPdfQuery.rows[0];
+
+    const itemsPdfQuery = await client.query(
+      `SELECT ocd.*, cm.nombre AS material_nombre, cm.sku AS sku,
+              cu.simbolo AS unidad_simbolo
+       FROM ordenes_compra_detalle ocd
+       JOIN catalogo_materiales cm ON ocd.material_id = cm.id
+       JOIN catalogo_unidades cu ON cm.unidad_de_compra = cu.id
+       WHERE ocd.orden_compra_id = $1
+       ORDER BY ocd.id ASC`,
+      [idNum]
+    );
+
+    // 7) Generar PDF
+    const pdfBuffer = await generatePurchaseOrderPdf(ocDataParaPdf, itemsPdfQuery.rows, client);
+
+    // 8) Nombre del archivo
+    const ocDisplay = formatOcForDisplay(oc.numero_oc);
+    const sitioNombre = safeText(ocDataParaPdf.sitio_nombre, '');
+    const proyectoNombre = safeText(ocDataParaPdf.proyecto_nombre, '');
+    const subject = oc.es_urgente
+      ? `${ocDisplay} - MODIFICADA - URGENTE - ${sitioNombre} - ${proyectoNombre} - ${proveedorNombreFinal}`
+      : `${ocDisplay} - MODIFICADA - ${sitioNombre} - ${proyectoNombre} - ${proveedorNombreFinal}`;
+    const pdfFileName = `${sanitizeFileName(subject)}.pdf`;
+
+    // 9) Subir PDF a Drive
+    const driveFile = await uploadOcPdfBuffer(
+      pdfBuffer,
+      pdfFileName,
+      oc.depto_codigo,
+      ocDataParaPdf.rfq_code || oc.numero_oc,
+      oc.numero_oc
+    );
+
+    // 10) Enviar correo
+    const recipients = await _getRecipientEmailsByGroup('OC_GENERADA_NOTIFICAR', client);
+    if (recipients.length > 0) {
+      const motivoHtml = `<p><b>Motivo de la modificación:</b><br/>${String(motivo).replace(/\n/g, '<br/>')}</p>`;
+      const notesHtml = comentFin
+        ? `<p><b>Notas de finanzas:</b><br/>${comentFin.replace(/\n/g, '<br/>')}</p>`
+        : '';
+      const urgentHtml = oc.es_urgente
+        ? `<p style="color:#C62828;font-weight:bold;font-size:14px;">URGENTE</p>`
+        : '';
+      const htmlBody = `
+        ${urgentHtml}
+        <p>La Orden de Compra <b>${ocDisplay}</b> ha sido <b>modificada</b> y requiere revisión.</p>
+        <p>
+          <b>OC:</b> ${ocDisplay}<br/>
+          <b>Proveedor:</b> ${proveedorNombreFinal}<br/>
+          <b>Sitio:</b> ${sitioNombre}<br/>
+          <b>Proyecto:</b> ${proyectoNombre}
+        </p>
+        ${motivoHtml}
+        ${notesHtml}
+        ${driveFile?.webViewLink ? `<p>Link a Drive: <a href="${driveFile.webViewLink}">Ver Archivo</a></p>` : ''}
+        <p>Se adjunta la Orden de Compra actualizada.</p>
+      `;
+      await sendEmailWithAttachments(
+        recipients,
+        subject,
+        htmlBody,
+        [{ filename: pdfFileName, content: pdfBuffer }]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    res.json({
+      mensaje: `OC ${oc.numero_oc} modificada correctamente.`,
+      oc: { id: idNum, numero_oc: oc.numero_oc },
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('[ordenCompra] editarOc error:', error);
+    res.status(500).json({ error: error.message || 'Error interno del servidor.' });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   descargarOcPdf,
   getOcs,
-  getOcFilters
+  getOcFilters,
+  getDatosParaEditar,
+  editarOc,
 };

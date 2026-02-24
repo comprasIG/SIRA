@@ -8,7 +8,7 @@
 
 const express = require("express");
 const router = express.Router();
-const { descargarOcPdf, getOcs, getOcFilters } = require("../controllers/ordenCompra.controller");
+const { descargarOcPdf, getOcs, getOcFilters, getDatosParaEditar, editarOc } = require("../controllers/ordenCompra.controller");
 
 // Mantengo tus middlewares y sus rutas actuales:
 const verifyFirebaseToken = require("../middleware/verifyFirebaseToken");
@@ -16,11 +16,15 @@ const loadSiraUser = require("../middleware/loadSiraUser");
 
 router.use(verifyFirebaseToken, loadSiraUser);
 
-// Descargar PDF de una OC
-router.get("/:id/pdf", descargarOcPdf);
-
-// Listar OCs
+// Listar OCs (rutas fijas primero, antes de las parametrizadas)
 router.get("/", getOcs);
 router.get("/filters", getOcFilters);
+
+// Edición de OC
+router.get("/:id/editar-datos", getDatosParaEditar);
+router.patch("/:id/editar", editarOc);
+
+// Descargar PDF de una OC
+router.get("/:id/pdf", descargarOcPdf);
 
 module.exports = router;

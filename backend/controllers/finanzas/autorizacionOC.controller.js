@@ -594,6 +594,29 @@ const cancelarOC = async (req, res) => {
       }
     }
 
+    // 5b) Si la OC pertenece a un RFQ, verificar si quedaron opciones seleccionadas sin OC.
+    //     Si las hay, mover el RFQ a POR_APROBAR para que vuelva a aparecer en VB_RFQ.
+    if (oc.rfq_id) {
+      const pendQ = await client.query(
+        `SELECT COUNT(*)::int AS cnt
+         FROM requisiciones_opciones ro
+         LEFT JOIN ordenes_compra_detalle ocd ON ocd.comparativa_precio_id = ro.id
+         LEFT JOIN ordenes_compra oc2
+           ON oc2.id = ocd.orden_compra_id AND oc2.status <> 'CANCELADA'
+         WHERE ro.requisicion_id = $1
+           AND ro.seleccionado = TRUE
+           AND COALESCE(ro.cantidad_cotizada, 0) > 0
+           AND oc2.id IS NULL`,
+        [oc.rfq_id]
+      );
+      if ((pendQ.rows[0]?.cnt ?? 0) > 0) {
+        await client.query(
+          `UPDATE requisiciones SET status = 'POR_APROBAR' WHERE id = $1`,
+          [oc.rfq_id]
+        );
+      }
+    }
+
     // 6) Historial
     await client.query(
       `INSERT INTO ordenes_compra_historial (orden_compra_id, usuario_id, accion_realizada, detalles)
