@@ -238,7 +238,7 @@ export default function useVbOcForm() {
                     cantidad: Number(it.cantidad),
                     proveedor_id: it.proveedor_id,
                     precio_unitario: Number(it.precio_unitario),
-                    moneda: it.moneda || 'MXN',
+                    moneda: providerConfigs[it.proveedor_id]?.moneda || it.moneda || 'MXN',
                     es_precio_neto: !!it.es_precio_neto,
                     es_importacion: !!it.es_importacion,
                     plazo_entrega: it.es_entrega_inmediata
