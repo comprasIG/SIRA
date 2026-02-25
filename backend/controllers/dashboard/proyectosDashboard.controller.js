@@ -76,7 +76,7 @@ const getProyectosDashboard = async (req, res) => {
         SUM(ocd.cantidad * ocd.precio_unitario) AS total
       FROM ordenes_compra oc
       JOIN ordenes_compra_detalle ocd ON ocd.orden_compra_id = oc.id
-      WHERE oc.status NOT IN ('RECHAZADA', 'CANCELADA')
+      WHERE oc.status IN ('APROBADA', 'EN_PROCESO', 'ENTREGADA')
         AND oc.proyecto_id IS NOT NULL
     `;
     const gastoParams = [];
@@ -235,7 +235,7 @@ const getProyectoDetalle = async (req, res) => {
       FROM ordenes_compra oc
       JOIN ordenes_compra_detalle ocd ON oc.id = ocd.orden_compra_id
       WHERE oc.proyecto_id = $1
-        AND oc.status NOT IN ('RECHAZADA', 'CANCELADA')
+        AND oc.status IN ('APROBADA', 'EN_PROCESO', 'ENTREGADA')
       GROUP BY oc.id, oc.numero_oc, oc.status, oc.fecha_creacion, ocd.moneda
       ORDER BY oc.fecha_creacion DESC
     `;
