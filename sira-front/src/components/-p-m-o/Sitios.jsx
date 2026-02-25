@@ -7,6 +7,7 @@ import ModalNuevoSitio from './sitios/ModalNuevoSitio';
 import ModalNuevoCliente from './sitios/ModalNuevoCliente';
 import ModalVerProyectosSitio from './sitios/ModalVerProyectosSitio';
 import api from '../../api/api';
+import { toast } from 'react-toastify';
 
 export default function Sitios() {
   const [loading, setLoading] = useState(true);
@@ -72,12 +73,12 @@ export default function Sitios() {
 
       const sitiosConTotales = Array.isArray(sitiosRes)
         ? sitiosRes.map((s) => {
-            const sitioId = Number(s.id);
-            return {
-              ...s,
-              oc_totales_por_moneda: ocMap.get(sitioId) || [],
-            };
-          })
+          const sitioId = Number(s.id);
+          return {
+            ...s,
+            oc_totales_por_moneda: ocMap.get(sitioId) || [],
+          };
+        })
         : [];
 
       setKpiData(kpisRes || {});
@@ -150,6 +151,20 @@ export default function Sitios() {
     );
   }, [sitios, busqueda]);
 
+  // ----------------------------------------------------------------------------
+  // Toggle activo
+  // ----------------------------------------------------------------------------
+  const handleToggleActivo = async (sitio) => {
+    try {
+      const result = await api.patch(`/api/sitios-dashboard/${sitio.id}/toggle-activo`);
+      toast.success(`Sitio "${result.nombre}" ${result.activo ? 'activado' : 'desactivado'}.`);
+      await fetchData();
+    } catch (error) {
+      console.error('Error al cambiar estado del sitio:', error);
+      toast.error('Error al cambiar el estado del sitio.');
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto">
       <header className="mb-8">
@@ -185,6 +200,7 @@ export default function Sitios() {
           setSitioAEditar(sitio);
           setModalSitioOpen(true);
         }}
+        onToggleActivo={handleToggleActivo}
       />
 
       {/* Modales */}

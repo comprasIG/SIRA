@@ -71,6 +71,7 @@ const getDashboardData = async (req, res) => {
         s.id, 
         s.nombre, 
         s.ubicacion, 
+        s.activo,
         c.razon_social AS cliente_nombre,
         s.cliente as cliente_id,
         COUNT(DISTINCT p.id) FILTER (WHERE p.activo = true) as proyectos_activos_count,
@@ -231,6 +232,26 @@ const getProyectosPorSitio = async (req, res) => {
   }
 };
 
+/* =============================================================================
+   8) Toggle activo de un sitio
+============================================================================= */
+const toggleActivoSitio = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `UPDATE sitios SET activo = NOT activo WHERE id = $1 RETURNING id, nombre, activo`,
+      [id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Sitio no encontrado.' });
+    }
+    return res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error al cambiar estado del sitio:', error);
+    return res.status(500).json({ error: 'Error al cambiar estado del sitio.' });
+  }
+};
+
 module.exports = {
   getKpis,
   getDashboardData,
@@ -239,4 +260,5 @@ module.exports = {
   createCliente,
   getOCTotalesPorSitio,
   getProyectosPorSitio,
+  toggleActivoSitio,
 };

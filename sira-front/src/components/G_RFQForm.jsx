@@ -20,6 +20,7 @@ import MaterialCotizacionRow from "./rfq/MaterialCotizacionRow";
 import RFQFormHeader from "./rfq/RFQFormHeader";
 import ResumenCompra from "./rfq/ResumenCompra";
 import RFQFormActions from "./rfq/RFQFormActions";
+import AgregarMaterialRFQ from "./rfq/AgregarMaterialRFQ";
 import { useAutoSaveRFQ } from "./rfq/useAutoSaveRFQ";
 
 // ✅ Drag & Drop (dnd-kit)
@@ -89,9 +90,20 @@ const calcularResumenes = (materiales, providerConfigs) => {
     const iva = esCompraImportacion || !config.isIvaActive ? 0 : subTotal * ivaRateNum;
     const retIsr = esCompraImportacion || !config.isIsrActive ? 0 : subTotal * isrRateNum;
 
-    let total = config.isForcedTotalActive ? forcedTotalNum : subTotal + iva - retIsr;
+    // Descuento global
+    let descuento = 0;
+    if (config.isDiscountActive) {
+      const discountVal = parseFloat(config.discountValue) || 0;
+      if (config.discountType === 'porcentaje') {
+        descuento = subTotal * (discountVal / 100);
+      } else {
+        descuento = discountVal;
+      }
+    }
 
-    return { proveedorId: grupo.proveedorId, subTotal, iva, retIsr, total, config };
+    let total = config.isForcedTotalActive ? forcedTotalNum : subTotal + iva - retIsr - descuento;
+
+    return { proveedorId: grupo.proveedorId, subTotal, iva, retIsr, descuento, total, config };
   });
 };
 
@@ -132,6 +144,7 @@ export default function G_RFQForm({ requisicionId, onBack, mode = "G" }) {
   const [lastUsedProvider, setLastUsedProvider] = useState(null);
   const [archivosNuevosPorProveedor, setArchivosNuevosPorProveedor] = useState({});
   const [archivosExistentesPorProveedor, setArchivosExistentesPorProveedor] = useState({});
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Preferencias UI (por usuario)
   const [prefsLoading, setPrefsLoading] = useState(false);
@@ -306,7 +319,7 @@ export default function G_RFQForm({ requisicionId, onBack, mode = "G" }) {
         let borrador = null;
         try {
           borrador = await api.get(`/api/rfq/${requisicionId}/borrador`);
-        } catch {}
+        } catch { }
 
         if (borrador && borrador.data) {
           toast.info("Se cargó la última instantánea de autoguardado.");
@@ -314,6 +327,7 @@ export default function G_RFQForm({ requisicionId, onBack, mode = "G" }) {
 
           // ✅ Enriquecer snapshot con dataProd (incluye sku/material/unidad/cantidad...)
           const prodByDetalleId = new Map((dataProd.materiales || []).map((m) => [m.id, m]));
+          const snapshotIds = new Set((materiales || []).map((m) => m.id));
           const materialesEnriquecidos = (materiales || []).map((mSnap) => {
             const prod = prodByDetalleId.get(mSnap.id);
             if (!prod) return mSnap;
@@ -324,6 +338,38 @@ export default function G_RFQForm({ requisicionId, onBack, mode = "G" }) {
               sku: prod.sku ?? mSnap.sku ?? null,
               material: prod.material ?? mSnap.material,
             };
+          });
+
+          // ✅ Agregar materiales nuevos que no estaban en el snapshot (ej. materiales adicionales)
+          (dataProd.materiales || []).forEach((prod) => {
+            if (!snapshotIds.has(prod.id)) {
+              materialesEnriquecidos.push({
+                ...prod,
+                opciones: prod.opciones.length > 0
+                  ? prod.opciones.map((op) => ({
+                    id_bd: op.id,
+                    ...op,
+                    precio_unitario: Number(op.precio_unitario) || "",
+                    cantidad_cotizada: Number(op.cantidad_cotizada) || 0,
+                    proveedor: {
+                      id: op.proveedor_id,
+                      nombre: op.proveedor_nombre,
+                      razon_social: op.proveedor_razon_social,
+                    },
+                  }))
+                  : [{
+                    id_bd: null,
+                    proveedor: null,
+                    proveedor_id: null,
+                    precio_unitario: "",
+                    cantidad_cotizada: prod.cantidad,
+                    seleccionado: false,
+                    es_entrega_inmediata: true,
+                    es_precio_neto: false,
+                    es_importacion: false,
+                  }],
+              });
+            }
           });
 
           replaceMaterialFields(materialesEnriquecidos);
@@ -344,29 +390,29 @@ export default function G_RFQForm({ requisicionId, onBack, mode = "G" }) {
             opciones:
               m.opciones.length > 0
                 ? m.opciones.map((op) => ({
-                    id_bd: op.id,
-                    ...op,
-                    precio_unitario: Number(op.precio_unitario) || "",
-                    cantidad_cotizada: Number(op.cantidad_cotizada) || 0,
-                    proveedor: {
-                      id: op.proveedor_id,
-                      nombre: op.proveedor_nombre,
-                      razon_social: op.proveedor_razon_social,
-                    },
-                  }))
+                  id_bd: op.id,
+                  ...op,
+                  precio_unitario: Number(op.precio_unitario) || "",
+                  cantidad_cotizada: Number(op.cantidad_cotizada) || 0,
+                  proveedor: {
+                    id: op.proveedor_id,
+                    nombre: op.proveedor_nombre,
+                    razon_social: op.proveedor_razon_social,
+                  },
+                }))
                 : [
-                    {
-                      id_bd: null,
-                      proveedor: null,
-                      proveedor_id: null,
-                      precio_unitario: "",
-                      cantidad_cotizada: m.cantidad,
-                      seleccionado: false,
-                      es_entrega_inmediata: true,
-                      es_precio_neto: false,
-                      es_importacion: false,
-                    },
-                  ],
+                  {
+                    id_bd: null,
+                    proveedor: null,
+                    proveedor_id: null,
+                    precio_unitario: "",
+                    cantidad_cotizada: m.cantidad,
+                    seleccionado: false,
+                    es_entrega_inmediata: true,
+                    es_precio_neto: false,
+                    es_importacion: false,
+                  },
+                ],
           }));
 
           replaceMaterialFields(mappedMateriales);
@@ -380,7 +426,12 @@ export default function G_RFQForm({ requisicionId, onBack, mode = "G" }) {
     };
 
     fetchData();
-  }, [fetchUiPrefs, replaceMaterialFields, requisicionId]);
+  }, [fetchUiPrefs, replaceMaterialFields, requisicionId, reloadKey]);
+
+  // Handler para refrescar tras agregar material adicional
+  const handleMaterialAdded = useCallback(() => {
+    setReloadKey((k) => k + 1);
+  }, []);
 
   // =============================================================================================
   // Archivos (cotizaciones)
@@ -504,29 +555,29 @@ export default function G_RFQForm({ requisicionId, onBack, mode = "G" }) {
         opciones:
           m.opciones.length > 0
             ? m.opciones.map((op) => ({
-                id_bd: op.id,
-                ...op,
-                precio_unitario: Number(op.precio_unitario) || "",
-                cantidad_cotizada: Number(op.cantidad_cotizada) || 0,
-                proveedor: {
-                  id: op.proveedor_id,
-                  nombre: op.proveedor_nombre,
-                  razon_social: op.proveedor_razon_social,
-                },
-              }))
+              id_bd: op.id,
+              ...op,
+              precio_unitario: Number(op.precio_unitario) || "",
+              cantidad_cotizada: Number(op.cantidad_cotizada) || 0,
+              proveedor: {
+                id: op.proveedor_id,
+                nombre: op.proveedor_nombre,
+                razon_social: op.proveedor_razon_social,
+              },
+            }))
             : [
-                {
-                  id_bd: null,
-                  proveedor: null,
-                  proveedor_id: null,
-                  precio_unitario: "",
-                  cantidad_cotizada: m.cantidad,
-                  seleccionado: false,
-                  es_entrega_inmediata: true,
-                  es_precio_neto: false,
-                  es_importacion: false,
-                },
-              ],
+              {
+                id_bd: null,
+                proveedor: null,
+                proveedor_id: null,
+                precio_unitario: "",
+                cantidad_cotizada: m.cantidad,
+                seleccionado: false,
+                es_entrega_inmediata: true,
+                es_precio_neto: false,
+                es_importacion: false,
+              },
+            ],
       }));
 
       replaceMaterialFields(mappedMateriales);
@@ -624,7 +675,7 @@ export default function G_RFQForm({ requisicionId, onBack, mode = "G" }) {
         // Revertir UI si falló persistencia
         try {
           moveMaterial(newIndex, oldIndex);
-        } catch {}
+        } catch { }
         toast.error("No se pudo guardar el orden. Se restauró el orden anterior.");
       }
     },
@@ -691,6 +742,15 @@ export default function G_RFQForm({ requisicionId, onBack, mode = "G" }) {
               <div className="text-center p-4">
                 <CircularProgress />
               </div>
+            )}
+
+            {/* Agregar Material Adicional */}
+            {!loading && !isSaving && (
+              <AgregarMaterialRFQ
+                requisicionId={requisicionId}
+                onMaterialAdded={handleMaterialAdded}
+                disabled={isSaving}
+              />
             )}
           </div>
 

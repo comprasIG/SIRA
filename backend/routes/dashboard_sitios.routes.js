@@ -26,5 +26,8 @@ router.post('/', controller.createSitio);
 router.post('/cliente', controller.createCliente);
 
 
+// Toggle activo
+router.patch('/:id/toggle-activo', controller.toggleActivoSitio);
+
 
 module.exports = router;
