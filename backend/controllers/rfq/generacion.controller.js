@@ -142,7 +142,7 @@ const getRfqDetalle = async (req, res) => {
       `SELECT id, nombre_archivo, ruta_archivo
        FROM requisiciones_adjuntos
        WHERE requisicion_id = $1`
-    ,
+      ,
       [id]
     );
 
@@ -583,6 +583,109 @@ const cancelarRfq = async (req, res) => {
 };
 
 
+/* =================================================================================================
+ * SECCIÓN 6: Materiales Adicionales (agregados desde G_RFQ por compras)
+ * ===============================================================================================*/
+
+/**
+ * POST /api/rfq/:id/materiales-adicionales
+ * Agrega un material adicional a la requisición desde el flujo de cotización.
+ * El material queda registrado con el usuario_id de compras en agregado_por_usuario_id.
+ */
+const agregarMaterialAdicional = async (req, res) => {
+  const { id: requisicionId } = req.params;
+  const { material_id, cantidad } = req.body;
+  const usuarioComprasId = req.usuarioSira?.id;
+
+  // Validaciones básicas
+  if (!material_id || !cantidad || Number(cantidad) <= 0) {
+    return res.status(400).json({ error: 'material_id y cantidad (> 0) son requeridos.' });
+  }
+  if (!usuarioComprasId) {
+    return res.status(401).json({ error: 'No se pudo identificar al usuario de compras.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1) Verificar que la requisición existe y está en estado válido
+    const reqResult = await client.query(
+      `SELECT id, status FROM requisiciones WHERE id = $1`,
+      [requisicionId]
+    );
+    if (reqResult.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Requisición no encontrada.' });
+    }
+    const { status } = reqResult.rows[0];
+    if (status === 'CANCELADA') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'No se pueden agregar materiales a una requisición cancelada.' });
+    }
+
+    // 2) Verificar que el material no exista ya en la requisición (constraint UNIQUE)
+    const existeResult = await client.query(
+      `SELECT id FROM requisiciones_detalle WHERE requisicion_id = $1 AND material_id = $2`,
+      [requisicionId, material_id]
+    );
+    if (existeResult.rowCount > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'Este material ya existe en la requisición. No se puede agregar duplicado.',
+      });
+    }
+
+    // 3) Calcular siguiente rfq_sort_index
+    const maxSortResult = await client.query(
+      `SELECT COALESCE(MAX(rfq_sort_index), -1) + 1 AS next_index
+       FROM requisiciones_detalle WHERE requisicion_id = $1`,
+      [requisicionId]
+    );
+    const nextSortIndex = maxSortResult.rows[0].next_index;
+
+    // 4) Insertar en requisiciones_detalle
+    const insertResult = await client.query(
+      `INSERT INTO requisiciones_detalle
+         (requisicion_id, material_id, cantidad, rfq_sort_index, agregado_por_usuario_id, status_compra)
+       VALUES ($1, $2, $3, $4, $5, 'PENDIENTE')
+       RETURNING id`,
+      [requisicionId, material_id, cantidad, nextSortIndex, usuarioComprasId]
+    );
+    const nuevoDetalleId = insertResult.rows[0].id;
+
+    // 5) Obtener datos completos del material insertado para retornar al front
+    const detalleResult = await client.query(
+      `SELECT rd.*,
+              cm.nombre AS material,
+              cm.sku    AS sku,
+              cu.simbolo AS unidad
+       FROM requisiciones_detalle rd
+       JOIN catalogo_materiales cm ON cm.id = rd.material_id
+       LEFT JOIN catalogo_unidades cu ON cu.id = cm.unidad_de_compra
+       WHERE rd.id = $1`,
+      [nuevoDetalleId]
+    );
+
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      mensaje: 'Material adicional agregado correctamente.',
+      detalle: { ...detalleResult.rows[0], opciones: [] },
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(`Error al agregar material adicional a RFQ ${requisicionId}:`, error);
+    if (error.constraint === 'uq_req_detalle_mat') {
+      return res.status(409).json({ error: 'Este material ya existe en la requisición.' });
+    }
+    res.status(500).json({ error: error.message || 'Error interno del servidor.' });
+  } finally {
+    client.release();
+  }
+};
+
+
 module.exports = {
   getRequisicionesCotizando,
   getRfqDetalle,
@@ -590,4 +693,5 @@ module.exports = {
   guardarOpcionesRfq,
   enviarRfqAprobacion,
   cancelarRfq,
+  agregarMaterialAdicional,
 };
