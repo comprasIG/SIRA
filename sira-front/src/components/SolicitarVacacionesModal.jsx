@@ -15,6 +15,7 @@ import { toast } from 'react-toastify';
 export default function SolicitarVacacionesModal({ empleado, onClose, onSolicitudGuardada }) {
   const [saldo, setSaldo] = useState(null);
   const [loadingSaldo, setLoadingSaldo] = useState(true);
+  const [descargandoPdf, setDescargandoPdf] = useState(false); // <-- Estado para controlar la descarga
 
   const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm({
     defaultValues: {
@@ -51,7 +52,7 @@ export default function SolicitarVacacionesModal({ empleado, onClose, onSolicitu
     cargarSaldo();
   }, [empleado]);
 
-  // 2. ENVIAR LA SOLICITUD
+  // 2. ENVIAR LA SOLICITUD Y DESCARGAR PDF
   const onSubmit = async (data) => {
     if (!saldo) return;
 
@@ -72,6 +73,9 @@ export default function SolicitarVacacionesModal({ empleado, onClose, onSolicitu
     };
 
     try {
+        setDescargandoPdf(true); // Bloqueamos el botón y mostramos indicador
+        
+        // 1. Crear solicitud
         const response = await fetch(`${API_BASE_URL}/api/vacaciones/solicitar`, {
             method: 'POST',
             headers: {
@@ -84,12 +88,45 @@ export default function SolicitarVacacionesModal({ empleado, onClose, onSolicitu
             throw new Error("Error al registrar la solicitud de vacaciones");
         }
 
-        toast.success("Solicitud de vacaciones registrada exitosamente.");
+        // 2. Extraer los datos guardados para obtener el ID
+        const result = await response.json();
+        const nuevaSolicitud = result.solicitud || result; 
+
+        toast.success("Solicitud registrada exitosamente. Generando formato...");
+
+        // 3. Obtener el PDF generado
+        if (nuevaSolicitud && nuevaSolicitud.id) {
+            try {
+                const pdfRes = await fetch(`${API_BASE_URL}/api/vacaciones/${nuevaSolicitud.id}/pdf`, {
+                    method: 'GET',
+                });
+
+                if (pdfRes.ok) {
+                    const blob = await pdfRes.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Solicitud_Vacaciones_Folio_${nuevaSolicitud.id}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    toast.error("La solicitud se guardó, pero hubo un error al descargar el PDF.");
+                }
+            } catch (pdfError) {
+                console.error("Error al obtener el PDF:", pdfError);
+                toast.error("La solicitud se guardó, pero no se pudo conectar para descargar el PDF.");
+            }
+        }
+
         if (onSolicitudGuardada) onSolicitudGuardada();
         onClose();
     } catch (error) {
         console.error("Error al registrar solicitud:", error);
         toast.error("Hubo un error al procesar la solicitud.");
+    } finally {
+        setDescargandoPdf(false);
     }
   };
 
@@ -219,7 +256,7 @@ export default function SolicitarVacacionesModal({ empleado, onClose, onSolicitu
                                     />
                                     <span className="absolute right-4 top-2.5 text-gray-400 font-medium">días</span>
                                 </div>
-                                <p className="text-xs text-gray-400 mt-1">Total de días que se restarán de su saldo (excluyendo fines de semana/feriados si aplica).</p>
+                                <p className="text-xs text-gray-400 mt-1">Total de días que se restarán de su saldo.</p>
                                 {errors.dias_solicitados && <span className="text-red-500 text-xs mt-1 block">{errors.dias_solicitados.message}</span>}
                             </div>
                         </div>
@@ -256,14 +293,14 @@ export default function SolicitarVacacionesModal({ empleado, onClose, onSolicitu
           <button 
             type="submit"
             form="vacaciones-form"
-            disabled={isSubmitting || loadingSaldo || !saldo}
+            disabled={isSubmitting || loadingSaldo || !saldo || descargandoPdf}
             className={`
               flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl shadow-md transition-all
-              ${(isSubmitting || !saldo) ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 hover:-translate-y-0.5 shadow-blue-200'}
+              ${(isSubmitting || !saldo || descargandoPdf) ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 hover:-translate-y-0.5 shadow-blue-200'}
             `}
           >
-            {isSubmitting ? <CircularProgress size={18} color="inherit" /> : <SendIcon fontSize="small" />}
-            Registrar Solicitud
+            {(isSubmitting || descargandoPdf) ? <CircularProgress size={18} color="inherit" /> : <SendIcon fontSize="small" />}
+            {descargandoPdf ? "Generando Formato..." : "Registrar Solicitud"}
           </button>
         </div>
 
