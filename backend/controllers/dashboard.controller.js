@@ -315,7 +315,7 @@ const getAnalyticsDashboard = async (req, res) => {
         SUM(ocd.cantidad * ocd.precio_unitario)::numeric AS total
       FROM ordenes_compra oc
       JOIN ordenes_compra_detalle ocd ON ocd.orden_compra_id = oc.id
-      WHERE oc.status NOT IN ('RECHAZADA', 'CANCELADA')
+      WHERE oc.status IN ('APROBADA', 'EN_PROCESO', 'ENTREGADA')
         AND oc.proyecto_id IS NOT NULL
       GROUP BY oc.proyecto_id, ocd.moneda
     `);
