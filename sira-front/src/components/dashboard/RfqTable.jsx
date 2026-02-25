@@ -18,10 +18,12 @@ import {
 import { RFQ_STATUS_COLOR, OC_STATUS_COLOR } from './statusColors';
 import RfqCodeChip from '../common/RfqCodeChip';
 import api from '../../api/api';
+import { toast } from 'react-toastify';
 import { useOcPreview } from '../../hooks/useOcPreview';
 import OCInfoModal from '../common/OCInfoModal';
 import { useRfqPreview } from '../../hooks/useRfqPreview';
 import RFQInfoModal from '../common/RFQInfoModal';
+import RequisicionEditModal from './RequisicionEditModal';
 
 /**
  * Tabla que muestra las requisiciones (RFQs) y las órdenes de compra asociadas.
@@ -41,18 +43,25 @@ export default function RfqTable({ rfqs, mode, rfqStatusOptions = [], onStatusCh
   const {
     previewOpen: rfqOpen,
     previewRfq,
+    previewData,
     previewItems: rfqItems,
     previewMetadata: rfqMetadata,
     previewAttachments: rfqAttachments,
     loading: rfqLoading,
     openPreview: openRfqPreview,
-    closePreview: closeRfqPreview
+    closePreview: closeRfqPreview,
+    refreshPreview,
   } = useRfqPreview();
 
   // Snackbar state
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   // Track which row is updating
   const [updatingId, setUpdatingId] = useState(null);
+
+  // Edit modal state
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  // PDF regeneration loading
+  const [regeneratingPdf, setRegeneratingPdf] = useState(false);
 
   const isSSD = mode === 'SSD';
 
@@ -66,6 +75,49 @@ export default function RfqTable({ rfqs, mode, rfqStatusOptions = [], onStatusCh
       setSnackbar({ open: true, message: err?.error || 'Error al actualizar status', severity: 'error' });
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  // --- Handlers for Compras/SSD actions ---
+  const handleEditRequisicion = () => {
+    setEditModalOpen(true);
+  };
+
+  const handleEditSaved = () => {
+    // Refresh the RFQ preview modal data and reload the dashboard table
+    refreshPreview();
+    if (onStatusChanged) onStatusChanged();
+  };
+
+  const handleRegeneratePdf = async (rfq) => {
+    const reqId = rfq?.id || previewData?.id;
+    if (!reqId) {
+      toast.error('No se pudo identificar la requisición.');
+      return;
+    }
+    setRegeneratingPdf(true);
+    try {
+      toast.info('Generando PDF, por favor espera…');
+      const response = await api.post(
+        `/api/requisiciones/${reqId}/regenerar-pdf`,
+        { approverName: 'Compras' },
+        { responseType: 'blob' }
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      const fileName = `${rfq?.numero_requisicion || previewData?.numero_requisicion || 'requisicion'}.pdf`;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('PDF generado y guardado en Drive correctamente.');
+    } catch (err) {
+      console.error('Error al regenerar PDF:', err);
+      toast.error(err?.error || 'Error al regenerar el PDF.');
+    } finally {
+      setRegeneratingPdf(false);
     }
   };
 
@@ -197,8 +249,20 @@ export default function RfqTable({ rfqs, mode, rfqStatusOptions = [], onStatusCh
           metadata={rfqMetadata}
           attachments={rfqAttachments}
           loading={rfqLoading}
+          mode={mode}
+          onEdit={handleEditRequisicion}
+          onRegeneratePdf={handleRegeneratePdf}
+          regeneratingPdf={regeneratingPdf}
         />
       )}
+
+      {/* Modal de edición restringida de requisición (solo SSD) */}
+      <RequisicionEditModal
+        open={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        rfqData={previewData}
+        onSaved={handleEditSaved}
+      />
 
       {/* Snackbar de confirmación */}
       <Snackbar

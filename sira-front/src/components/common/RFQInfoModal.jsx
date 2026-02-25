@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     Dialog,
     DialogTitle,
@@ -21,6 +21,8 @@ import {
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
+import EditIcon from '@mui/icons-material/Edit';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { RFQ_STATUS_COLOR } from '../dashboard/statusColors';
 
 export default function RFQInfoModal({
@@ -31,6 +33,10 @@ export default function RFQInfoModal({
     metadata = [],
     attachments = [],
     loading = false,
+    mode = '',
+    onEdit,
+    onRegeneratePdf,
+    regeneratingPdf = false,
 }) {
     const theme = useTheme();
 
@@ -208,7 +214,28 @@ export default function RFQInfoModal({
                     </Stack>
                 )}
             </DialogContent>
-            <DialogActions sx={{ px: 4, py: 2 }}>
+            <DialogActions sx={{ px: 4, py: 2, justifyContent: mode === 'SSD' ? 'space-between' : 'flex-end' }}>
+                {mode === 'SSD' && (
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                            variant="outlined"
+                            color="primary"
+                            startIcon={<EditIcon />}
+                            onClick={() => onEdit && onEdit(rfq)}
+                        >
+                            Editar Requisición
+                        </Button>
+                        <Button
+                            variant="outlined"
+                            color="secondary"
+                            startIcon={regeneratingPdf ? <CircularProgress size={18} color="inherit" /> : <PictureAsPdfIcon />}
+                            onClick={() => onRegeneratePdf && onRegeneratePdf(rfq)}
+                            disabled={regeneratingPdf}
+                        >
+                            {regeneratingPdf ? 'Generando...' : 'Regenerar PDF'}
+                        </Button>
+                    </Box>
+                )}
                 <Button onClick={onClose} variant="contained" color="secondary">Cerrar</Button>
             </DialogActions>
         </Dialog>
