@@ -1,34 +1,43 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 // --- ICONOS MUI ---
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
-import SickIcon from '@mui/icons-material/Sick';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import SearchIcon from '@mui/icons-material/Search';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
+import TimerOffIcon from '@mui/icons-material/TimerOff';
+import FreeCancellationIcon from '@mui/icons-material/FreeCancellation';
 
+import { useAuth } from "../../context/authContext";
 import SolicitarVacacionesModal from '../SolicitarVacacionesModal';
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
-const API_BASE_URL = import.meta.env.VITE_API_URL; 
 
 export default function PermisosRHTab() {
-  const [empleados, setEmpleados] = useState([]);
+  // ========================================================================
+  // 1. OBTENER EL USUARIO ACTUAL DESDE EL CONTEXTO
+  // ========================================================================
+  const { usuario } = useAuth();
+  const usuarioActual = usuario || {};
+
+  // Estado para guardar TODOS los empleados que vienen de la BD
+  const [todosLosEmpleados, setTodosLosEmpleados] = useState([]);
   const [empleadoBuscado, setEmpleadoBuscado] = useState('');
   
-  // Estado inicializado vacío, se llenará con la base de datos
   const [solicitudes, setSolicitudes] = useState([]);
-  
   const [modalVacacionesAbierto, setModalVacacionesAbierto] = useState(false);
   const [empleadoParaVacaciones, setEmpleadoParaVacaciones] = useState(null);
 
   // Funciones para cargar datos desde el backend
   const fetchEmpleados = async () => {
     try {
+
       const response = await fetch(`${API_BASE_URL}/api/empleados`);
       if (!response.ok) throw new Error('Error al obtener empleados');
+      
       const data = await response.json();
-      setEmpleados(Array.isArray(data) ? data : data.data || []);
+      setTodosLosEmpleados(Array.isArray(data) ? data : data.data || []);
+      
     } catch (error) {
       console.error("Error cargando empleados:", error);
     }
@@ -36,7 +45,6 @@ export default function PermisosRHTab() {
 
   const fetchHistorial = async () => {
     try {
-      // Llama a la nueva ruta que creaste en el backend
       const response = await fetch(`${API_BASE_URL}/api/vacaciones/historial`);
       if (!response.ok) throw new Error('Error al obtener historial');
       const data = await response.json();
@@ -46,14 +54,67 @@ export default function PermisosRHTab() {
     }
   };
 
-  // Cargar datos al montar el componente
   useEffect(() => {
     fetchEmpleados();
     fetchHistorial();
-  }, []);
+  }, []); 
+
+  // ========================================================================
+  // 2. FILTRADO DINÁMICO EXACTO POR departamento_id (EMPLEADOS)
+  // ========================================================================
+  const empleadosFiltrados = useMemo(() => {
+      // Validamos que el usuario esté cargado y tenga su ID
+      if (!usuarioActual || usuarioActual.departamento_id === undefined) return [];
+
+      return todosLosEmpleados.filter(emp => {
+          // Filtro de Activos
+          const status = String(emp.status_laboral || '').trim().toLowerCase();
+          const estaActivo = status === 'activo' || status === 'vigente';
+
+          // Filtro por ID de Departamento
+          const deptoEmpleado = Number(emp.departamento_id);
+          const deptoUsuario = Number(usuarioActual.departamento_id);
+          const esMismoDepartamento = deptoEmpleado === deptoUsuario;
+            
+          // Lógica de permisos de vista global
+          const tienePermisoGlobal = usuarioActual.es_superusuario === true;
+
+          // Si tiene permiso global (Superusuario/RH), ve a todos los activos
+          if (tienePermisoGlobal) {
+              return estaActivo;
+          }
+
+          // Para usuarios normales o gerentes, ve solo a los activos de su departamento exacto
+          return estaActivo && esMismoDepartamento;
+      });
+  }, [todosLosEmpleados, usuarioActual]);
+
+
+  // ========================================================================
+  // 3. FILTRADO DINÁMICO EXACTO POR departamento_id (HISTORIAL DE SOLICITUDES)
+  // ========================================================================
+  const solicitudesFiltradas = useMemo(() => {
+    if (!usuarioActual || usuarioActual.departamento_id === undefined) return [];
+
+    const tienePermisoGlobal = usuarioActual.es_superusuario === true;
+    if (tienePermisoGlobal) return solicitudes;
+
+    return solicitudes.filter(sol => {
+        // Intentamos obtener el departamento cruzando la info con la lista de empleados
+        // (Por si el backend no envía el departamento_id directamente en el historial)
+        const empleadoDeSolicitud = todosLosEmpleados.find(e => e.empleado === sol.empleado);
+        
+        const deptoSolicitud = empleadoDeSolicitud 
+            ? Number(empleadoDeSolicitud.departamento_id) 
+            : Number(sol.departamento_id);
+
+        return deptoSolicitud === Number(usuarioActual.departamento_id);
+    });
+  }, [solicitudes, todosLosEmpleados, usuarioActual]);
+
 
   const handleAbrirVacaciones = () => {
-    const emp = empleados.find(e => e.id.toString() === empleadoBuscado.toString());
+    const emp = empleadosFiltrados.find(e => e.id.toString() === empleadoBuscado.toString());
     if (emp) {
         setEmpleadoParaVacaciones(emp);
         setModalVacacionesAbierto(true);
@@ -63,19 +124,14 @@ export default function PermisosRHTab() {
   };
 
   const recargarHistorial = () => {
-    // Cuando el modal guarda una solicitud exitosa, volvemos a consultar la base de datos
     fetchHistorial();
   };
 
-  // Función auxiliar para mostrar las fechas bonitas (Ej: "12 oct - 18 oct")
   const formatearRangoFechas = (inicio, fin) => {
     if (!inicio || !fin) return "Fecha no disponible";
     const opciones = { day: '2-digit', month: 'short' };
-    
-    // Agregamos 'T00:00:00' para evitar problemas de zona horaria al parsear
     const fInicio = new Date(inicio.split('T')[0] + 'T00:00:00').toLocaleDateString('es-MX', opciones);
     const fFin = new Date(fin.split('T')[0] + 'T00:00:00').toLocaleDateString('es-MX', opciones);
-    
     return `${fInicio} - ${fFin}`;
   };
 
@@ -106,9 +162,12 @@ export default function PermisosRHTab() {
                     className="w-full text-sm border border-slate-200 text-slate-700 py-2.5 px-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 cursor-pointer"
                 >
                     <option value="">-- Selecciona un Empleado --</option>
-                    {empleados.map(emp => (
+                    
+                    {empleadosFiltrados.length === 0 && <option disabled>Cargando o sin empleados en tu área...</option>}
+                    {empleadosFiltrados.map(emp => (
                         <option key={emp.id} value={emp.id}>{emp.empleado} ({emp.departamento})</option>
                     ))}
+
                 </select>
                 <button 
                     onClick={handleAbrirVacaciones}
@@ -120,13 +179,13 @@ export default function PermisosRHTab() {
             </div>
         </div>
 
-        {/* PERMISOS DE 4 HORAS */}
+        {/* PERMISOS POR 4 HORAS */}
         <div className="bg-white rounded-2xl shadow-sm border border-rose-100 p-6 flex flex-col relative overflow-hidden opacity-80 hover:opacity-100 transition-opacity">
             <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl"><SickIcon fontSize="small" /></div>
-                <h3 className="font-bold text-slate-800 text-lg">Permisos de 4 Horas</h3>
+                <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl"><TimerOffIcon fontSize="small" /></div>
+                <h3 className="font-bold text-slate-800 text-lg">Permisos por 4 Horas</h3>
             </div>
-            <p className="text-xs text-slate-500 mb-5">Solicita un permiso de 4 horas para ausencias breves (4 horas por mes).</p>
+            <p className="text-xs text-slate-500 mb-5">Registra permisos por 4 horas para ausencias justificadas (4 horas por mes).</p>
             <button className="mt-auto w-full bg-white border-2 border-rose-100 text-rose-600 font-semibold py-2 rounded-lg hover:bg-rose-50 transition-all">
                 Registrar Permiso
             </button>
@@ -135,10 +194,10 @@ export default function PermisosRHTab() {
         {/* PERMISOS ECONOMICOS */}
         <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 p-6 flex flex-col relative overflow-hidden opacity-80 hover:opacity-100 transition-opacity">
             <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl"><AccessTimeIcon fontSize="small" /></div>
-                <h3 className="font-bold text-slate-800 text-lg">Permisos Economicos</h3>
+                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl"><FreeCancellationIcon fontSize="small" /></div>
+                <h3 className="font-bold text-slate-800 text-lg">Permisos Económicos</h3>
             </div>
-            <p className="text-xs text-slate-500 mb-5">Solicita un permiso económico para ausencias justificadas por motivos económicos (1 dia cada 4 meses).</p>
+            <p className="text-xs text-slate-500 mb-5">Solicita un permiso económico para ausencias justificadas por motivos personales (1 dia cada 4 meses).</p>
             <button className="mt-auto w-full bg-white border-2 border-emerald-100 text-emerald-600 font-semibold py-2 rounded-lg hover:bg-emerald-50 transition-all">
                 Nuevo Permiso
             </button>
@@ -167,12 +226,13 @@ export default function PermisosRHTab() {
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                    {solicitudes.length > 0 ? (
-                        solicitudes.map(sol => (
+                    {/* Iteramos sobre solicitudesFiltradas en lugar de todas las solicitudes */}
+                    {solicitudesFiltradas.length > 0 ? (
+                        solicitudesFiltradas.map(sol => (
                             <tr key={sol.id} className="hover:bg-slate-50 transition-colors">
                                 <td className="px-6 py-3 font-medium text-slate-800">{sol.empleado}</td>
                                 <td className="px-6 py-3 text-slate-600 flex items-center gap-2">
-                                    {sol.tipo === 'Vacaciones' ? <FlightTakeoffIcon fontSize="small" className="text-blue-500"/> : <AccessTimeIcon fontSize="small" className="text-emerald-500"/>}
+                                    {sol.tipo === 'Vacaciones' ? <FlightTakeoffIcon fontSize="small" className="text-blue-500"/> : sol.tipo === 'Permiso' ? <FreeCancellationIcon fontSize="small" className="text-emerald-500"/> : <TimerOffIcon fontSize="small" className="text-rose-500"/>}
                                     {sol.tipo}
                                 </td>
                                 <td className="px-6 py-3 text-slate-600 capitalize">
@@ -193,7 +253,7 @@ export default function PermisosRHTab() {
                     ) : (
                         <tr>
                             <td colSpan="5" className="px-6 py-8 text-center text-slate-500">
-                                No hay solicitudes de vacaciones registradas.
+                                No hay solicitudes de vacaciones registradas para este departamento.
                             </td>
                         </tr>
                     )}
