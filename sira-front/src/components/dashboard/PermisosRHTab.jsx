@@ -2,11 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 
 // --- ICONOS MUI ---
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
-import SickIcon from '@mui/icons-material/Sick';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import SearchIcon from '@mui/icons-material/Search';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
+import TimerOffIcon from '@mui/icons-material/TimerOff';
+import FreeCancellationIcon from '@mui/icons-material/FreeCancellation';
 
 import { useAuth } from "../../context/authContext";
 import SolicitarVacacionesModal from '../SolicitarVacacionesModal';
@@ -182,7 +182,7 @@ export default function PermisosRHTab() {
         {/* PERMISOS POR 4 HORAS */}
         <div className="bg-white rounded-2xl shadow-sm border border-rose-100 p-6 flex flex-col relative overflow-hidden opacity-80 hover:opacity-100 transition-opacity">
             <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl"><SickIcon fontSize="small" /></div>
+                <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl"><TimerOffIcon fontSize="small" /></div>
                 <h3 className="font-bold text-slate-800 text-lg">Permisos por 4 Horas</h3>
             </div>
             <p className="text-xs text-slate-500 mb-5">Registra permisos por 4 horas para ausencias justificadas (4 horas por mes).</p>
@@ -194,7 +194,7 @@ export default function PermisosRHTab() {
         {/* PERMISOS ECONOMICOS */}
         <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 p-6 flex flex-col relative overflow-hidden opacity-80 hover:opacity-100 transition-opacity">
             <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl"><AccessTimeIcon fontSize="small" /></div>
+                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl"><FreeCancellationIcon fontSize="small" /></div>
                 <h3 className="font-bold text-slate-800 text-lg">Permisos Económicos</h3>
             </div>
             <p className="text-xs text-slate-500 mb-5">Solicita un permiso económico para ausencias justificadas por motivos personales (1 dia cada 4 meses).</p>
@@ -232,7 +232,7 @@ export default function PermisosRHTab() {
                             <tr key={sol.id} className="hover:bg-slate-50 transition-colors">
                                 <td className="px-6 py-3 font-medium text-slate-800">{sol.empleado}</td>
                                 <td className="px-6 py-3 text-slate-600 flex items-center gap-2">
-                                    {sol.tipo === 'Vacaciones' ? <FlightTakeoffIcon fontSize="small" className="text-blue-500"/> : <AccessTimeIcon fontSize="small" className="text-emerald-500"/>}
+                                    {sol.tipo === 'Vacaciones' ? <FlightTakeoffIcon fontSize="small" className="text-blue-500"/> : sol.tipo === 'Permiso' ? <FreeCancellationIcon fontSize="small" className="text-emerald-500"/> : <TimerOffIcon fontSize="small" className="text-rose-500"/>}
                                     {sol.tipo}
                                 </td>
                                 <td className="px-6 py-3 text-slate-600 capitalize">

@@ -176,7 +176,7 @@ function drawFooter(doc) {
     const pageBottom = doc.page.height - 50;
     doc.moveTo(40, pageBottom - 10).lineTo(572, pageBottom - 10).strokeColor('#E5E7EB').stroke();
     doc.fontSize(8).font('Helvetica-Oblique').fillColor('#9CA3AF')
-        .text('Documento generado a través del Sistema SIRA - Módulo Recursos Humanos', 0, pageBottom, { align: 'center' });
+        .text('Documento generado a través del Sistema SIRA - Administración de Personal', 0, pageBottom, { align: 'center' });
 }
 
 /**
