@@ -30,6 +30,12 @@ const { sendEmailWithAttachments } = require('../services/emailService');
  * Helpers
  * ==============================================================================================*/
 
+const toNum = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+const round4 = (n) => Math.round((toNum(n) + Number.EPSILON) * 10000) / 10000;
+
 const safeText = (v, fallback = 'N/D') => {
   const s = String(v ?? '').trim();
   return s.length ? s : fallback;

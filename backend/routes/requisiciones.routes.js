@@ -18,6 +18,7 @@ const { getMiBorrador, upsertMiBorrador, borrarMiBorrador } =
 
 const genController = require('../controllers/requisiciones/generacion.controller');
 const vbController = require('../controllers/requisiciones/vistoBueno.controller');
+const editarComprasController = require('../controllers/requisiciones/editarCompras.controller');
 
 // Carga de archivos en memoria (ajusta límites si lo requieres)
 const upload = multer({ storage: multer.memoryStorage() });
@@ -37,6 +38,11 @@ router.delete('/borrador', borrarMiBorrador);
 /* ------------------------ Generación y edición (CRUD) ------------------------- */
 router.post("/", upload.array('archivosAdjuntos', 5), genController.crearRequisicion);
 router.put("/:id", upload.array('archivosNuevos', 5), genController.actualizarRequisicion);
+
+/* ------------- Edición restringida y regeneración PDF (Compras) -------------- */
+router.get("/:id/proteccion-oc", editarComprasController.obtenerProteccionOC);
+router.patch("/:id/editar-compras", editarComprasController.editarRequisicionCompras);
+router.post("/:id/regenerar-pdf", editarComprasController.regenerarPdfRequisicion);
 
 /* -------------------------- Visto Bueno (acciones) ---------------------------- */
 router.post("/:id/aprobar-y-notificar", vbController.aprobarYNotificar);

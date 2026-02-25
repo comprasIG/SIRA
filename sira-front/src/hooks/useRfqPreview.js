@@ -82,14 +82,30 @@ export const useRfqPreview = () => {
         return previewData?.adjuntos || [];
     }, [previewData]);
 
+    const refreshPreview = useCallback(async () => {
+        if (!previewRfq) return;
+        const id = previewRfq.rfq_id || previewRfq.id;
+        setLoading(true);
+        try {
+            const data = await api.get(`/api/requisiciones/${id}`);
+            if (data) setPreviewData(data);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    }, [previewRfq]);
+
     return {
         previewOpen,
         previewRfq: rfqMerged,
+        previewData,
         previewItems,
         previewMetadata,
         previewAttachments,
         loading,
         openPreview,
         closePreview,
+        refreshPreview,
     };
 };

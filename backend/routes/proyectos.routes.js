@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
       `SELECT p.id, p.nombre, p.sitio_id, s.nombre as sitio_nombre
        FROM proyectos p
        LEFT JOIN sitios s ON p.sitio_id = s.id
-       WHERE p.activo = true AND p.status = 'EN_EJECUCION'
+       WHERE p.activo = true AND p.status NOT IN ('CANCELADO', 'CERRADO')
        ORDER BY p.nombre ASC`
     );
     res.json(result.rows);
