@@ -214,13 +214,13 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
       _isNew: true,
     }]);
 
-    // Reset add row
+    // Reset add row fields but keep it visible for adding more
     setNewMaterial(null);
     setNewCantidad('');
     setNewPrecio('');
     setNewPlazo('');
     setMaterialInput('');
-    setShowAddRow(false);
+    toast.success('Item agregado. Puedes agregar más.');
   }, [newMaterial, newCantidad, newPrecio, newPlazo, items]);
 
   // ─── Cálculos en vivo ───

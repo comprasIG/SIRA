@@ -5,7 +5,11 @@
  * A diferencia de useAutoSave.js, este hook:
  * - NO maneja la carga/restauración (eso lo hace el formulario).
  * - SÓLO se encarga de guardar.
- * - Guarda el estado del formulario Y el estado de 'providerConfigs'.
+ * - Guarda ÚNICAMENTE datos generados por el usuario:
+ *     - Por material: { id, opciones } — NO se guardan los campos de BD
+ *       (material, sku, unidad, cantidad, etc.) ya que esos siempre vienen
+ *       frescos del servidor en la carga y podrían volverse inconsistentes.
+ *     - providerConfigs: configuración de IVA, moneda, etc. por proveedor.
  * - No necesita 'usuario' (el backend lo toma del token).
  * - No tiene 'clearDraft' (queremos mantener el snapshot).
  */
@@ -41,14 +45,18 @@ export function useAutoSaveRFQ({
     }, 1500) // Guardar 1.5s después del último cambio
   ).current;
 
+  // Extrae solo los datos generados por el usuario del array de materiales
+  const toUserSnapshot = (materiales) =>
+    (materiales || []).map((m) => ({ id: m.id, opciones: m.opciones }));
+
   // 1. Vigilar 'providerConfigs' (que está en useState)
   useEffect(() => {
     if (!enabled || !requisicionId) return;
 
-    // Cuando providerConfigs cambia, obtenemos el estado de RHF y guardamos todo
+    // Cuando providerConfigs cambia, obtenemos el estado de RHF y guardamos solo datos de usuario
     const formState = getValues();
     const payload = {
-      materiales: formState.materiales,
+      materiales: toUserSnapshot(formState.materiales),
       providerConfigs: providerConfigs,
     };
     debouncedSave(payload);
@@ -59,10 +67,10 @@ export function useAutoSaveRFQ({
   useEffect(() => {
     if (!enabled || !requisicionId) return;
 
-    // Cuando el formulario RHF cambia, guardamos todo
+    // Cuando el formulario RHF cambia, guardamos solo datos generados por el usuario
     const subscription = watch((values) => {
       const payload = {
-        materiales: values.materiales,
+        materiales: toUserSnapshot(values.materiales),
         providerConfigs: providerConfigs, // Siempre adjuntar el estado de configs
       };
       debouncedSave(payload);
