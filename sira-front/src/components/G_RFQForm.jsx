@@ -323,27 +323,17 @@ export default function G_RFQForm({ requisicionId, onBack, mode = "G" }) {
 
         if (borrador && borrador.data) {
           toast.info("Se cargó la última instantánea de autoguardado.");
-          const { materiales, providerConfigs } = borrador.data;
+          const { materiales: snapMateriales, providerConfigs: snapConfigs } = borrador.data;
 
-          // ✅ Enriquecer snapshot con dataProd (incluye sku/material/unidad/cantidad...)
-          const prodByDetalleId = new Map((dataProd.materiales || []).map((m) => [m.id, m]));
-          const snapshotIds = new Set((materiales || []).map((m) => m.id));
-          const materialesEnriquecidos = (materiales || []).map((mSnap) => {
-            const prod = prodByDetalleId.get(mSnap.id);
-            if (!prod) return mSnap;
-            return {
-              ...prod,
-              ...mSnap,
-              opciones: mSnap.opciones ?? prod.opciones,
-              sku: prod.sku ?? mSnap.sku ?? null,
-              material: prod.material ?? mSnap.material,
-            };
-          });
+          // ✅ Build map of snapshot items by id (only to recover user-entered opciones)
+          const snapById = new Map((snapMateriales || []).map((m) => [m.id, m]));
 
-          // ✅ Agregar materiales nuevos que no estaban en el snapshot (ej. materiales adicionales)
-          (dataProd.materiales || []).forEach((prod) => {
-            if (!snapshotIds.has(prod.id)) {
-              materialesEnriquecidos.push({
+          // ✅ Always use LIVE dataProd as base — only overlay opciones from snapshot
+          const materialesEnriquecidos = (dataProd.materiales || []).map((prod) => {
+            const snap = snapById.get(prod.id);
+            if (!snap) {
+              // No snapshot for this item — use prod opciones as-is (new item added after snapshot)
+              return {
                 ...prod,
                 opciones: prod.opciones.length > 0
                   ? prod.opciones.map((op) => ({
@@ -368,12 +358,19 @@ export default function G_RFQForm({ requisicionId, onBack, mode = "G" }) {
                     es_precio_neto: false,
                     es_importacion: false,
                   }],
-              });
+              };
             }
+
+            // ✅ Use live prod as base, only take opciones from snapshot
+            // This ensures cantidad, material name, sku, unidad always reflect latest edits
+            return {
+              ...prod,                       // live DB: cantidad, material, sku, unidad, etc.
+              opciones: snap.opciones ?? prod.opciones,  // user RFQ data from snapshot
+            };
           });
 
           replaceMaterialFields(materialesEnriquecidos);
-          setProviderConfigs(providerConfigs || {});
+          setProviderConfigs(snapConfigs || {});
         } else {
           const initialConfigs = {};
           dataProd.materiales.forEach((m) =>
