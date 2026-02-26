@@ -20,7 +20,7 @@ const {
   getCatalogoResumen,
   getDetalleAsignacionesMaterial,
 } = require("./listados.controller");
-const { getKardex } = require("./kardex.controller");
+const { getKardex, getKardexFilterOptions } = require("./kardex.controller");
 const { ajustarInventario } = require("./ajustes.controller");
 const { apartarStock, moverAsignacion } = require("./asignaciones.controller");
 const { reversarMovimiento } = require("./reversa.controller");
@@ -31,6 +31,7 @@ module.exports = {
   getCatalogoResumen,
   getDetalleAsignacionesMaterial,
   getKardex,
+  getKardexFilterOptions,
   ajustarInventario,
   apartarStock,
   moverAsignacion,

@@ -428,9 +428,14 @@ const getDatosParaEditar = async (req, res) => {
     const ocQuery = await pool.query(
       `SELECT oc.id, oc.numero_oc, oc.proveedor_id, oc.comentarios_finanzas,
               oc.iva_rate, oc.isr_rate, oc.impo, oc.status, oc.es_urgente,
-              p.razon_social AS proveedor_nombre, p.marca AS proveedor_marca
+              oc.sub_total, oc.iva, oc.ret_isr, oc.total,
+              oc.rfq_id, oc.proyecto_id, oc.sitio_id,
+              p.razon_social AS proveedor_nombre, p.marca AS proveedor_marca,
+              proy.nombre AS proyecto_nombre, s.nombre AS sitio_nombre
        FROM ordenes_compra oc
        JOIN proveedores p ON oc.proveedor_id = p.id
+       JOIN proyectos proy ON oc.proyecto_id = proy.id
+       JOIN sitios s ON oc.sitio_id = s.id
        WHERE oc.id = $1`,
       [idNum]
     );
@@ -439,7 +444,9 @@ const getDatosParaEditar = async (req, res) => {
     }
 
     const itemsQuery = await pool.query(
-      `SELECT ocd.id, cm.nombre AS material_nombre, cu.simbolo AS unidad_simbolo,
+      `SELECT ocd.id, ocd.material_id, ocd.requisicion_detalle_id,
+              cm.nombre AS material_nombre, cm.sku AS material_sku,
+              cu.simbolo AS unidad_simbolo,
               ocd.cantidad, ocd.precio_unitario, ocd.moneda, ocd.plazo_entrega
        FROM ordenes_compra_detalle ocd
        JOIN catalogo_materiales cm ON ocd.material_id = cm.id
@@ -459,6 +466,16 @@ const getDatosParaEditar = async (req, res) => {
       impo: oc.impo,
       status: oc.status,
       es_urgente: oc.es_urgente,
+      sub_total: oc.sub_total,
+      iva: oc.iva,
+      ret_isr: oc.ret_isr,
+      total: oc.total,
+      numero_oc: oc.numero_oc,
+      rfq_id: oc.rfq_id,
+      proyecto_id: oc.proyecto_id,
+      sitio_id: oc.sitio_id,
+      proyecto_nombre: oc.proyecto_nombre,
+      sitio_nombre: oc.sitio_nombre,
       items: itemsQuery.rows,
     });
   } catch (error) {
@@ -469,7 +486,11 @@ const getDatosParaEditar = async (req, res) => {
 
 /* ================================================================================================
  * Endpoint: Editar una OC (PATCH /api/ocs/:id/editar)
- * Body: { motivo, proveedor_id, comentarios_finanzas, items: [{id, cantidad, precio_unitario, moneda, plazo_entrega}] }
+ * Body: { motivo, proveedor_id, comentarios_finanzas, impo, iva_rate, isr_rate,
+ *         items: [{id?, material_id, cantidad, precio_unitario, moneda, plazo_entrega}] }
+ *   - items con id → UPDATE
+ *   - items sin id (id=null) → INSERT (nuevo item)
+ *   - items existentes en BD pero ausentes del array → DELETE (removidos)
  * ==============================================================================================*/
 const editarOc = async (req, res) => {
   const idNum = Number(req.params.id);
@@ -478,6 +499,9 @@ const editarOc = async (req, res) => {
   }
 
   const { motivo, proveedor_id, comentarios_finanzas, items } = req.body;
+  const payloadImpo = req.body.impo;
+  const payloadIvaRate = req.body.iva_rate;
+  const payloadIsrRate = req.body.isr_rate;
 
   if (!motivo || !String(motivo).trim()) {
     return res.status(400).json({ error: 'El motivo de la modificación es obligatorio.' });
@@ -522,7 +546,6 @@ const editarOc = async (req, res) => {
     // 2) Actualizar proveedor si cambió
     const nuevaProvId = proveedor_id ? Number(proveedor_id) : oc.proveedor_id;
 
-    // Si el proveedor cambió, obtener su info para el PDF/email
     let proveedorNombreFinal = safeText(oc.proveedor_razon || oc.proveedor_marca, 'PROVEEDOR');
     if (nuevaProvId !== oc.proveedor_id) {
       const provQuery = await client.query(
@@ -535,28 +558,171 @@ const editarOc = async (req, res) => {
       }
     }
 
-    // 3) Actualizar cada línea del detalle
-    for (const item of items) {
+    // 3) Cargar items existentes de la OC para detectar eliminados
+    const existingItemsQuery = await client.query(
+      `SELECT id, material_id, requisicion_detalle_id, cantidad
+       FROM ordenes_compra_detalle
+       WHERE orden_compra_id = $1`,
+      [idNum]
+    );
+    const existingItemsMap = new Map();
+    for (const row of existingItemsQuery.rows) {
+      existingItemsMap.set(row.id, row);
+    }
+
+    // Separar items en: updates (tienen id), nuevos (sin id)
+    const itemsToUpdate = items.filter(it => it.id != null);
+    const itemsToAdd = items.filter(it => it.id == null);
+    const sentIds = new Set(itemsToUpdate.map(it => Number(it.id)));
+
+    // 4) REMOVER items que ya no están en el payload
+    for (const [existId, existRow] of existingItemsMap) {
+      if (!sentIds.has(existId)) {
+        // Decrement cantidad_procesada en requisiciones_detalle
+        if (existRow.requisicion_detalle_id) {
+          await client.query(
+            `UPDATE requisiciones_detalle
+             SET cantidad_procesada = GREATEST(0, COALESCE(cantidad_procesada, 0) - $1)
+             WHERE id = $2`,
+            [toNum(existRow.cantidad), existRow.requisicion_detalle_id]
+          );
+          // Reset status_compra if no longer fully processed
+          await client.query(
+            `UPDATE requisiciones_detalle
+             SET status_compra = 'PENDIENTE'
+             WHERE id = $1 AND COALESCE(cantidad_procesada, 0) < COALESCE(cantidad, 0)`,
+            [existRow.requisicion_detalle_id]
+          );
+        }
+        // Delete the OC detail row
+        await client.query(
+          `DELETE FROM ordenes_compra_detalle WHERE id = $1 AND orden_compra_id = $2`,
+          [existId, idNum]
+        );
+      }
+    }
+
+    // 5) ACTUALIZAR items existentes
+    const moneda = items[0]?.moneda || 'MXN';
+    for (const item of itemsToUpdate) {
       const itemId = Number(item.id);
+      const oldRow = existingItemsMap.get(itemId);
+      const newQty = toNum(item.cantidad);
+      const oldQty = oldRow ? toNum(oldRow.cantidad) : 0;
+
       await client.query(
         `UPDATE ordenes_compra_detalle
          SET cantidad = $1, precio_unitario = $2, moneda = $3, plazo_entrega = $4
          WHERE id = $5 AND orden_compra_id = $6`,
         [
-          Number(item.cantidad),
+          newQty,
           Number(item.precio_unitario),
-          item.moneda || 'MXN',
+          item.moneda || moneda,
           item.plazo_entrega || null,
           itemId,
           idNum,
         ]
       );
+
+      // Si la cantidad cambió, ajustar cantidad_procesada en requisiciones_detalle
+      if (oldRow?.requisicion_detalle_id && newQty !== oldQty) {
+        const diff = newQty - oldQty;
+        await client.query(
+          `UPDATE requisiciones_detalle
+           SET cantidad_procesada = GREATEST(0, COALESCE(cantidad_procesada, 0) + $1)
+           WHERE id = $2`,
+          [diff, oldRow.requisicion_detalle_id]
+        );
+      }
     }
 
-    // 4) Recalcular totales (usando iva_rate / isr_rate de la OC)
-    const ivaRate = toNum(oc.iva_rate);
-    const isrRate = toNum(oc.isr_rate);
-    const esImpo = oc.impo === true;
+    // 6) AGREGAR items nuevos
+    for (const item of itemsToAdd) {
+      const matId = Number(item.material_id);
+      if (!matId) continue;
+
+      // Buscar o crear requisicion_detalle para este material en la requisición vinculada
+      let reqDetalleId = null;
+      let rdWasCreated = false;
+      if (oc.rfq_id) {
+        const rdCheck = await client.query(
+          `SELECT id FROM requisiciones_detalle
+           WHERE requisicion_id = $1 AND material_id = $2
+           LIMIT 1`,
+          [oc.rfq_id, matId]
+        );
+        if (rdCheck.rowCount > 0) {
+          reqDetalleId = rdCheck.rows[0].id;
+        } else {
+          // Crear nueva partida en requisiciones_detalle
+          const rdInsert = await client.query(
+            `INSERT INTO requisiciones_detalle
+               (requisicion_id, material_id, cantidad, comentario, status_compra, cantidad_procesada)
+             VALUES ($1, $2, $3, NULL, 'PROCESADO', $4)
+             RETURNING id`,
+            [oc.rfq_id, matId, toNum(item.cantidad), toNum(item.cantidad)]
+          );
+          reqDetalleId = rdInsert.rows[0].id;
+          rdWasCreated = true;
+        }
+      }
+
+      // Crear requisiciones_opciones para obtener un comparativa_precio_id válido
+      let comparativaPrecioId = null;
+      if (oc.rfq_id && reqDetalleId) {
+        const opcionInsert = await client.query(
+          `INSERT INTO requisiciones_opciones
+             (requisicion_id, requisicion_detalle_id, proveedor_id,
+              precio_unitario, cantidad_cotizada, moneda, seleccionado,
+              es_precio_neto, es_importacion, es_entrega_inmediata)
+           VALUES ($1, $2, $3, $4, $5, $6, true, false, $7, true)
+           RETURNING id`,
+          [
+            oc.rfq_id,
+            reqDetalleId,
+            nuevaProvId,
+            toNum(item.precio_unitario),
+            toNum(item.cantidad),
+            item.moneda || moneda,
+            payloadImpo === true,
+          ]
+        );
+        comparativaPrecioId = opcionInsert.rows[0].id;
+      }
+
+      // Insertar en ordenes_compra_detalle
+      await client.query(
+        `INSERT INTO ordenes_compra_detalle
+           (orden_compra_id, requisicion_detalle_id, comparativa_precio_id, material_id,
+            cantidad, precio_unitario, moneda, plazo_entrega)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          idNum,
+          reqDetalleId,
+          comparativaPrecioId,
+          matId,
+          toNum(item.cantidad),
+          toNum(item.precio_unitario),
+          item.moneda || moneda,
+          item.plazo_entrega || null,
+        ]
+      );
+
+      // Incrementar cantidad_procesada en rd pre-existente (no recién creado)
+      if (reqDetalleId && !rdWasCreated) {
+        await client.query(
+          `UPDATE requisiciones_detalle
+           SET cantidad_procesada = COALESCE(cantidad_procesada, 0) + $1
+           WHERE id = $2`,
+          [toNum(item.cantidad), reqDetalleId]
+        );
+      }
+    }
+
+    // 7) Recalcular totales usando iva_rate / isr_rate del payload o de la OC
+    const esImpo = payloadImpo != null ? payloadImpo === true : oc.impo === true;
+    const ivaRate = payloadIvaRate != null ? toNum(payloadIvaRate) : toNum(oc.iva_rate);
+    const isrRate = payloadIsrRate != null ? toNum(payloadIsrRate) : toNum(oc.isr_rate);
 
     const subTotal = round4(
       items.reduce((sum, it) => sum + toNum(it.cantidad) * toNum(it.precio_unitario), 0)
@@ -565,18 +731,19 @@ const editarOc = async (req, res) => {
     const retIsr = (!esImpo && isrRate > 0) ? round4(subTotal * isrRate) : 0;
     const total = round4(subTotal + iva - retIsr);
 
-    // 5) Actualizar cabecera OC
+    // 8) Actualizar cabecera OC
     const comentFin = typeof comentarios_finanzas === 'string' ? comentarios_finanzas.trim() || null : null;
     await client.query(
       `UPDATE ordenes_compra
        SET proveedor_id = $1, comentarios_finanzas = $2,
            sub_total = $3, iva = $4, ret_isr = $5, total = $6,
+           iva_rate = $7, isr_rate = $8, impo = $9,
            actualizado_en = NOW()
-       WHERE id = $7`,
-      [nuevaProvId, comentFin, subTotal, iva, retIsr, total, idNum]
+       WHERE id = $10`,
+      [nuevaProvId, comentFin, subTotal, iva, retIsr, total, ivaRate, isrRate, esImpo, idNum]
     );
 
-    // 6) Fetch OC actualizada completa para PDF
+    // 9) Fetch OC actualizada completa para PDF
     const ocPdfQuery = await client.query(
       `SELECT oc.*,
               p.razon_social AS proveedor_razon_social,
@@ -613,10 +780,10 @@ const editarOc = async (req, res) => {
       [idNum]
     );
 
-    // 7) Generar PDF
+    // 10) Generar PDF
     const pdfBuffer = await generatePurchaseOrderPdf(ocDataParaPdf, itemsPdfQuery.rows, client);
 
-    // 8) Nombre del archivo
+    // 11) Nombre del archivo
     const ocDisplay = formatOcForDisplay(oc.numero_oc);
     const sitioNombre = safeText(ocDataParaPdf.sitio_nombre, '');
     const proyectoNombre = safeText(ocDataParaPdf.proyecto_nombre, '');
@@ -625,7 +792,7 @@ const editarOc = async (req, res) => {
       : `${ocDisplay} - MODIFICADA - ${sitioNombre} - ${proyectoNombre} - ${proveedorNombreFinal}`;
     const pdfFileName = `${sanitizeFileName(subject)}.pdf`;
 
-    // 9) Subir PDF a Drive
+    // 12) Subir PDF a Drive
     const driveFile = await uploadOcPdfBuffer(
       pdfBuffer,
       pdfFileName,
@@ -634,7 +801,7 @@ const editarOc = async (req, res) => {
       oc.numero_oc
     );
 
-    // 10) Enviar correo
+    // 13) Enviar correo
     const recipients = await _getRecipientEmailsByGroup('OC_GENERADA_NOTIFICAR', client);
     if (recipients.length > 0) {
       const motivoHtml = `<p><b>Motivo de la modificación:</b><br/>${String(motivo).replace(/\n/g, '<br/>')}</p>`;
@@ -680,6 +847,7 @@ const editarOc = async (req, res) => {
     client.release();
   }
 };
+
 
 module.exports = {
   descargarOcPdf,
