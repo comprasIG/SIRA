@@ -117,7 +117,7 @@ export const useAutorizaciones = () => {
     }
 
     const fd = new FormData();
-    fd.append('comprobante', archivo);
+    if (archivo) fd.append('comprobante', archivo);
 
     // Mapea defensivo (por si en algún flujo llega "PARCIAL")
     const t = (tipoPago || '').toString().toUpperCase();

@@ -94,7 +94,6 @@ const registrarPago = async (req, res) => {
   const usuarioId = req.usuarioSira?.id;
 
   try {
-    if (!archivo) return res.status(400).json({ error: "No se envió el comprobante." });
     if (!usuarioId) return res.status(401).json({ error: "Usuario no autenticado." });
 
     const client = await pool.connect();
@@ -103,11 +102,19 @@ const registrarPago = async (req, res) => {
 
       // valida fuente exista
       const fuenteQ = await client.query(
-        `SELECT id, nombre FROM catalogo_fuentes_pago WHERE id = $1`,
+        `SELECT id, nombre, tipo FROM catalogo_fuentes_pago WHERE id = $1`,
         [fuentePagoId]
       );
       if (fuenteQ.rowCount === 0) {
         return res.status(400).json({ error: "fuente_pago_id no existe en el catálogo." });
+      }
+
+      const fuenteTipo = (fuenteQ.rows[0]?.tipo || '').toUpperCase();
+      const esEfectivo = fuenteTipo === 'EFECTIVO';
+
+      // Comprobante obligatorio excepto para EFECTIVO
+      if (!archivo && !esEfectivo) {
+        return res.status(400).json({ error: "No se envió el comprobante." });
       }
 
       const ocBefore = await getOcInfo(ordenCompraId, client, true);
@@ -130,22 +137,29 @@ const registrarPago = async (req, res) => {
       }
       if (montoAplicar > saldo) montoAplicar = saldo;
 
-      // Drive filename
-      const ts = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
-      const guessedPdf = (archivo.mimetype || "").includes("pdf");
-      const extFromName = path.extname(archivo.originalname || "");
-      const ext = extFromName || (guessedPdf ? ".pdf" : "");
-      const safeMonto = Number(montoAplicar).toFixed(2).replace(".", "_");
-      const fileName = `COMPROBANTE_PAGO_${numero_oc}_${ts}_${safeMonto}${ext}`;
+      // Drive upload (solo si hay archivo)
+      let driveFile = null;
+      let comprobanteLink = null;
+      let fileName = null;
 
-      const driveFile = await uploadOcPaymentReceipt(
-        archivo,
-        ocBefore.depto_codigo,
-        ocBefore.numero_requisicion,
-        numero_oc,
-        fileName
-      );
-      if (!driveFile?.webViewLink) throw new Error("Falló la subida del comprobante a Drive.");
+      if (archivo) {
+        const ts = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+        const guessedPdf = (archivo.mimetype || "").includes("pdf");
+        const extFromName = path.extname(archivo.originalname || "");
+        const ext = extFromName || (guessedPdf ? ".pdf" : "");
+        const safeMonto = Number(montoAplicar).toFixed(2).replace(".", "_");
+        fileName = `COMPROBANTE_PAGO_${numero_oc}_${ts}_${safeMonto}${ext}`;
+
+        driveFile = await uploadOcPaymentReceipt(
+          archivo,
+          ocBefore.depto_codigo,
+          ocBefore.numero_requisicion,
+          numero_oc,
+          fileName
+        );
+        if (!driveFile?.webViewLink) throw new Error("Falló la subida del comprobante a Drive.");
+        comprobanteLink = driveFile.webViewLink;
+      }
 
       // Insert pago
       const pagoQ = await client.query(
@@ -155,7 +169,7 @@ const registrarPago = async (req, res) => {
         VALUES ($1, now(), $2, $3, $4, $5, $6, $7)
         RETURNING id, fecha_pago, monto, tipo_pago, usuario_id, comprobante_link, comentario, fuente_pago_id
       `,
-        [ordenCompraId, montoAplicar, tipoCanonico, usuarioId, driveFile.webViewLink, comentario || null, fuentePagoId]
+        [ordenCompraId, montoAplicar, tipoCanonico, usuarioId, comprobanteLink, comentario || null, fuentePagoId]
       );
       const pago = pagoQ.rows[0];
 
@@ -167,7 +181,7 @@ const registrarPago = async (req, res) => {
       if (metodo_pago === "SPEI") {
         if (status === "CONFIRMAR_SPEI") {
           nuevoStatus = "APROBADA";
-          setComprobanteEnOC = true;
+          setComprobanteEnOC = !!comprobanteLink;
         } else {
           nuevoStatus = "APROBADA";
         }
@@ -184,7 +198,7 @@ const registrarPago = async (req, res) => {
           WHERE id = $4
           RETURNING id, numero_oc, status, metodo_pago, total, monto_pagado, comprobante_pago_link
         `;
-        paramsUpdate = [nuevoMontoPagado, nuevoStatus, driveFile.webViewLink, ordenCompraId];
+        paramsUpdate = [nuevoMontoPagado, nuevoStatus, comprobanteLink, ordenCompraId];
       } else {
         sqlUpdate = `
           UPDATE ordenes_compra
@@ -215,7 +229,7 @@ const registrarPago = async (req, res) => {
             monto: montoAplicar,
             fuente_pago_id: fuentePagoId,
             fuente_pago: fuenteQ.rows[0]?.nombre,
-            comprobante: driveFile.webViewLink,
+            comprobante: comprobanteLink || 'SIN COMPROBANTE (EFECTIVO)',
             comentario,
           }),
         ]
@@ -223,7 +237,7 @@ const registrarPago = async (req, res) => {
 
       await client.query("COMMIT");
 
-      // Email de notificación (Para CUALQUIER pago registrado)
+      // Email de notificación
       try {
         const recipients = await getNotificationEmails("OC_APROBADA", pool);
         if (recipients.length > 0) {
@@ -231,8 +245,6 @@ const registrarPago = async (req, res) => {
           let subject = `Comprobante de Pago Registrado (${tipoCanonico}) | OC ${numero_oc}`;
           let titulo = `Se registró un comprobante de pago (${tipoCanonico})`;
 
-          // Caso especial: Confirmación SPEI (cuando pasa de CONFIRMAR_SPEI a APROBADA o ya estaba en SPEI)
-          // Se ajusta el asunto si fue lo que detonó la aprobación
           if (metodo_pago === "SPEI" && ocBefore.status === "CONFIRMAR_SPEI" && ocAfter.status === "APROBADA") {
             subject = `Comprobante SPEI registrado | OC ${numero_oc}`;
             titulo = `Se registró el comprobante SPEI para la Orden de Compra <b>${numero_oc}</b>`;
@@ -247,7 +259,15 @@ const registrarPago = async (req, res) => {
           } catch {
             folderLink = null;
           }
-          if (!folderLink) folderLink = driveFile.webViewLink;
+          if (!folderLink && comprobanteLink) folderLink = comprobanteLink;
+
+          const comprobanteHtml = comprobanteLink
+            ? `<p>Comprobante: <a href="${comprobanteLink}" target="_blank">Ver archivo</a></p>`
+            : `<p>Pago en efectivo — sin comprobante digital.</p>`;
+
+          const folderHtml = folderLink
+            ? `<p>Carpeta OC: <a href="${folderLink}" target="_blank">${folderLink}</a></p>`
+            : '';
 
           const htmlBody = `
             <p>${titulo}.</p>
@@ -260,12 +280,12 @@ const registrarPago = async (req, res) => {
               <li><b>Monto pagado acumulado:</b> $${Number(nuevoMontoPagado).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</li>
               <li><b>Saldo pendiente:</b> $${Number(Math.max(0, totalNum - nuevoMontoPagado)).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</li>
             </ul>
-            <p>Comprobante: <a href="${driveFile.webViewLink}" target="_blank">Ver archivo</a></p>
-            <p>Carpeta OC: <a href="${folderLink}" target="_blank">${folderLink}</a></p>
+            ${comprobanteHtml}
+            ${folderHtml}
             <br><p><i>Correo automático SIRA.</i></p>
           `;
 
-          const attachments = [{ filename: path.basename(fileName), content: archivo.buffer }];
+          const attachments = archivo ? [{ filename: path.basename(fileName), content: archivo.buffer }] : [];
           await sendEmailWithAttachments(recipients, subject, htmlBody, attachments);
         }
         const esSpei = metodo_pago === "SPEI" && ocBefore.status === "CONFIRMAR_SPEI";

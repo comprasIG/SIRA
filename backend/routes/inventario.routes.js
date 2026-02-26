@@ -62,6 +62,9 @@ router.get("/material/:materialId/asignaciones", inventarioController.getDetalle
 // GET /api/inventario/kardex
 router.get("/kardex", inventarioController.getKardex);
 
+// GET /api/inventario/kardex/opciones-filtros
+router.get("/kardex/opciones-filtros", inventarioController.getKardexFilterOptions);
+
 // -----------------------------------------------------------------------------------------
 // Acciones / Mutaciones de inventario
 // -----------------------------------------------------------------------------------------
