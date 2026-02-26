@@ -71,7 +71,7 @@ export default function AutorizacionOCCard({
           <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1.5}>
             <Box sx={{ minWidth: 0, flex: 1 }}>
               <Typography variant="overline" color="primary" sx={{ letterSpacing: 1.2 }}>
-                OC {oc.numero_oc}
+                {oc.numero_oc}
               </Typography>
               <Typography
                 variant="h6"

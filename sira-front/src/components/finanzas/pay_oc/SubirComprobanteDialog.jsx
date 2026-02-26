@@ -2,11 +2,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
-  TextField, MenuItem, Typography, Box, Paper, IconButton, CircularProgress
+  TextField, MenuItem, Typography, Box, Paper, IconButton, CircularProgress,
+  Divider, Stack, Chip,
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import CloseIcon from '@mui/icons-material/Close';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import api from '@/api/api';
 
 export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, loading }) {
@@ -17,15 +19,15 @@ export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, lo
   }, [oc]);
 
   const [archivo, setArchivo] = useState(null);
-  const [tipoPago, setTipoPago] = useState('TOTAL'); // 'TOTAL' | 'ANTICIPO'
+  const [tipoPago, setTipoPago] = useState('TOTAL');
   const [monto, setMonto] = useState('');
   const [comentario, setComentario] = useState('');
   const [isDragActive, setIsDragActive] = useState(false);
 
-  // ✅ Fuentes de pago
+  // Fuentes de pago
   const [fuentes, setFuentes] = useState([]);
   const [fuentesLoading, setFuentesLoading] = useState(false);
-  const [fuentePagoId, setFuentePagoId] = useState(''); // string para TextField select
+  const [fuentePagoId, setFuentePagoId] = useState('');
 
   const fmt = useMemo(() => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }), []);
 
@@ -47,8 +49,6 @@ export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, lo
       try {
         const data = await api.get('/api/finanzas/fuentes-pago?soloActivas=true');
         setFuentes(data || []);
-
-        // Default: NO ESPECIFICADO si existe, si no la primera
         const noEsp = (data || []).find(f => String(f.nombre || '').toUpperCase() === 'NO ESPECIFICADO');
         const firstId = noEsp?.id ?? (data?.[0]?.id ?? '');
         setFuentePagoId(firstId ? String(firstId) : '');
@@ -59,7 +59,6 @@ export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, lo
         setFuentesLoading(false);
       }
     };
-
     loadFuentes();
   }, [open]);
 
@@ -75,20 +74,30 @@ export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, lo
     if (f) setArchivo(f);
   };
 
+  // Determinar si la fuente seleccionada es EFECTIVO
+  const selectedFuente = useMemo(() => {
+    if (!fuentePagoId) return null;
+    return fuentes.find(f => String(f.id) === String(fuentePagoId));
+  }, [fuentes, fuentePagoId]);
+
+  const esEfectivo = selectedFuente?.tipo === 'EFECTIVO';
+
   const isMontoInvalido = tipoPago === 'ANTICIPO' && (!monto || Number(monto) <= 0);
   const isFuenteInvalida = !fuentePagoId || Number(fuentePagoId) <= 0;
+  // Comprobante obligatorio EXCEPTO para EFECTIVO
+  const archivoRequerido = !esEfectivo && !archivo;
 
   const handleSubmit = async () => {
-    if (!archivo) return;
+    if (archivoRequerido) return;
     if (isMontoInvalido) return;
     if (isFuenteInvalida) return;
 
     await onSubmit({
-      archivo,
+      archivo: archivo || null,
       tipoPago,
       monto: tipoPago === 'TOTAL' ? undefined : monto,
       comentario: comentario.trim(),
-      fuentePagoId: Number(fuentePagoId), // ✅ numérico
+      fuentePagoId: Number(fuentePagoId),
     });
 
     reset();
@@ -96,123 +105,177 @@ export default function SubirComprobanteDialog({ open, onClose, onSubmit, oc, lo
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle fontWeight="bold">
-        Subir Comprobante {oc?.numero_oc ? `– ${oc.numero_oc}` : ''}
+      <DialogTitle sx={{ pb: 1 }}>
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          <ReceiptLongIcon color="primary" />
+          <Box>
+            <Typography variant="h6" fontWeight="bold" lineHeight={1.2}>
+              Registrar Pago
+            </Typography>
+            {oc?.numero_oc && (
+              <Typography variant="caption" color="text.secondary">
+                {oc.numero_oc} — Saldo pendiente: {fmt.format(saldo)}
+              </Typography>
+            )}
+          </Box>
+        </Stack>
       </DialogTitle>
 
-      <DialogContent dividers>
-        {/* Dropzone */}
+      <DialogContent dividers sx={{ pt: 2.5 }}>
+        {/* ─── Sección 1: Configuración de pago ─── */}
+        <Typography variant="subtitle2" fontWeight={700} color="text.secondary" sx={{ mb: 1.5 }}>
+          Configuración del pago
+        </Typography>
+
+        <Stack spacing={2} sx={{ mb: 2.5 }}>
+          {/* Tipo de pago */}
+          <TextField
+            select
+            label="Tipo de pago"
+            fullWidth
+            value={tipoPago}
+            onChange={(e) => setTipoPago(e.target.value)}
+            size="small"
+          >
+            <MenuItem value="TOTAL">
+              Pago TOTAL — {fmt.format(saldo)}
+            </MenuItem>
+            <MenuItem value="ANTICIPO">Pago PARCIAL (Anticipo)</MenuItem>
+          </TextField>
+
+          {/* Monto anticipo */}
+          {tipoPago === 'ANTICIPO' && (
+            <TextField
+              label="Monto del anticipo"
+              type="number"
+              fullWidth
+              size="small"
+              value={monto}
+              onChange={(e) => setMonto(e.target.value)}
+              inputProps={{ min: 0, step: "0.01" }}
+              error={isMontoInvalido}
+              helperText={isMontoInvalido ? 'Ingresa un monto válido' : `Máximo: ${fmt.format(saldo)}`}
+              required
+            />
+          )}
+
+          {/* Fuente de pago */}
+          <TextField
+            select
+            fullWidth
+            size="small"
+            label="Fuente de pago"
+            value={fuentePagoId}
+            onChange={(e) => setFuentePagoId(e.target.value)}
+            error={isFuenteInvalida}
+            helperText={isFuenteInvalida ? 'Selecciona una fuente' : ''}
+            InputProps={{
+              endAdornment: fuentesLoading ? <CircularProgress size={18} /> : null
+            }}
+          >
+            {(fuentes || []).map((f) => (
+              <MenuItem key={f.id} value={String(f.id)}>
+                {f.nombre} {f.tipo ? `(${f.tipo})` : ''}
+              </MenuItem>
+            ))}
+            {(fuentes || []).length === 0 && (
+              <MenuItem value="" disabled>No hay fuentes disponibles</MenuItem>
+            )}
+          </TextField>
+        </Stack>
+
+        <Divider sx={{ my: 2 }} />
+
+        {/* ─── Sección 2: Comprobante ─── */}
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+          <Typography variant="subtitle2" fontWeight={700} color="text.secondary">
+            Comprobante de pago
+          </Typography>
+          {esEfectivo && (
+            <Chip label="Opcional para efectivo" size="small" color="info" variant="outlined" />
+          )}
+        </Stack>
+
         {!archivo ? (
           <Box
             component="label"
-            htmlFor="file-upload"
+            htmlFor="file-upload-comprobante"
             onDragEnter={(e) => handleDrag(e, true)}
             onDragOver={(e) => handleDrag(e, true)}
             onDragLeave={(e) => handleDrag(e, false)}
             onDrop={handleDrop}
             sx={{
-              border: `2px dashed ${isDragActive ? 'primary.main' : '#ccc'}`,
-              borderRadius: 2, p: 4, textAlign: 'center', cursor: 'pointer',
-              bgcolor: isDragActive ? 'action.hover' : 'transparent', transition: 'all .2s'
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: `2px dashed ${isDragActive ? '#1976d2' : archivoRequerido ? '#ccc' : '#ccc'}`,
+              borderRadius: 2,
+              p: 3,
+              cursor: 'pointer',
+              bgcolor: isDragActive ? 'action.hover' : 'grey.50',
+              transition: 'all .2s',
+              '&:hover': { bgcolor: 'action.hover', borderColor: 'primary.main' },
             }}
           >
-            <CloudUploadIcon sx={{ fontSize: 48, color: 'primary.main', mb: 1 }} />
-            <Typography>{isDragActive ? 'Suelta el archivo aquí' : 'Arrastra o haz clic para subir'}</Typography>
-            <Typography variant="caption" color="text.secondary">PDF o imagen</Typography>
-            <input id="file-upload" type="file" accept="application/pdf,image/*" hidden onChange={handleFileChange} />
+            <CloudUploadIcon sx={{ fontSize: 40, color: 'primary.main', mb: 0.5 }} />
+            <Typography variant="body2" fontWeight={600}>
+              {isDragActive ? 'Suelta el archivo aquí' : 'Arrastra o haz clic para subir'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              PDF o imagen {esEfectivo ? '(opcional)' : '(requerido)'}
+            </Typography>
+            <input id="file-upload-comprobante" type="file" accept="application/pdf,image/*" hidden onChange={handleFileChange} />
           </Box>
         ) : (
-          <Paper variant="outlined" sx={{ p: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
-              <InsertDriveFileIcon color="primary" />
+          <Paper
+            variant="outlined"
+            sx={{
+              p: 1.5,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              bgcolor: 'success.50',
+              borderColor: 'success.light',
+            }}
+          >
+            <Stack direction="row" alignItems="center" spacing={1.5} sx={{ minWidth: 0 }}>
+              <InsertDriveFileIcon color="success" />
               <Box sx={{ minWidth: 0 }}>
                 <Typography noWrap variant="body2" fontWeight={600}>{archivo.name}</Typography>
                 <Typography variant="caption" color="text.secondary">
                   {(archivo.size / 1024 / 1024).toFixed(2)} MB
                 </Typography>
               </Box>
-            </Box>
+            </Stack>
             <IconButton onClick={() => setArchivo(null)} size="small"><CloseIcon /></IconButton>
           </Paper>
         )}
 
-        <TextField
-          select
-          label="Tipo de pago"
-          fullWidth
-          sx={{ mt: 2 }}
-          value={tipoPago}
-          onChange={(e) => setTipoPago(e.target.value)}
-          helperText={tipoPago === 'TOTAL' ? `Se aplicará por el saldo pendiente (${fmt.format(saldo)})` : 'Ingresa el monto del abono'}
-        >
-          <MenuItem value="TOTAL">Pago TOTAL</MenuItem>
-          <MenuItem value="ANTICIPO">Pago PARCIAL (Anticipo)</MenuItem>
-        </TextField>
-
-        {tipoPago === 'ANTICIPO' ? (
-          <TextField
-            label="Monto pagado"
-            type="number"
-            fullWidth
-            sx={{ mt: 2 }}
-            value={monto}
-            onChange={(e) => setMonto(e.target.value)}
-            inputProps={{ min: 0, step: "0.01" }}
-            error={isMontoInvalido}
-            helperText={isMontoInvalido ? 'Ingresa un monto válido' : ''}
-            required
-          />
-        ) : (
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-              Monto a registrar: <b>{fmt.format(saldo)}</b>
-            </Typography>
-          </Box>
-        )}
-
-        {/* ✅ Fuente de pago obligatoria */}
-        <TextField
-          select
-          fullWidth
-          sx={{ mt: 2 }}
-          label="Fuente de pago (de dónde salió el dinero)"
-          value={fuentePagoId}
-          onChange={(e) => setFuentePagoId(e.target.value)}
-          error={isFuenteInvalida}
-          helperText={isFuenteInvalida ? 'Selecciona una fuente de pago' : 'Catálogo administrable desde Finanzas'}
-          InputProps={{
-            endAdornment: fuentesLoading ? <CircularProgress size={18} /> : null
-          }}
-        >
-          {(fuentes || []).map((f) => (
-            <MenuItem key={f.id} value={String(f.id)}>
-              {f.nombre} {f.tipo ? `(${f.tipo})` : ''}
-            </MenuItem>
-          ))}
-          {(fuentes || []).length === 0 && (
-            <MenuItem value="" disabled>No hay fuentes disponibles</MenuItem>
-          )}
-        </TextField>
-
+        {/* Comentario */}
         <TextField
           label="Comentario (opcional)"
           fullWidth
           multiline
           minRows={2}
-          sx={{ mt: 2 }}
+          size="small"
+          sx={{ mt: 2.5 }}
           value={comentario}
           onChange={(e) => setComentario(e.target.value)}
         />
       </DialogContent>
 
-      <DialogActions sx={{ p: 2 }}>
-        <Button onClick={handleClose} color="inherit" disabled={loading}>Cancelar</Button>
+      <DialogActions sx={{ px: 3, py: 2 }}>
+        <Button onClick={handleClose} color="inherit" disabled={loading}>
+          Cancelar
+        </Button>
         <Button
           onClick={handleSubmit}
           variant="contained"
-          disabled={loading || !archivo || isMontoInvalido || isFuenteInvalida}
+          disabled={loading || archivoRequerido || isMontoInvalido || isFuenteInvalida}
+          startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <CloudUploadIcon />}
         >
-          {loading ? 'Subiendo…' : 'Subir comprobante'}
+          {loading ? 'Registrando…' : 'Registrar pago'}
         </Button>
       </DialogActions>
     </Dialog>
