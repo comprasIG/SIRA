@@ -15,8 +15,16 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 const cardVariants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } };
 
+function diasDesdeAprobacion(fechaStr) {
+    if (!fechaStr) return null;
+    const diff = Date.now() - new Date(fechaStr).getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    return days >= 0 ? days : null;
+}
+
 export default function IngresoOCCard({ oc, onGestionarIngreso, onPreview }) {
     const theme = useTheme();
+    const dias = diasDesdeAprobacion(oc.fecha_aprobacion_pay);
 
     // Determina el icono y texto del método de entrega
     let metodoEntregaIcon = null;
@@ -65,17 +73,23 @@ export default function IngresoOCCard({ oc, onGestionarIngreso, onPreview }) {
                 >
                     <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
                         <Box>
-                            <Chip
-                                size="small"
-                                label={oc.numero_oc}
-                                sx={{
-                                    mb: 1,
-                                    fontWeight: 600,
-                                    letterSpacing: 0.4,
-                                    backgroundColor: badgeBg,
-                                    borderRadius: 1.5,
-                                }}
-                            />
+                            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                                <Chip
+                                    size="small"
+                                    label={oc.numero_oc}
+                                    sx={{
+                                        fontWeight: 600,
+                                        letterSpacing: 0.4,
+                                        backgroundColor: badgeBg,
+                                        borderRadius: 1.5,
+                                    }}
+                                />
+                                {dias !== null && (
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', whiteSpace: 'nowrap' }}>
+                                        hace {dias} día{dias !== 1 ? 's' : ''}
+                                    </Typography>
+                                )}
+                            </Stack>
                             <Stack direction="row" alignItems="center" spacing={1}>
                                 <Typography variant="h6" fontWeight={700} lineHeight={1.2} color="text.primary">
                                     {oc.proveedor_marca}

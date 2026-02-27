@@ -11,7 +11,7 @@ const { crearProyecto, descargarProyectoPdf } = require('../controllers/g_proj.c
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT p.id, p.nombre, p.sitio_id, s.nombre as sitio_nombre
+      `SELECT p.id, p.nombre, p.sitio_id, p.status, s.nombre as sitio_nombre
        FROM proyectos p
        LEFT JOIN sitios s ON p.sitio_id = s.id
        WHERE p.activo = true AND p.status NOT IN ('CANCELADO', 'CERRADO')

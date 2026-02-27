@@ -57,6 +57,7 @@ export const useOcPreview = () => {
             { label: 'Método de pago', value: enc.metodo_pago || merged.metodo_pago },
             { label: 'Status', value: enc.status || merged.status },
             { label: 'Fecha compromiso', value: formatDate(enc.fecha_compromiso || merged.fecha_compromiso) },
+            { label: 'Fecha Aprobación', value: formatDate(enc.fecha_aprobacion_pay || merged.fecha_aprobacion_pay) },
         ].filter(entry => entry.value);
     }, [previewData, previewOcMerged]);
 

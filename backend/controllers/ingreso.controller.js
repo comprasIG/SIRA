@@ -163,7 +163,16 @@ const getOcsEnProceso = async (req, res) => {
             CASE
               WHEN ps.almacen_central_id IS NULL THEN false
               ELSE (oc.sitio_id = ps.almacen_central_id)
-            END AS entra_a_disponible
+            END AS entra_a_disponible,
+
+            (
+              SELECT h.fecha_registro
+              FROM ordenes_compra_historial h
+              WHERE h.orden_compra_id = oc.id
+                AND h.accion_realizada IN ('APROBACIÓN A CRÉDITO', 'PRE-AUTORIZACIÓN SPEI')
+              ORDER BY h.fecha_registro ASC
+              LIMIT 1
+            ) AS fecha_aprobacion_pay
 
         FROM ordenes_compra oc
         JOIN proveedores p ON oc.proveedor_id = p.id
