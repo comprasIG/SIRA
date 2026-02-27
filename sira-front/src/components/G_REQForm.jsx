@@ -140,9 +140,16 @@ function G_REQForm({ requisicionId, onFinish }) {
   const selectedProyectoId = watch("proyecto_id"); // Obtenemos el ID del proyecto seleccionado
 
   const proyectosFiltrados = useMemo(() => {
-    if (!selectedSitioId) return proyectos;
-    return proyectos.filter(p => String(p.sitio_id) === String(selectedSitioId));
-  }, [selectedSitioId, proyectos]);
+    // Only show EN_EJECUCION projects; if editing and the saved project has a different
+    // status, still include it so the select never shows blank.
+    let result = proyectos.filter(p => p.status === 'EN_EJECUCION');
+    if (selectedProyectoId && !result.some(p => String(p.id) === String(selectedProyectoId))) {
+      const current = proyectos.find(p => String(p.id) === String(selectedProyectoId));
+      if (current) result = [...result, current];
+    }
+    if (!selectedSitioId) return result;
+    return result.filter(p => String(p.sitio_id) === String(selectedSitioId));
+  }, [selectedSitioId, selectedProyectoId, proyectos]);
 
   // --- Handlers ---
   const handleSitioChange = (e) => {

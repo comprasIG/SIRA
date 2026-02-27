@@ -68,8 +68,9 @@ const getProyectosDashboard = async (req, res) => {
     const { rows: proyectos } = await pool.query(proyectosQuery);
 
     // 2) Gasto por moneda por proyecto (OCs no rechazadas/canceladas)
-    //    Opcionalmente filtradas por departamento del RFQ
-    let gastoQuery = `
+    //    Se suman TODAS las OCs del proyecto sin filtrar por departamento,
+    //    porque gasto_por_moneda es un indicador del proyecto completo.
+    const gastoQuery = `
       SELECT
         oc.proyecto_id,
         ocd.moneda,
@@ -78,24 +79,11 @@ const getProyectosDashboard = async (req, res) => {
       JOIN ordenes_compra_detalle ocd ON ocd.orden_compra_id = oc.id
       WHERE oc.status IN ('APROBADA', 'EN_PROCESO', 'ENTREGADA')
         AND oc.proyecto_id IS NOT NULL
-    `;
-    const gastoParams = [];
-
-    if (departamento_id) {
-      gastoParams.push(departamento_id);
-      gastoQuery += `
-        AND oc.rfq_id IN (
-          SELECT r.id FROM requisiciones r WHERE r.departamento_id = $${gastoParams.length}
-        )
-      `;
-    }
-
-    gastoQuery += `
       GROUP BY oc.proyecto_id, ocd.moneda
       ORDER BY oc.proyecto_id, ocd.moneda;
     `;
 
-    const { rows: gastoRows } = await pool.query(gastoQuery, gastoParams);
+    const { rows: gastoRows } = await pool.query(gastoQuery);
 
     // Indexar gasto por proyecto_id
     const gastoMap = {};
