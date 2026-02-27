@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Chip, Typography, Box, Select, MenuItem, Snackbar, Alert, Avatar,
@@ -51,6 +51,21 @@ export default function ProyectosTable({ proyectos, statusOptions, onStatusChang
 
     // Data for the modal
     const { proyecto, hitos, gastos, loading: loadingPreview, error: errorPreview } = useProyectoPreview(previewId);
+
+    // Cache of correctly-computed gasto_por_moneda keyed by project id.
+    // The backend list endpoint sometimes returns wrong pre-aggregated values;
+    // we recalculate from the individual OC records each time a project detail loads.
+    const [gastosCache, setGastosCache] = useState({});
+    useEffect(() => {
+        if (!previewId || loadingPreview || !gastos) return;
+        const totals = gastos.reduce((acc, g) => {
+            const moneda = g.moneda || 'MXN';
+            acc[moneda] = (acc[moneda] || 0) + (Number(g.total) || 0);
+            return acc;
+        }, {});
+        const computed = Object.entries(totals).map(([moneda, total]) => ({ moneda, total }));
+        setGastosCache((prev) => ({ ...prev, [previewId]: computed }));
+    }, [previewId, gastos, loadingPreview]);
 
     const handleStatusChange = async (id, newStatus) => {
         setUpdatingId(id);
@@ -239,32 +254,39 @@ export default function ProyectosTable({ proyectos, statusOptions, onStatusChang
                                         </Typography>
                                     </TableCell>
 
-                                    {/* Spending by currency */}
+                                    {/* Spending by currency
+                                        Priority: cached value computed from individual OCs (correct)
+                                        Fallback: pre-aggregated value from list endpoint (may be wrong) */}
                                     <TableCell>
-                                        {(p.gasto_por_moneda || []).length > 0 ? (
-                                            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                                                {p.gasto_por_moneda.map((g) => (
-                                                    <Chip
-                                                        key={g.moneda}
-                                                        label={`${g.moneda} $${fmtMoney(g.total)}`}
-                                                        size="small"
-                                                        sx={{
-                                                            fontWeight: 600,
-                                                            fontSize: '0.72rem',
-                                                            fontFamily: 'monospace',
-                                                            borderRadius: 2,
-                                                            backgroundColor: 'rgba(67, 233, 123, 0.1)',
-                                                            color: '#1a6b3c',
-                                                            border: '1px solid rgba(67, 233, 123, 0.3)',
-                                                        }}
-                                                    />
-                                                ))}
-                                            </Box>
-                                        ) : (
-                                            <Typography variant="caption" color="text.disabled" sx={{ fontStyle: 'italic' }}>
-                                                Sin gasto
-                                            </Typography>
-                                        )}
+                                        {(() => {
+                                            const gastoPorMoneda = gastosCache[p.id] !== undefined
+                                                ? gastosCache[p.id]
+                                                : (p.gasto_por_moneda || []);
+                                            return gastoPorMoneda.length > 0 ? (
+                                                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                                    {gastoPorMoneda.map((g) => (
+                                                        <Chip
+                                                            key={g.moneda}
+                                                            label={`${g.moneda} $${fmtMoney(g.total)}`}
+                                                            size="small"
+                                                            sx={{
+                                                                fontWeight: 600,
+                                                                fontSize: '0.72rem',
+                                                                fontFamily: 'monospace',
+                                                                borderRadius: 2,
+                                                                backgroundColor: 'rgba(67, 233, 123, 0.1)',
+                                                                color: '#1a6b3c',
+                                                                border: '1px solid rgba(67, 233, 123, 0.3)',
+                                                            }}
+                                                        />
+                                                    ))}
+                                                </Box>
+                                            ) : (
+                                                <Typography variant="caption" color="text.disabled" sx={{ fontStyle: 'italic' }}>
+                                                    Sin gasto
+                                                </Typography>
+                                            );
+                                        })()}
                                     </TableCell>
                                 </TableRow>
                             ))

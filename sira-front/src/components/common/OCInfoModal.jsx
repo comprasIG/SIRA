@@ -276,9 +276,8 @@ export default function OCInfoModal({
                   <TableHead>
                     <TableRow>
                       <TableCell>Material / Descripción</TableCell>
-                      {hasQuantity && <TableCell align="right">Cantidad</TableCell>}
+                      {(hasQuantity || hasReceived) && <TableCell align="right">Solicitada / Recibida</TableCell>}
                       {hasUnit && <TableCell align="center">Unidad</TableCell>}
-                      {hasReceived && <TableCell align="right">Recibido</TableCell>}
                       {hasPending && <TableCell align="right">Pendiente</TableCell>}
                       {hasPrice && <TableCell align="right">Precio</TableCell>}
                       <TableCell align="center">Moneda</TableCell>
@@ -295,7 +294,13 @@ export default function OCInfoModal({
                         </TableCell>
                       </TableRow>
                     ) : (
-                      items.map((item) => (
+                      items.map((item) => {
+                        const qty = item.quantity != null ? Number(item.quantity) : null;
+                        const rec = item.received != null ? Number(item.received) : null;
+                        const isComplete = qty != null && rec != null && rec >= qty;
+                        const isPartial = qty != null && rec != null && rec > 0 && rec < qty;
+                        const fmtNum = (n) => n != null ? n.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '-';
+                        return (
                         <TableRow key={item.id || item.material_id || item.detalle_id} hover>
                           <TableCell>
                             <Typography variant="body2" fontWeight={600} color="text.primary">
@@ -307,17 +312,25 @@ export default function OCInfoModal({
                               </Typography>
                             )}
                           </TableCell>
-                          {hasQuantity && (
+                          {(hasQuantity || hasReceived) && (
                             <TableCell align="right">
-                              {item.quantity != null ? Number(item.quantity).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '-'}
+                              <Box sx={{ display: 'inline-flex', alignItems: 'baseline', gap: 0.5 }}>
+                                <Typography variant="body2" component="span" fontWeight={500}>
+                                  {fmtNum(qty)}
+                                </Typography>
+                                <Typography variant="body2" component="span" color="text.disabled">/</Typography>
+                                <Typography
+                                  variant="body2"
+                                  component="span"
+                                  fontWeight={600}
+                                  color={isComplete ? 'success.main' : isPartial ? 'warning.main' : 'text.secondary'}
+                                >
+                                  {fmtNum(rec)}
+                                </Typography>
+                              </Box>
                             </TableCell>
                           )}
                           {hasUnit && <TableCell align="center">{item.unit || '-'}</TableCell>}
-                          {hasReceived && (
-                            <TableCell align="right">
-                              {item.received != null ? Number(item.received).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '-'}
-                            </TableCell>
-                          )}
                           {hasPending && (
                             <TableCell align="right">
                               {item.pending != null ? Number(item.pending).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '-'}
@@ -337,7 +350,8 @@ export default function OCInfoModal({
                             </TableCell>
                           )}
                         </TableRow>
-                      ))
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>

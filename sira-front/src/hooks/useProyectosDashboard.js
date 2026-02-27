@@ -13,7 +13,7 @@ import api from '../api/api';
 
 const DEFAULT_FILTERS = {
     search: '',
-    status: '',
+    status: 'ABIERTOS',
     sitio: '',
     proyecto: '',
     cliente: '',
@@ -46,7 +46,11 @@ function applyFilters(data, filters, exclude) {
     }
 
     if (filters.status && exclude !== 'status') {
-        out = out.filter((p) => p.status === filters.status);
+        if (filters.status === 'ABIERTOS') {
+            out = out.filter((p) => p.status !== 'CANCELADO' && p.status !== 'CERRADO');
+        } else {
+            out = out.filter((p) => p.status === filters.status);
+        }
     }
     if (filters.sitio && exclude !== 'sitio') {
         out = out.filter((p) => (p.sitio_nombre || '') === filters.sitio);
@@ -88,15 +92,7 @@ export function useProyectosDashboard(mode) {
         setLoading(true);
         setError(null);
         try {
-            const params = new URLSearchParams();
-            if (usuario?.departamento_id) {
-                params.append('departamento_id', String(usuario.departamento_id));
-            }
-            const url = params.toString()
-                ? `/api/dashboard/proyectos?${params.toString()}`
-                : '/api/dashboard/proyectos';
-
-            const data = await api.get(url);
+            const data = await api.get('/api/dashboard/proyectos');
             setAllProyectos(Array.isArray(data.proyectos) ? data.proyectos : []);
             setStatusOptions(Array.isArray(data.statusOptions) ? data.statusOptions : []);
         } catch (err) {
@@ -106,7 +102,7 @@ export function useProyectosDashboard(mode) {
         } finally {
             setLoading(false);
         }
-    }, [usuario?.departamento_id]);
+    }, []);
 
     useEffect(() => {
         loadData();

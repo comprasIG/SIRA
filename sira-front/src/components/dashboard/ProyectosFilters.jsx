@@ -102,6 +102,14 @@ export default function ProyectosFilters({
                         onChange={(e) => onChange('status', e.target.value)}
                     >
                         <MenuItem value="">Todos</MenuItem>
+                        <MenuItem value="ABIERTOS">
+                            <Chip
+                                label="Abiertos"
+                                color="primary"
+                                size="small"
+                                sx={{ fontWeight: 'bold', pointerEvents: 'none' }}
+                            />
+                        </MenuItem>
                         {(statusOptions || []).map((s) => (
                             <MenuItem key={s} value={s}>
                                 <Chip

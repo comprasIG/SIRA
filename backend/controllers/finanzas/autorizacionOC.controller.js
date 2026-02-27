@@ -656,7 +656,7 @@ const getOcPreview = async (req, res) => {
   const { id: ordenCompraId } = req.params;
   try {
     const encQ = await pool.query(`
-      SELECT 
+      SELECT
         oc.id,
         oc.numero_oc,
         oc.total,
@@ -665,7 +665,15 @@ const getOcPreview = async (req, res) => {
         oc.fecha_creacion,
         p.razon_social AS proveedor_nombre,
         pr.nombre       AS proyecto_nombre,
-        s.nombre        AS sitio_nombre
+        s.nombre        AS sitio_nombre,
+        (
+          SELECT h.fecha_registro
+          FROM ordenes_compra_historial h
+          WHERE h.orden_compra_id = oc.id
+            AND h.accion_realizada IN ('APROBACIÓN A CRÉDITO', 'PRE-AUTORIZACIÓN SPEI')
+          ORDER BY h.fecha_registro ASC
+          LIMIT 1
+        ) AS fecha_aprobacion_pay
       FROM ordenes_compra oc
       JOIN proveedores p ON p.id = oc.proveedor_id
       JOIN proyectos  pr ON pr.id = oc.proyecto_id
@@ -678,10 +686,11 @@ const getOcPreview = async (req, res) => {
     }
 
     const detQ = await pool.query(`
-      SELECT 
+      SELECT
         d.id,
         d.material_id,
         d.cantidad,
+        d.cantidad_recibida,
         d.precio_unitario,
         d.moneda,
         (d.cantidad * d.precio_unitario) AS total_linea,
