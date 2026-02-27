@@ -686,10 +686,11 @@ const getOcPreview = async (req, res) => {
     }
 
     const detQ = await pool.query(`
-      SELECT 
+      SELECT
         d.id,
         d.material_id,
         d.cantidad,
+        d.cantidad_recibida,
         d.precio_unitario,
         d.moneda,
         (d.cantidad * d.precio_unitario) AS total_linea,
