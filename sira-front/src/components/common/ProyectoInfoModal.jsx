@@ -21,6 +21,9 @@ import {
     Tabs,
     Tab,
     IconButton,
+    Avatar,
+    AvatarGroup,
+    Tooltip,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -307,13 +310,33 @@ export default function ProyectoInfoModal({
                                     </Typography>
                                 ) : (
                                     <Stack spacing={2}>
-                                        {hitos.map((hito, idx) => (
-                                            <Paper key={hito.id} variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                                        {hitos.map((hito, idx) => {
+                                            const responsables = Array.isArray(hito.responsables) ? hito.responsables : [];
+                                            const isRealizado = !!hito.fecha_realizacion;
+                                            return (
+                                            <Paper key={hito.id} variant="outlined" sx={{ p: 2, borderRadius: 2, opacity: isRealizado ? 0.8 : 1 }}>
                                                 <Stack direction="row" alignItems="flex-start" spacing={2}>
-                                                    <Chip label={`#${idx + 1}`} size="small" />
+                                                    <Chip label={`#${idx + 1}`} size="small" color={isRealizado ? 'success' : 'default'} />
                                                     <Box flex={1}>
-                                                        <Typography variant="subtitle1" fontWeight={600}>{hito.nombre}</Typography>
+                                                        <Typography variant="subtitle1" fontWeight={600} sx={{ textDecoration: isRealizado ? 'line-through' : 'none' }}>{hito.nombre}</Typography>
                                                         {hito.descripcion && <Typography variant="body2" color="text.secondary">{hito.descripcion}</Typography>}
+                                                        {responsables.length > 0 && (
+                                                            <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mt: 0.75 }}>
+                                                                <Typography variant="caption" color="text.disabled">Resp.:</Typography>
+                                                                <AvatarGroup max={4} sx={{ '& .MuiAvatar-root': { width: 20, height: 20, fontSize: '0.55rem' } }}>
+                                                                    {responsables.map((r) => (
+                                                                        <Tooltip key={r.id} title={r.nombre}>
+                                                                            <Avatar sx={{ width: 20, height: 20, fontSize: '0.55rem', bgcolor: 'primary.main' }}>
+                                                                                {(r.nombre || '?')[0].toUpperCase()}
+                                                                            </Avatar>
+                                                                        </Tooltip>
+                                                                    ))}
+                                                                </AvatarGroup>
+                                                                {responsables.length === 1 && (
+                                                                    <Typography variant="caption" color="text.secondary">{responsables[0].nombre}</Typography>
+                                                                )}
+                                                            </Stack>
+                                                        )}
                                                     </Box>
                                                     <Box textAlign="right">
                                                         <Typography variant="caption" display="block" color="text.secondary">Fecha Objetivo</Typography>
@@ -326,7 +349,8 @@ export default function ProyectoInfoModal({
                                                     </Box>
                                                 </Stack>
                                             </Paper>
-                                        ))}
+                                            );
+                                        })}
                                     </Stack>
                                 )}
                             </TabPanel>
