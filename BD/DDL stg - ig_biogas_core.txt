@@ -35,7 +35,8 @@ CREATE TYPE public.proyecto_status AS ENUM (
 -- DROP TYPE public.proyectos_hito_comentario_status;
 
 CREATE TYPE public.proyectos_hito_comentario_status AS ENUM (
-);
+	'PENDIENTE',
+	'RESUELTO');
 
 -- DROP TYPE public.requisicion_status;
 
@@ -971,7 +972,7 @@ GRANT USAGE, SELECT ON SEQUENCE public.vacaciones_id_seq TO sira_prod_user;
 -- DROP TABLE public.areas;
 
 CREATE TABLE public.areas (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('areas_id_seq'::regclass) NOT NULL,
 	nombre_area varchar(100) NOT NULL,
 	creado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	actualizado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -999,7 +1000,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.areas TO sira_prod_user;
 -- DROP TABLE public.catalogo_fuentes_pago;
 
 CREATE TABLE public.catalogo_fuentes_pago (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('catalogo_fuentes_pago_id_seq'::regclass) NOT NULL,
 	nombre varchar(120) NOT NULL,
 	tipo varchar(20) DEFAULT '''OTRO'''::character varying NOT NULL,
 	activo bool DEFAULT true NOT NULL,
@@ -1031,7 +1032,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_fuentes_pago TO si
 -- DROP TABLE public.catalogo_incidencias_recepcion;
 
 CREATE TABLE public.catalogo_incidencias_recepcion (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('catalogo_incidencias_recepcion_id_seq'::regclass) NOT NULL,
 	codigo varchar(50) NOT NULL, -- Código corto para referencia interna (ej: DANO, CANT_INCORRECTA)
 	descripcion varchar(255) NOT NULL, -- Descripción legible para el usuario
 	activo bool DEFAULT true NULL,
@@ -1059,7 +1060,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_incidencias_recepc
 -- DROP TABLE public.catalogo_metodos_notificacion;
 
 CREATE TABLE public.catalogo_metodos_notificacion (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('catalogo_metodos_notificacion_id_seq'::regclass) NOT NULL,
 	codigo varchar(20) NOT NULL, -- WHATSAPP, EMAIL, OTRO
 	nombre varchar(100) NOT NULL,
 	activo bool DEFAULT true NOT NULL,
@@ -1088,7 +1089,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_metodos_notificaci
 -- DROP TABLE public.catalogo_metodos_recoleccion;
 
 CREATE TABLE public.catalogo_metodos_recoleccion (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('catalogo_metodos_recoleccion_id_seq'::regclass) NOT NULL,
 	codigo varchar(20) NOT NULL, -- Clave interna para lógica. Ej: LOCAL, PAQUETERIA, ENTREGA
 	nombre varchar(100) NOT NULL, -- Nombre visible para usuarios
 	activo bool DEFAULT true NOT NULL,
@@ -1138,7 +1139,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_monedas TO sira_pr
 -- DROP TABLE public.catalogo_paqueterias;
 
 CREATE TABLE public.catalogo_paqueterias (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('catalogo_paqueterias_id_seq'::regclass) NOT NULL,
 	nombre varchar(100) NOT NULL,
 	activo bool DEFAULT true NOT NULL,
 	creado_en timestamptz DEFAULT now() NOT NULL,
@@ -1162,7 +1163,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_paqueterias TO sir
 -- DROP TABLE public.catalogo_unidades;
 
 CREATE TABLE public.catalogo_unidades (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('catalogo_unidades_id_seq'::regclass) NOT NULL,
 	unidad varchar(50) NOT NULL,
 	simbolo varchar(10) NOT NULL,
 	creado_en timestamptz DEFAULT now() NOT NULL,
@@ -1196,7 +1197,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_unidades TO sira_p
 -- DROP TABLE public.clientes;
 
 CREATE TABLE public.clientes (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('clientes_id_seq'::regclass) NOT NULL,
 	razon_social varchar(200) NOT NULL,
 	rfc varchar(25) NOT NULL,
 	creado_en timestamptz DEFAULT now() NULL,
@@ -1228,7 +1229,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.clientes TO sira_prod_user;
 -- DROP TABLE public.departamentos;
 
 CREATE TABLE public.departamentos (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('departamentos_id_seq'::regclass) NOT NULL,
 	codigo varchar(10) NOT NULL,
 	nombre varchar(100) NOT NULL,
 	creado_en timestamptz DEFAULT now() NULL,
@@ -1259,7 +1260,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.departamentos TO sira_prod_
 -- DROP TABLE public.departamentos_rh;
 
 CREATE TABLE public.departamentos_rh (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('departamentos_rh_id_seq'::regclass) NOT NULL,
 	codigo varchar(20) NULL,
 	nombre varchar(100) NOT NULL,
 	creado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -1289,7 +1290,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.departamentos_rh TO sira_pr
 -- DROP TABLE public.dias_ley_vacaciones;
 
 CREATE TABLE public.dias_ley_vacaciones (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('dias_ley_vacaciones_id_seq'::regclass) NOT NULL,
 	anos_antiguedad int4 NOT NULL,
 	dias_otorgados int4 NOT NULL,
 	created_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -1310,7 +1311,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.dias_ley_vacaciones TO sira
 -- DROP TABLE public.empresas;
 
 CREATE TABLE public.empresas (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('empresas_id_seq'::regclass) NOT NULL,
 	razon_social varchar(255) NOT NULL,
 	nombre_comercial varchar(255) NULL,
 	rfc varchar(13) NOT NULL,
@@ -1343,7 +1344,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.empresas TO sira_prod_user;
 -- DROP TABLE public.funciones;
 
 CREATE TABLE public.funciones (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('funciones_id_seq'::regclass) NOT NULL,
 	codigo varchar(20) NOT NULL,
 	nombre varchar(100) NOT NULL,
 	modulo varchar(50) NULL,
@@ -1368,7 +1369,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.funciones TO sira_prod_user
 -- DROP TABLE public.notificacion_grupos;
 
 CREATE TABLE public.notificacion_grupos (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('notificacion_grupos_id_seq'::regclass) NOT NULL,
 	codigo varchar(50) NOT NULL, -- Código único usado por el sistema para identificar el grupo. No debe cambiarse.
 	nombre varchar(150) NOT NULL,
 	descripcion text NULL,
@@ -1416,7 +1417,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.parametros_sistema TO sira_
 -- DROP TABLE public.pgmigrations;
 
 CREATE TABLE public.pgmigrations (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('pgmigrations_id_seq'::regclass) NOT NULL,
 	"name" varchar(255) NOT NULL,
 	run_on timestamp NOT NULL,
 	CONSTRAINT pgmigrations_pkey PRIMARY KEY (id)
@@ -1437,7 +1438,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.pgmigrations TO sira_prod_u
 -- DROP TABLE public.proveedores;
 
 CREATE TABLE public.proveedores (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('proveedores_id_seq'::regclass) NOT NULL,
 	marca varchar(100) NOT NULL,
 	razon_social varchar(150) NOT NULL,
 	rfc varchar(20) NOT NULL,
@@ -1485,7 +1486,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.proveedores TO sira_prod_us
 -- DROP TABLE public.puestos;
 
 CREATE TABLE public.puestos (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('puestos_id_seq'::regclass) NOT NULL,
 	nombre_puesto varchar(100) NOT NULL,
 	creado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	actualizado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -1513,7 +1514,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.puestos TO sira_prod_user;
 -- DROP TABLE public.roles;
 
 CREATE TABLE public.roles (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('roles_id_seq'::regclass) NOT NULL,
 	codigo varchar(30) NOT NULL,
 	nombre varchar(100) NOT NULL,
 	creado_en timestamptz DEFAULT now() NULL,
@@ -1544,7 +1545,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.roles TO sira_prod_user;
 -- DROP TABLE public.status_trabajador;
 
 CREATE TABLE public.status_trabajador (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('status_trabajador_id_seq'::regclass) NOT NULL,
 	nombre_status varchar(50) NOT NULL,
 	creado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	actualizado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -1572,7 +1573,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.status_trabajador TO sira_p
 -- DROP TABLE public.ubicaciones_almacen;
 
 CREATE TABLE public.ubicaciones_almacen (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('ubicaciones_almacen_id_seq'::regclass) NOT NULL,
 	nombre varchar(100) NOT NULL,
 	codigo varchar(20) NOT NULL,
 	descripcion text NULL,
@@ -1607,7 +1608,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ubicaciones_almacen TO sira
 -- DROP TABLE public.unidades_evento_tipos;
 
 CREATE TABLE public.unidades_evento_tipos (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('unidades_evento_tipos_id_seq'::regclass) NOT NULL,
 	codigo varchar(50) NOT NULL,
 	nombre varchar(100) NOT NULL,
 	descripcion text NULL,
@@ -1646,7 +1647,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.unidades_evento_tipos TO si
 -- DROP TABLE public.catalogo_materiales;
 
 CREATE TABLE public.catalogo_materiales (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('catalogo_materiales_id_seq'::regclass) NOT NULL,
 	tipo varchar(50) NOT NULL,
 	categoria varchar(50) NOT NULL,
 	detalle varchar(50) NOT NULL,
@@ -1722,7 +1723,7 @@ GRANT ALL ON TABLE public.departamentos_acceso_unidades TO sira_stg_user;
 -- DROP TABLE public.empleados;
 
 CREATE TABLE public.empleados (
-	id serial4 NOT NULL, -- Identificador único autoincremental del empleado
+	id varchar STORAGE PLAIN DEFAULT nextval('empleados_id_seq'::regclass) NOT NULL, -- Identificador único autoincremental del empleado
 	num_empl varchar(50) NOT NULL, -- Número de empleado único por empresa
 	empleado varchar(255) NOT NULL, -- Nombre completo del empleado
 	fecha_ingreso date NOT NULL, -- Fecha de ingreso a la empresa
@@ -1801,7 +1802,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.empleados TO sira_stg_user;
 -- DROP TABLE public.inventario_actual;
 
 CREATE TABLE public.inventario_actual (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('inventario_actual_id_seq'::regclass) NOT NULL,
 	material_id int4 NOT NULL,
 	ubicacion_id int4 NOT NULL,
 	stock_actual numeric(12, 2) DEFAULT 0 NOT NULL,
@@ -1872,7 +1873,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.rol_funcion TO sira_prod_us
 -- DROP TABLE public.sitios;
 
 CREATE TABLE public.sitios (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('sitios_id_seq'::regclass) NOT NULL,
 	nombre varchar(200) NOT NULL,
 	cliente int4 NOT NULL,
 	ubicacion varchar(200) NOT NULL,
@@ -1911,7 +1912,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.sitios TO sira_prod_user;
 -- DROP TABLE public.usuarios;
 
 CREATE TABLE public.usuarios (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('usuarios_id_seq'::regclass) NOT NULL,
 	nombre varchar(100) NOT NULL,
 	correo varchar(150) NOT NULL,
 	whatsapp varchar(20) NULL,
@@ -1974,7 +1975,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.usuarios_ui_preferencias TO
 -- DROP TABLE public.vacaciones;
 
 CREATE TABLE public.vacaciones (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('vacaciones_id_seq'::regclass) NOT NULL,
 	empleado_id int4 NOT NULL,
 	fecha_solicitud timestamp DEFAULT CURRENT_TIMESTAMP NULL,
 	fecha_inicio date NOT NULL,
@@ -2031,7 +2032,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.notificacion_grupo_usuarios
 -- DROP TABLE public.ordenes_compra_extraordinarias;
 
 CREATE TABLE public.ordenes_compra_extraordinarias (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('ordenes_compra_extraordinarias_id_seq'::regclass) NOT NULL,
 	codigo varchar(32) NOT NULL,
 	usuario_id int4 NOT NULL,
 	status varchar(30) DEFAULT 'BORRADOR'::character varying NOT NULL, -- BORRADOR | EN_REVISION | APROBADA | RECHAZADA
@@ -2068,7 +2069,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra_extraordinar
 -- DROP TABLE public.proyectos;
 
 CREATE TABLE public.proyectos (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('proyectos_id_seq'::regclass) NOT NULL,
 	nombre varchar(100) NOT NULL,
 	descripcion varchar(400) NOT NULL,
 	responsable_id int4 NOT NULL,
@@ -2129,7 +2130,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.proyectos TO sira_prod_user
 -- DROP TABLE public.proyectos_hitos;
 
 CREATE TABLE public.proyectos_hitos (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('proyectos_hitos_id_seq'::regclass) NOT NULL,
 	proyecto_id int4 NOT NULL,
 	nombre varchar(150) NOT NULL,
 	descripcion text NULL,
@@ -2165,7 +2166,7 @@ GRANT ALL ON TABLE public.proyectos_hitos TO sira_stg_user;
 -- DROP TABLE public.proyectos_hitos_comentarios;
 
 CREATE TABLE public.proyectos_hitos_comentarios (
-	id bigserial NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('proyectos_hitos_comentarios_id_seq'::regclass) NOT NULL,
 	hito_id int4 NOT NULL,
 	usuario_id int4 NULL,
 	parent_id int8 NULL,
@@ -2228,7 +2229,7 @@ GRANT ALL ON TABLE public.proyectos_hitos_responsables TO sira_stg_user;
 -- DROP TABLE public.requisiciones;
 
 CREATE TABLE public.requisiciones (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('requisiciones_id_seq'::regclass) NOT NULL,
 	numero_requisicion varchar(50) NOT NULL,
 	usuario_id int4 NOT NULL,
 	departamento_id int4 NOT NULL,
@@ -2282,7 +2283,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones TO sira_prod_
 -- DROP TABLE public.requisiciones_adjuntos;
 
 CREATE TABLE public.requisiciones_adjuntos (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('requisiciones_adjuntos_id_seq'::regclass) NOT NULL,
 	requisicion_id int4 NOT NULL,
 	nombre_archivo varchar(255) NOT NULL,
 	ruta_archivo text NOT NULL,
@@ -2306,7 +2307,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones_adjuntos TO s
 -- DROP TABLE public.requisiciones_borradores;
 
 CREATE TABLE public.requisiciones_borradores (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('requisiciones_borradores_id_seq'::regclass) NOT NULL,
 	usuario_id int4 NOT NULL,
 	"data" jsonb NOT NULL,
 	actualizado_en timestamptz DEFAULT now() NOT NULL,
@@ -2331,7 +2332,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones_borradores TO
 -- DROP TABLE public.requisiciones_detalle;
 
 CREATE TABLE public.requisiciones_detalle (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('requisiciones_detalle_id_seq'::regclass) NOT NULL,
 	requisicion_id int4 NOT NULL,
 	material_id int4 NOT NULL,
 	cantidad numeric(7, 2) NOT NULL,
@@ -2380,7 +2381,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones_detalle TO si
 -- DROP TABLE public.requisiciones_opciones;
 
 CREATE TABLE public.requisiciones_opciones (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('requisiciones_opciones_id_seq'::regclass) NOT NULL,
 	requisicion_id int4 NOT NULL,
 	requisicion_detalle_id int4 NOT NULL,
 	proveedor_id int4 NOT NULL,
@@ -2487,7 +2488,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.rfq_borradores TO sira_stg_
 -- DROP TABLE public.rfq_proveedor_adjuntos;
 
 CREATE TABLE public.rfq_proveedor_adjuntos (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('rfq_proveedor_adjuntos_id_seq'::regclass) NOT NULL,
 	requisicion_id int4 NOT NULL,
 	proveedor_id int4 NOT NULL,
 	nombre_archivo varchar(255) NOT NULL,
@@ -2514,7 +2515,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.rfq_proveedor_adjuntos TO s
 -- DROP TABLE public.salidas_almacen;
 
 CREATE TABLE public.salidas_almacen (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('salidas_almacen_id_seq'::regclass) NOT NULL,
 	fecha timestamptz DEFAULT now() NOT NULL,
 	tipo_retiro varchar(20) NOT NULL,
 	usuario_id int4 NOT NULL,
@@ -2558,7 +2559,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.salidas_almacen TO sira_pro
 -- DROP TABLE public.unidades;
 
 CREATE TABLE public.unidades (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('unidades_id_seq'::regclass) NOT NULL,
 	marca varchar(100) NOT NULL,
 	unidad varchar(100) NOT NULL,
 	serie varchar(100) NOT NULL,
@@ -2616,7 +2617,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.unidades TO sira_prod_user;
 -- DROP TABLE public.budget;
 
 CREATE TABLE public.budget (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('budget_id_seq'::regclass) NOT NULL,
 	proyecto_id int4 NOT NULL,
 	responsable_id int4 NOT NULL,
 	monto_asignado numeric(14, 4) NOT NULL,
@@ -2657,7 +2658,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.budget TO sira_prod_user;
 -- DROP TABLE public.inventario_asignado;
 
 CREATE TABLE public.inventario_asignado (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('inventario_asignado_id_seq'::regclass) NOT NULL,
 	inventario_id int4 NOT NULL,
 	requisicion_id int4 NULL,
 	proyecto_id int4 NOT NULL,
@@ -2694,7 +2695,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.inventario_asignado TO sira
 -- DROP TABLE public.ordenes_compra;
 
 CREATE TABLE public.ordenes_compra (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('ordenes_compra_id_seq'::regclass) NOT NULL,
 	numero_oc varchar(20) NOT NULL,
 	usuario_id int4 NOT NULL,
 	rfq_id int4 NULL,
@@ -2792,7 +2793,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra TO sira_prod
 -- DROP TABLE public.ordenes_compra_detalle;
 
 CREATE TABLE public.ordenes_compra_detalle (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('ordenes_compra_detalle_id_seq'::regclass) NOT NULL,
 	orden_compra_id int4 NOT NULL,
 	requisicion_detalle_id int4 NOT NULL,
 	comparativa_precio_id int4 NOT NULL,
@@ -2858,7 +2859,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra_detalle TO s
 -- DROP TABLE public.ordenes_compra_historial;
 
 CREATE TABLE public.ordenes_compra_historial (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('ordenes_compra_historial_id_seq'::regclass) NOT NULL,
 	orden_compra_id int4 NOT NULL,
 	usuario_id int4 NULL,
 	accion_realizada varchar(255) NOT NULL,
@@ -2885,7 +2886,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra_historial TO
 -- DROP TABLE public.pagos_oc;
 
 CREATE TABLE public.pagos_oc (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('pagos_oc_id_seq'::regclass) NOT NULL,
 	orden_compra_id int4 NOT NULL,
 	fecha_pago timestamptz DEFAULT now() NOT NULL,
 	monto numeric(14, 4) NOT NULL, -- Monto pagado en esta transacción.
@@ -2956,7 +2957,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.pagos_oc TO sira_prod_user;
 -- DROP TABLE public.recepciones_oc;
 
 CREATE TABLE public.recepciones_oc (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('recepciones_oc_id_seq'::regclass) NOT NULL,
 	orden_compra_id int4 NOT NULL,
 	requisicion_detalle_id int4 NOT NULL,
 	material_id int4 NOT NULL,
@@ -2988,7 +2989,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.recepciones_oc TO sira_prod
 -- DROP TABLE public.salidas_almacen_items;
 
 CREATE TABLE public.salidas_almacen_items (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('salidas_almacen_items_id_seq'::regclass) NOT NULL,
 	salida_almacen_id int4 NOT NULL,
 	material_id int4 NOT NULL,
 	ubicacion_id int4 NULL,
@@ -3019,7 +3020,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.salidas_almacen_items TO si
 -- DROP TABLE public.unidades_historial;
 
 CREATE TABLE public.unidades_historial (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('unidades_historial_id_seq'::regclass) NOT NULL,
 	unidad_id int4 NOT NULL,
 	fecha timestamptz DEFAULT now() NOT NULL,
 	kilometraje int4 NOT NULL,
@@ -3068,7 +3069,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.unidades_historial TO sira_
 -- DROP TABLE public.archivos_recoleccion_oc;
 
 CREATE TABLE public.archivos_recoleccion_oc (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('archivos_recoleccion_oc_id_seq'::regclass) NOT NULL,
 	orden_compra_id int4 NOT NULL,
 	archivo_link text NOT NULL, -- Link al archivo en Google Drive
 	tipo varchar(50) NULL, -- Tipo de archivo para categorización
@@ -3098,7 +3099,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.archivos_recoleccion_oc TO 
 -- DROP TABLE public.historial_kpi_tiempos_entrega;
 
 CREATE TABLE public.historial_kpi_tiempos_entrega (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('historial_kpi_tiempos_entrega_id_seq'::regclass) NOT NULL,
 	orden_compra_id int4 NOT NULL,
 	fecha_entrada_proceso timestamptz NOT NULL, -- Momento en que la OC pasó a EN_PROCESO
 	fecha_entregada timestamptz DEFAULT now() NOT NULL, -- Momento en que la OC pasó a ENTREGADA
@@ -3134,7 +3135,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.historial_kpi_tiempos_entre
 -- DROP TABLE public.incidencias_recepcion_oc;
 
 CREATE TABLE public.incidencias_recepcion_oc (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('incidencias_recepcion_oc_id_seq'::regclass) NOT NULL,
 	orden_compra_id int4 NOT NULL,
 	incidencia_id int4 NOT NULL,
 	cantidad_afectada numeric(12, 2) NULL, -- Cantidad del material afectado (opcional, si aplica a un ítem)
@@ -3172,7 +3173,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.incidencias_recepcion_oc TO
 -- DROP TABLE public.movimientos_inventario;
 
 CREATE TABLE public.movimientos_inventario (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('movimientos_inventario_id_seq'::regclass) NOT NULL,
 	fecha timestamptz DEFAULT now() NOT NULL,
 	material_id int4 NOT NULL,
 	tipo_movimiento public.tipo_movimiento_inventario NOT NULL,

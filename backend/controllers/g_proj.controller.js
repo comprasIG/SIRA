@@ -139,6 +139,80 @@ async function getNotificationEmails(groupCode, clientOrPool = pool) {
   return [...new Set(result.rows.map((r) => r.correo).filter(Boolean))];
 }
 
+async function getUsuariosByIds(client, userIds = []) {
+  const uniqueIds = [...new Set((userIds || []).map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+  if (uniqueIds.length === 0) return [];
+
+  const q = await client.query(
+    `
+    SELECT id, nombre, COALESCE(correo_google, correo) AS correo
+    FROM public.usuarios
+    WHERE id = ANY($1::int[]);
+    `,
+    [uniqueIds]
+  );
+
+  const mapById = new Map(q.rows.map((r) => [Number(r.id), r]));
+  return uniqueIds.map((id) => mapById.get(Number(id))).filter(Boolean);
+}
+
+function formatDateEsMx(value) {
+  if (!value) return null;
+  try {
+    return new Date(value).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch {
+    return null;
+  }
+}
+
+function sendHitoAssignedEmails({ proyectoNombre, hitoNombre, descripcion, targetDate, responsables, asignador }) {
+  if (!Array.isArray(responsables) || responsables.length === 0) return;
+
+  const fechaStr = formatDateEsMx(targetDate);
+  const descripcionHtml = descripcion
+    ? `<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-weight:600;white-space:nowrap;">Descripción</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${descripcion}</td></tr>`
+    : '';
+  const fechaHtml = fechaStr
+    ? `<tr><td style="padding:8px 12px;color:#6b7280;font-weight:600;white-space:nowrap;">Fecha objetivo</td><td style="padding:8px 12px;">${fechaStr}</td></tr>`
+    : '';
+  const subject = `Nuevo hito asignado: ${hitoNombre} — ${proyectoNombre}`;
+
+  for (const r of responsables) {
+    if (!r?.correo) continue;
+    const htmlBody = `
+      <div style="font-family:Arial,sans-serif;font-size:14px;color:#111827;max-width:600px;">
+        <p>Estimado/a <strong>${r.nombre}</strong>,</p>
+        <p>Se le ha asignado un nuevo hito dentro del sistema <strong>SIRA</strong>.
+           A continuación se detallan los datos correspondientes:</p>
+        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin:16px 0;">
+          <tr style="background:#f9fafb;">
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-weight:600;white-space:nowrap;">Hito</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:700;">${hitoNombre}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-weight:600;white-space:nowrap;">Proyecto</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${proyectoNombre}</td>
+          </tr>
+          ${descripcionHtml}
+          ${fechaHtml}
+          <tr style="background:#f9fafb;">
+            <td style="padding:8px 12px;color:#6b7280;font-weight:600;white-space:nowrap;">Asignado por</td>
+            <td style="padding:8px 12px;">${asignador}</td>
+          </tr>
+        </table>
+        <p>Le solicitamos atender este hito conforme a los tiempos establecidos.</p>
+        <p style="color:#6b7280;font-size:12px;margin-top:24px;">
+          Este es un correo automático generado por SIRA. Por favor, no responda directamente a este mensaje.
+        </p>
+      </div>
+    `;
+
+    sendEmailWithAttachments([r.correo], subject, htmlBody, []).catch((emailErr) => {
+      console.error(`[G_PROJ] Error al enviar correo de hito a ${r.correo}:`, emailErr);
+    });
+  }
+}
+
 async function getProyectoDataForPdf(client, proyectoId) {
   const proyectoQ = await client.query(
     `
@@ -425,6 +499,12 @@ const crearProyecto = async (req, res) => {
         const responsableHIds = Array.isArray(h?.responsable_ids)
           ? h.responsable_ids.map(Number).filter((n) => Number.isInteger(n) && n > 0)
           : (parseOptionalInt(h?.responsable_id) ? [parseOptionalInt(h.responsable_id)] : []);
+        const responsablesData = await getUsuariosByIds(client, responsableHIds);
+
+        if (new Set(responsableHIds).size !== responsablesData.length) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: `Uno o mas responsables del hito "${nombreH || '(sin nombre)'}" no existen.` });
+        }
 
         const rH = await client.query(
           `
@@ -672,6 +752,8 @@ const actualizarProyecto = async (req, res) => {
     // Si req.body.hitos no viene definido, asumimos NO TOCAR los hitos.
     // Si req.body.hitos viene [], significa que el usuario borró todos en el front.
 
+    const nuevosHitosParaNotificar = [];
+
     if (req.body.hitos !== undefined) {
       const hitosIn = pickHitosArray(req.body);
 
@@ -692,6 +774,12 @@ const actualizarProyecto = async (req, res) => {
         const responsableHIds = Array.isArray(h?.responsable_ids)
           ? h.responsable_ids.map(Number).filter((n) => Number.isInteger(n) && n > 0)
           : (parseOptionalInt(h?.responsable_id) ? [parseOptionalInt(h.responsable_id)] : []);
+        const responsablesData = await getUsuariosByIds(client, responsableHIds);
+
+        if (new Set(responsableHIds).size !== responsablesData.length) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: `Uno o mas responsables del hito "${nombreH || '(sin nombre)'}" no existen.` });
+        }
 
         // Si la fila viene vacía y sin ID, la ignoramos
         const filaVacia = !nombreH && !descripcionH && !targetDate && !fechaReal;
@@ -721,11 +809,11 @@ const actualizarProyecto = async (req, res) => {
             `DELETE FROM public.proyectos_hitos_responsables WHERE hito_id = $1`,
             [hId]
           );
-          for (const rId of responsableHIds) {
+          for (const r of responsablesData) {
             await client.query(
               `INSERT INTO public.proyectos_hitos_responsables (hito_id, usuario_id)
                VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-              [hId, rId]
+              [hId, r.id]
             );
           }
 
@@ -739,13 +827,20 @@ const actualizarProyecto = async (req, res) => {
           );
           const newHitoId = newH.rows[0].id;
 
-          for (const rId of responsableHIds) {
+          for (const r of responsablesData) {
             await client.query(
               `INSERT INTO public.proyectos_hitos_responsables (hito_id, usuario_id)
                VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-              [newHitoId, rId]
+              [newHitoId, r.id]
             );
           }
+
+          nuevosHitosParaNotificar.push({
+            nombre: nombreH,
+            descripcion: descripcionH || null,
+            target_date: targetDate,
+            responsables: responsablesData,
+          });
 
           hitosEntrantesIds.add(newHitoId);
         }
@@ -765,6 +860,23 @@ const actualizarProyecto = async (req, res) => {
 
     // Devolver proyecto actualizado
     const dataFinal = await getProyectoDataForPdf(client, proyectoId);
+
+    if (nuevosHitosParaNotificar.length > 0) {
+      const asignador = req.usuarioSira?.nombre || req.usuario?.nombre || 'Un usuario de SIRA';
+      const proyectoNombreNoti = dataFinal?.proyecto?.nombre || nombre || `Proyecto ${proyectoId}`;
+
+      for (const hito of nuevosHitosParaNotificar) {
+        sendHitoAssignedEmails({
+          proyectoNombre: proyectoNombreNoti,
+          hitoNombre: hito.nombre,
+          descripcion: hito.descripcion,
+          targetDate: hito.target_date,
+          responsables: hito.responsables,
+          asignador,
+        });
+      }
+    }
+
     return res.json({
       mensaje: 'Proyecto actualizado correctamente.',
       proyecto: dataFinal.proyecto,
