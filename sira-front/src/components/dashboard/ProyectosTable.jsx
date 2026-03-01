@@ -2,11 +2,19 @@ import React, { useState, useEffect } from 'react';
 import {
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Chip, Typography, Box, Select, MenuItem, Snackbar, Alert, Avatar,
+    Stack, Tooltip, IconButton,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import FolderIcon from '@mui/icons-material/Folder';
+import FlagIcon from '@mui/icons-material/Flag';
+import ForumIcon from '@mui/icons-material/Forum';
+import AddCircleIcon from '@mui/icons-material/AddCircle';
 import { PROYECTO_STATUS_COLOR } from './statusColors';
 import useProyectoPreview from '../../hooks/useProyectoPreview';
 import ProyectoInfoModal from '../common/ProyectoInfoModal';
+import ProyectoHitosModal from './ProyectoHitosModal';
+import ProyectoThreadsModal from './ProyectoThreadsModal';
+import AgregarHitoModal from './AgregarHitoModal';
 
 /**
  * Formats a number as currency with thousands separators.
@@ -43,18 +51,24 @@ const headerCellSx = {
 /**
  * Table for projects with inline status dropdown, department, responsable,
  * cliente, dates, and spending by currency.
+ * After the project name: two quick-action icons (threads & hitos).
  */
 export default function ProyectosTable({ proyectos, statusOptions, onStatusChange }) {
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
     const [updatingId, setUpdatingId] = useState(null);
+
+    // Modal de detalle (existente)
     const [previewId, setPreviewId] = useState(null);
 
-    // Data for the modal
+    // Modales nuevos
+    const [hitosProyecto, setHitosProyecto] = useState(null);    // { id, nombre }
+    const [threadsProyecto, setThreadsProyecto] = useState(null); // { id, nombre }
+    const [agregarHitoProyecto, setAgregarHitoProyecto] = useState(null); // { id, nombre }
+
+    // Data for the detail modal
     const { proyecto, hitos, gastos, loading: loadingPreview, error: errorPreview } = useProyectoPreview(previewId);
 
     // Cache of correctly-computed gasto_por_moneda keyed by project id.
-    // The backend list endpoint sometimes returns wrong pre-aggregated values;
-    // we recalculate from the individual OC records each time a project detail loads.
     const [gastosCache, setGastosCache] = useState({});
     useEffect(() => {
         if (!previewId || loadingPreview || !gastos) return;
@@ -111,55 +125,163 @@ export default function ProyectosTable({ proyectos, statusOptions, onStatusChang
                         ) : (
                             (proyectos || []).map((p) => (
                                 <TableRow key={p.id} sx={rowHoverSx}>
-                                    {/* Proyecto name with avatar - Clickable */}
-                                    <TableCell>
+                                    {/* Proyecto: avatar + nombre + 3 acciones — todo inline */}
+                                    <TableCell sx={{ width: 265, maxWidth: 265, overflow: 'hidden' }}>
                                         <Box
-                                            onClick={() => setPreviewId(p.id)}
                                             sx={{
                                                 display: 'flex',
                                                 alignItems: 'center',
-                                                gap: 1.5,
-                                                cursor: 'pointer',
-                                                p: 0.5,
-                                                borderRadius: 1,
-                                                transition: 'all 0.2s',
-                                                '&:hover': {
-                                                    bgcolor: 'rgba(255, 255, 255, 0.5)',
-                                                    boxShadow: '0 0 10px rgba(99, 102, 241, 0.5)', // Luminous effect
-                                                    '& .view-details': { opacity: 1, maxHeight: 20 }
-                                                }
+                                                gap: 0.75,
+                                                overflow: 'hidden',
+                                                // Grupo hover: los iconos se revelan suavemente
+                                                '&:hover .proj-actions': {
+                                                    opacity: 1,
+                                                    transform: 'translateX(0)',
+                                                },
                                             }}
                                         >
-                                            <Avatar
-                                                sx={{
-                                                    width: 30,
-                                                    height: 30,
-                                                    fontSize: '0.75rem',
-                                                    fontWeight: 700,
-                                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                                }}
-                                            >
-                                                {(p.nombre || '?')[0].toUpperCase()}
-                                            </Avatar>
-                                            <Box sx={{ minWidth: 0 }}>
-                                                <Typography variant="body2" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {p.nombre}
-                                                </Typography>
-                                                <Typography
-                                                    className="view-details"
-                                                    variant="caption"
-                                                    color="primary"
+                                            {/* Avatar clickeable → detalle */}
+                                            <Tooltip title="Ver detalle" placement="top">
+                                                <Avatar
+                                                    onClick={() => setPreviewId(p.id)}
                                                     sx={{
-                                                        fontWeight: 600,
-                                                        opacity: 0,
-                                                        maxHeight: 0,
-                                                        transition: 'all 0.2s',
-                                                        display: 'block'
+                                                        width: 28, height: 28,
+                                                        fontSize: '0.72rem', fontWeight: 700,
+                                                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                                        flexShrink: 0,
+                                                        cursor: 'pointer',
+                                                        transition: 'transform 0.18s ease, box-shadow 0.18s ease',
+                                                        '&:hover': {
+                                                            transform: 'scale(1.12)',
+                                                            boxShadow: '0 0 0 3px rgba(99,102,241,0.25)',
+                                                        },
                                                     }}
                                                 >
-                                                    Ver detalle
-                                                </Typography>
-                                            </Box>
+                                                    {(p.nombre || '?')[0].toUpperCase()}
+                                                </Avatar>
+                                            </Tooltip>
+
+                                            {/* Nombre + iconos — el nombre se encoge con ellipsis, iconos pegados a su derecha */}
+                                            <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: '1 1 0', gap: 0.5 }}>
+                                                <Tooltip title={p.nombre} placement="top" enterDelay={600}>
+                                                    <Typography
+                                                        variant="body2"
+                                                        fontWeight={600}
+                                                        noWrap
+                                                        sx={{
+                                                            flex: '0 1 auto',
+                                                            minWidth: 0,
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            cursor: 'default',
+                                                            fontSize: '0.82rem',
+                                                        }}
+                                                    >
+                                                        {p.nombre}
+                                                    </Typography>
+                                                </Tooltip>
+
+                                            {/* Tres acciones — ocultas por defecto, revelar en hover */}
+                                            <Stack
+                                                className="proj-actions"
+                                                direction="row"
+                                                spacing={0.4}
+                                                alignItems="center"
+                                                sx={{
+                                                    flexShrink: 0,
+                                                    opacity: 0,
+                                                    transform: 'translateX(4px)',
+                                                    transition: 'opacity 0.2s cubic-bezier(0.4,0,0.2,1), transform 0.2s cubic-bezier(0.4,0,0.2,1)',
+                                                }}
+                                            >
+                                                {/* Threads */}
+                                                <Tooltip title="Ver threads" placement="top">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setThreadsProyecto({ id: p.id, nombre: p.nombre });
+                                                        }}
+                                                        sx={{
+                                                            p: 0.5,
+                                                            borderRadius: 1.5,
+                                                            color: '#8b5cf6',
+                                                            bgcolor: alpha('#8b5cf6', 0.08),
+                                                            border: '1px solid',
+                                                            borderColor: alpha('#8b5cf6', 0.2),
+                                                            transition: 'all 0.18s ease',
+                                                            '&:hover': {
+                                                                bgcolor: '#8b5cf6',
+                                                                borderColor: '#8b5cf6',
+                                                                color: '#fff',
+                                                                boxShadow: '0 2px 8px rgba(139,92,246,0.4)',
+                                                                transform: 'translateY(-1px)',
+                                                            },
+                                                        }}
+                                                    >
+                                                        <ForumIcon sx={{ fontSize: 13 }} />
+                                                    </IconButton>
+                                                </Tooltip>
+
+                                                {/* Hitos */}
+                                                <Tooltip title="Ver hitos" placement="top">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setHitosProyecto({ id: p.id, nombre: p.nombre });
+                                                        }}
+                                                        sx={{
+                                                            p: 0.5,
+                                                            borderRadius: 1.5,
+                                                            color: '#f59e0b',
+                                                            bgcolor: alpha('#f59e0b', 0.08),
+                                                            border: '1px solid',
+                                                            borderColor: alpha('#f59e0b', 0.2),
+                                                            transition: 'all 0.18s ease',
+                                                            '&:hover': {
+                                                                bgcolor: '#f59e0b',
+                                                                borderColor: '#f59e0b',
+                                                                color: '#fff',
+                                                                boxShadow: '0 2px 8px rgba(245,158,11,0.4)',
+                                                                transform: 'translateY(-1px)',
+                                                            },
+                                                        }}
+                                                    >
+                                                        <FlagIcon sx={{ fontSize: 13 }} />
+                                                    </IconButton>
+                                                </Tooltip>
+
+                                                {/* Agregar hito */}
+                                                <Tooltip title="Agregar hito" placement="top">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setAgregarHitoProyecto({ id: p.id, nombre: p.nombre });
+                                                        }}
+                                                        sx={{
+                                                            p: 0.5,
+                                                            borderRadius: 1.5,
+                                                            color: '#10b981',
+                                                            bgcolor: alpha('#10b981', 0.08),
+                                                            border: '1px solid',
+                                                            borderColor: alpha('#10b981', 0.2),
+                                                            transition: 'all 0.18s ease',
+                                                            '&:hover': {
+                                                                bgcolor: '#10b981',
+                                                                borderColor: '#10b981',
+                                                                color: '#fff',
+                                                                boxShadow: '0 2px 8px rgba(16,185,129,0.4)',
+                                                                transform: 'translateY(-1px)',
+                                                            },
+                                                        }}
+                                                    >
+                                                        <AddCircleIcon sx={{ fontSize: 13 }} />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </Stack>
+                                            </Box>{/* fin nombre+iconos */}
                                         </Box>
                                     </TableCell>
 
@@ -254,9 +376,7 @@ export default function ProyectosTable({ proyectos, statusOptions, onStatusChang
                                         </Typography>
                                     </TableCell>
 
-                                    {/* Spending by currency
-                                        Priority: cached value computed from individual OCs (correct)
-                                        Fallback: pre-aggregated value from list endpoint (may be wrong) */}
+                                    {/* Gasto por moneda */}
                                     <TableCell>
                                         {(() => {
                                             const gastoPorMoneda = gastosCache[p.id] !== undefined
@@ -311,7 +431,7 @@ export default function ProyectosTable({ proyectos, statusOptions, onStatusChang
                 </Alert>
             </Snackbar>
 
-            {/* Modal for project details */}
+            {/* Modal de detalle (existente) */}
             <ProyectoInfoModal
                 open={!!previewId}
                 onClose={() => setPreviewId(null)}
@@ -320,6 +440,37 @@ export default function ProyectosTable({ proyectos, statusOptions, onStatusChang
                 gastos={gastos}
                 loading={loadingPreview}
                 error={errorPreview}
+            />
+
+            {/* Modal de hitos del proyecto */}
+            <ProyectoHitosModal
+                open={!!hitosProyecto}
+                onClose={() => setHitosProyecto(null)}
+                proyectoId={hitosProyecto?.id}
+                proyectoNombre={hitosProyecto?.nombre}
+            />
+
+            {/* Modal de threads del proyecto */}
+            <ProyectoThreadsModal
+                open={!!threadsProyecto}
+                onClose={() => setThreadsProyecto(null)}
+                proyectoId={threadsProyecto?.id}
+                proyectoNombre={threadsProyecto?.nombre}
+            />
+
+            {/* Modal agregar hito rápido */}
+            <AgregarHitoModal
+                open={!!agregarHitoProyecto}
+                onClose={() => setAgregarHitoProyecto(null)}
+                proyectoId={agregarHitoProyecto?.id}
+                proyectoNombre={agregarHitoProyecto?.nombre}
+                onSuccess={(hito) => {
+                    setSnackbar({
+                        open: true,
+                        message: `Hito "${hito?.nombre || 'nuevo'}" agregado correctamente`,
+                        severity: 'success',
+                    });
+                }}
             />
         </>
     );

@@ -1,8 +1,6 @@
 -- DROP SCHEMA public;
 
-CREATE SCHEMA public AUTHORIZATION pg_database_owner;
-
-COMMENT ON SCHEMA public IS 'standard public schema';
+CREATE SCHEMA public AUTHORIZATION postgres;
 
 -- DROP TYPE public.estatus_pago_enum;
 
@@ -31,11 +29,6 @@ CREATE TYPE public.proyecto_status AS ENUM (
 	'EN_PAUSA',
 	'CANCELADO',
 	'CERRADO');
-
--- DROP TYPE public.proyectos_hito_comentario_status;
-
-CREATE TYPE public.proyectos_hito_comentario_status AS ENUM (
-);
 
 -- DROP TYPE public.requisicion_status;
 
@@ -71,8 +64,7 @@ CREATE SEQUENCE public.archivos_recoleccion_oc_id_seq
 
 ALTER SEQUENCE public.archivos_recoleccion_oc_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.archivos_recoleccion_oc_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.archivos_recoleccion_oc_id_seq TO sira_prod_user;
-GRANT USAGE, SELECT ON SEQUENCE public.archivos_recoleccion_oc_id_seq TO sira_stg_user;
+GRANT ALL ON SEQUENCE public.archivos_recoleccion_oc_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.areas_id_seq;
 
@@ -88,7 +80,7 @@ CREATE SEQUENCE public.areas_id_seq
 
 ALTER SEQUENCE public.areas_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.areas_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.areas_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.areas_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.budget_id_seq;
 
@@ -104,8 +96,7 @@ CREATE SEQUENCE public.budget_id_seq
 
 ALTER SEQUENCE public.budget_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.budget_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.budget_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.budget_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.budget_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.catalogo_fuentes_pago_id_seq;
 
@@ -121,7 +112,7 @@ CREATE SEQUENCE public.catalogo_fuentes_pago_id_seq
 
 ALTER SEQUENCE public.catalogo_fuentes_pago_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.catalogo_fuentes_pago_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.catalogo_fuentes_pago_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.catalogo_fuentes_pago_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.catalogo_incidencias_recepcion_id_seq;
 
@@ -137,8 +128,7 @@ CREATE SEQUENCE public.catalogo_incidencias_recepcion_id_seq
 
 ALTER SEQUENCE public.catalogo_incidencias_recepcion_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.catalogo_incidencias_recepcion_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.catalogo_incidencias_recepcion_id_seq TO sira_prod_user;
-GRANT USAGE, SELECT ON SEQUENCE public.catalogo_incidencias_recepcion_id_seq TO sira_stg_user;
+GRANT ALL ON SEQUENCE public.catalogo_incidencias_recepcion_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.catalogo_materiales_id_seq;
 
@@ -154,8 +144,7 @@ CREATE SEQUENCE public.catalogo_materiales_id_seq
 
 ALTER SEQUENCE public.catalogo_materiales_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.catalogo_materiales_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.catalogo_materiales_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.catalogo_materiales_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.catalogo_materiales_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.catalogo_metodos_notificacion_id_seq;
 
@@ -171,8 +160,7 @@ CREATE SEQUENCE public.catalogo_metodos_notificacion_id_seq
 
 ALTER SEQUENCE public.catalogo_metodos_notificacion_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.catalogo_metodos_notificacion_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.catalogo_metodos_notificacion_id_seq TO sira_prod_user;
-GRANT USAGE, SELECT ON SEQUENCE public.catalogo_metodos_notificacion_id_seq TO sira_stg_user;
+GRANT ALL ON SEQUENCE public.catalogo_metodos_notificacion_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.catalogo_metodos_recoleccion_id_seq;
 
@@ -188,8 +176,7 @@ CREATE SEQUENCE public.catalogo_metodos_recoleccion_id_seq
 
 ALTER SEQUENCE public.catalogo_metodos_recoleccion_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.catalogo_metodos_recoleccion_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.catalogo_metodos_recoleccion_id_seq TO sira_prod_user;
-GRANT USAGE, SELECT ON SEQUENCE public.catalogo_metodos_recoleccion_id_seq TO sira_stg_user;
+GRANT ALL ON SEQUENCE public.catalogo_metodos_recoleccion_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.catalogo_paqueterias_id_seq;
 
@@ -205,8 +192,7 @@ CREATE SEQUENCE public.catalogo_paqueterias_id_seq
 
 ALTER SEQUENCE public.catalogo_paqueterias_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.catalogo_paqueterias_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.catalogo_paqueterias_id_seq TO sira_prod_user;
-GRANT USAGE, SELECT ON SEQUENCE public.catalogo_paqueterias_id_seq TO sira_stg_user;
+GRANT ALL ON SEQUENCE public.catalogo_paqueterias_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.catalogo_unidades_id_seq;
 
@@ -222,8 +208,7 @@ CREATE SEQUENCE public.catalogo_unidades_id_seq
 
 ALTER SEQUENCE public.catalogo_unidades_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.catalogo_unidades_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.catalogo_unidades_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.catalogo_unidades_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.catalogo_unidades_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.clientes_id_seq;
 
@@ -239,8 +224,7 @@ CREATE SEQUENCE public.clientes_id_seq
 
 ALTER SEQUENCE public.clientes_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.clientes_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.clientes_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.clientes_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.clientes_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.departamentos_id_seq;
 
@@ -256,8 +240,7 @@ CREATE SEQUENCE public.departamentos_id_seq
 
 ALTER SEQUENCE public.departamentos_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.departamentos_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.departamentos_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.departamentos_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.departamentos_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.departamentos_rh_id_seq;
 
@@ -273,7 +256,7 @@ CREATE SEQUENCE public.departamentos_rh_id_seq
 
 ALTER SEQUENCE public.departamentos_rh_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.departamentos_rh_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.departamentos_rh_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.departamentos_rh_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.dias_ley_vacaciones_id_seq;
 
@@ -289,7 +272,7 @@ CREATE SEQUENCE public.dias_ley_vacaciones_id_seq
 
 ALTER SEQUENCE public.dias_ley_vacaciones_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.dias_ley_vacaciones_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.dias_ley_vacaciones_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.dias_ley_vacaciones_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.empleados_id_seq;
 
@@ -305,8 +288,7 @@ CREATE SEQUENCE public.empleados_id_seq
 
 ALTER SEQUENCE public.empleados_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.empleados_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.empleados_id_seq TO sira_prod_user;
-GRANT USAGE, SELECT ON SEQUENCE public.empleados_id_seq TO sira_stg_user;
+GRANT ALL ON SEQUENCE public.empleados_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.empresas_id_seq;
 
@@ -322,7 +304,7 @@ CREATE SEQUENCE public.empresas_id_seq
 
 ALTER SEQUENCE public.empresas_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.empresas_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.empresas_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.empresas_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.funciones_id_seq;
 
@@ -338,8 +320,7 @@ CREATE SEQUENCE public.funciones_id_seq
 
 ALTER SEQUENCE public.funciones_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.funciones_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.funciones_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.funciones_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.funciones_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.historial_kpi_tiempos_entrega_id_seq;
 
@@ -355,8 +336,7 @@ CREATE SEQUENCE public.historial_kpi_tiempos_entrega_id_seq
 
 ALTER SEQUENCE public.historial_kpi_tiempos_entrega_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.historial_kpi_tiempos_entrega_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.historial_kpi_tiempos_entrega_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.historial_kpi_tiempos_entrega_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.historial_kpi_tiempos_entrega_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.incidencias_recepcion_oc_id_seq;
 
@@ -372,8 +352,7 @@ CREATE SEQUENCE public.incidencias_recepcion_oc_id_seq
 
 ALTER SEQUENCE public.incidencias_recepcion_oc_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.incidencias_recepcion_oc_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.incidencias_recepcion_oc_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.incidencias_recepcion_oc_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.incidencias_recepcion_oc_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.inventario_actual_id_seq;
 
@@ -389,8 +368,7 @@ CREATE SEQUENCE public.inventario_actual_id_seq
 
 ALTER SEQUENCE public.inventario_actual_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.inventario_actual_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.inventario_actual_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.inventario_actual_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.inventario_actual_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.inventario_asignado_id_seq;
 
@@ -406,8 +384,7 @@ CREATE SEQUENCE public.inventario_asignado_id_seq
 
 ALTER SEQUENCE public.inventario_asignado_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.inventario_asignado_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.inventario_asignado_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.inventario_asignado_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.inventario_asignado_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.movimientos_inventario_id_seq;
 
@@ -423,8 +400,7 @@ CREATE SEQUENCE public.movimientos_inventario_id_seq
 
 ALTER SEQUENCE public.movimientos_inventario_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.movimientos_inventario_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.movimientos_inventario_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.movimientos_inventario_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.movimientos_inventario_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.notificacion_grupos_id_seq;
 
@@ -440,8 +416,7 @@ CREATE SEQUENCE public.notificacion_grupos_id_seq
 
 ALTER SEQUENCE public.notificacion_grupos_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.notificacion_grupos_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.notificacion_grupos_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.notificacion_grupos_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.notificacion_grupos_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.ordenes_compra_detalle_id_seq;
 
@@ -457,8 +432,7 @@ CREATE SEQUENCE public.ordenes_compra_detalle_id_seq
 
 ALTER SEQUENCE public.ordenes_compra_detalle_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.ordenes_compra_detalle_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.ordenes_compra_detalle_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.ordenes_compra_detalle_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.ordenes_compra_detalle_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.ordenes_compra_extraordinarias_codigo_seq;
 
@@ -474,8 +448,7 @@ CREATE SEQUENCE public.ordenes_compra_extraordinarias_codigo_seq
 
 ALTER SEQUENCE public.ordenes_compra_extraordinarias_codigo_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.ordenes_compra_extraordinarias_codigo_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.ordenes_compra_extraordinarias_codigo_seq TO sira_prod_user;
-GRANT USAGE, SELECT ON SEQUENCE public.ordenes_compra_extraordinarias_codigo_seq TO sira_stg_user;
+GRANT ALL ON SEQUENCE public.ordenes_compra_extraordinarias_codigo_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.ordenes_compra_extraordinarias_id_seq;
 
@@ -491,8 +464,7 @@ CREATE SEQUENCE public.ordenes_compra_extraordinarias_id_seq
 
 ALTER SEQUENCE public.ordenes_compra_extraordinarias_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.ordenes_compra_extraordinarias_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.ordenes_compra_extraordinarias_id_seq TO sira_prod_user;
-GRANT USAGE, SELECT ON SEQUENCE public.ordenes_compra_extraordinarias_id_seq TO sira_stg_user;
+GRANT ALL ON SEQUENCE public.ordenes_compra_extraordinarias_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.ordenes_compra_historial_id_seq;
 
@@ -508,8 +480,7 @@ CREATE SEQUENCE public.ordenes_compra_historial_id_seq
 
 ALTER SEQUENCE public.ordenes_compra_historial_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.ordenes_compra_historial_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.ordenes_compra_historial_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.ordenes_compra_historial_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.ordenes_compra_historial_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.ordenes_compra_id_seq;
 
@@ -525,8 +496,7 @@ CREATE SEQUENCE public.ordenes_compra_id_seq
 
 ALTER SEQUENCE public.ordenes_compra_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.ordenes_compra_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.ordenes_compra_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.ordenes_compra_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.ordenes_compra_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.pagos_oc_id_seq;
 
@@ -542,8 +512,7 @@ CREATE SEQUENCE public.pagos_oc_id_seq
 
 ALTER SEQUENCE public.pagos_oc_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.pagos_oc_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.pagos_oc_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.pagos_oc_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.pagos_oc_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.pgmigrations_id_seq;
 
@@ -559,8 +528,7 @@ CREATE SEQUENCE public.pgmigrations_id_seq
 
 ALTER SEQUENCE public.pgmigrations_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.pgmigrations_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.pgmigrations_id_seq TO sira_prod_user;
-GRANT USAGE, SELECT ON SEQUENCE public.pgmigrations_id_seq TO sira_stg_user;
+GRANT ALL ON SEQUENCE public.pgmigrations_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.proveedores_id_seq;
 
@@ -576,25 +544,7 @@ CREATE SEQUENCE public.proveedores_id_seq
 
 ALTER SEQUENCE public.proveedores_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.proveedores_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.proveedores_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.proveedores_id_seq TO sira_prod_user;
-
--- DROP SEQUENCE public.proyectos_hitos_comentarios_id_seq;
-
-CREATE SEQUENCE public.proyectos_hitos_comentarios_id_seq
-	INCREMENT BY 1
-	MINVALUE 1
-	MAXVALUE 9223372036854775807
-	START 1
-	CACHE 1
-	NO CYCLE;
-
--- Permissions
-
-ALTER SEQUENCE public.proyectos_hitos_comentarios_id_seq OWNER TO postgres;
-GRANT ALL ON SEQUENCE public.proyectos_hitos_comentarios_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.proyectos_hitos_comentarios_id_seq TO sira_prod_user;
-GRANT ALL ON SEQUENCE public.proyectos_hitos_comentarios_id_seq TO sira_stg_user;
+GRANT ALL ON SEQUENCE public.proveedores_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.proyectos_hitos_id_seq;
 
@@ -610,7 +560,7 @@ CREATE SEQUENCE public.proyectos_hitos_id_seq
 
 ALTER SEQUENCE public.proyectos_hitos_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.proyectos_hitos_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.proyectos_hitos_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.proyectos_hitos_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.proyectos_id_seq;
 
@@ -626,8 +576,7 @@ CREATE SEQUENCE public.proyectos_id_seq
 
 ALTER SEQUENCE public.proyectos_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.proyectos_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.proyectos_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.proyectos_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.proyectos_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.puestos_id_seq;
 
@@ -643,7 +592,7 @@ CREATE SEQUENCE public.puestos_id_seq
 
 ALTER SEQUENCE public.puestos_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.puestos_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.puestos_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.puestos_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.recepciones_oc_id_seq;
 
@@ -659,8 +608,7 @@ CREATE SEQUENCE public.recepciones_oc_id_seq
 
 ALTER SEQUENCE public.recepciones_oc_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.recepciones_oc_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.recepciones_oc_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.recepciones_oc_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.recepciones_oc_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.requisiciones_adjuntos_id_seq;
 
@@ -676,8 +624,7 @@ CREATE SEQUENCE public.requisiciones_adjuntos_id_seq
 
 ALTER SEQUENCE public.requisiciones_adjuntos_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.requisiciones_adjuntos_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.requisiciones_adjuntos_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.requisiciones_adjuntos_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.requisiciones_adjuntos_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.requisiciones_borradores_id_seq;
 
@@ -693,8 +640,7 @@ CREATE SEQUENCE public.requisiciones_borradores_id_seq
 
 ALTER SEQUENCE public.requisiciones_borradores_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.requisiciones_borradores_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.requisiciones_borradores_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.requisiciones_borradores_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.requisiciones_borradores_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.requisiciones_detalle_id_seq;
 
@@ -710,8 +656,7 @@ CREATE SEQUENCE public.requisiciones_detalle_id_seq
 
 ALTER SEQUENCE public.requisiciones_detalle_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.requisiciones_detalle_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.requisiciones_detalle_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.requisiciones_detalle_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.requisiciones_detalle_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.requisiciones_id_seq;
 
@@ -727,8 +672,7 @@ CREATE SEQUENCE public.requisiciones_id_seq
 
 ALTER SEQUENCE public.requisiciones_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.requisiciones_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.requisiciones_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.requisiciones_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.requisiciones_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.requisiciones_opciones_id_seq;
 
@@ -744,8 +688,7 @@ CREATE SEQUENCE public.requisiciones_opciones_id_seq
 
 ALTER SEQUENCE public.requisiciones_opciones_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.requisiciones_opciones_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.requisiciones_opciones_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.requisiciones_opciones_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.requisiciones_opciones_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.rfq_consecutivo_seq;
 
@@ -762,8 +705,7 @@ COMMENT ON SEQUENCE public.rfq_consecutivo_seq IS 'Secuencia global para los con
 
 ALTER SEQUENCE public.rfq_consecutivo_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.rfq_consecutivo_seq TO postgres;
-GRANT ALL ON SEQUENCE public.rfq_consecutivo_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.rfq_consecutivo_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.rfq_consecutivo_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.rfq_proveedor_adjuntos_id_seq;
 
@@ -779,8 +721,7 @@ CREATE SEQUENCE public.rfq_proveedor_adjuntos_id_seq
 
 ALTER SEQUENCE public.rfq_proveedor_adjuntos_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.rfq_proveedor_adjuntos_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.rfq_proveedor_adjuntos_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.rfq_proveedor_adjuntos_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.rfq_proveedor_adjuntos_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.roles_id_seq;
 
@@ -796,8 +737,7 @@ CREATE SEQUENCE public.roles_id_seq
 
 ALTER SEQUENCE public.roles_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.roles_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.roles_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.roles_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.roles_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.salidas_almacen_id_seq;
 
@@ -813,7 +753,7 @@ CREATE SEQUENCE public.salidas_almacen_id_seq
 
 ALTER SEQUENCE public.salidas_almacen_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.salidas_almacen_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.salidas_almacen_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.salidas_almacen_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.salidas_almacen_items_id_seq;
 
@@ -829,7 +769,7 @@ CREATE SEQUENCE public.salidas_almacen_items_id_seq
 
 ALTER SEQUENCE public.salidas_almacen_items_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.salidas_almacen_items_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.salidas_almacen_items_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.salidas_almacen_items_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.sitios_id_seq;
 
@@ -845,8 +785,7 @@ CREATE SEQUENCE public.sitios_id_seq
 
 ALTER SEQUENCE public.sitios_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.sitios_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.sitios_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.sitios_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.sitios_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.status_trabajador_id_seq;
 
@@ -862,7 +801,7 @@ CREATE SEQUENCE public.status_trabajador_id_seq
 
 ALTER SEQUENCE public.status_trabajador_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.status_trabajador_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.status_trabajador_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.status_trabajador_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.ubicaciones_almacen_id_seq;
 
@@ -878,8 +817,7 @@ CREATE SEQUENCE public.ubicaciones_almacen_id_seq
 
 ALTER SEQUENCE public.ubicaciones_almacen_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.ubicaciones_almacen_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.ubicaciones_almacen_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.ubicaciones_almacen_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.ubicaciones_almacen_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.unidades_evento_tipos_id_seq;
 
@@ -895,8 +833,7 @@ CREATE SEQUENCE public.unidades_evento_tipos_id_seq
 
 ALTER SEQUENCE public.unidades_evento_tipos_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.unidades_evento_tipos_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.unidades_evento_tipos_id_seq TO sira_prod_user;
-GRANT USAGE, SELECT ON SEQUENCE public.unidades_evento_tipos_id_seq TO sira_stg_user;
+GRANT ALL ON SEQUENCE public.unidades_evento_tipos_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.unidades_historial_id_seq;
 
@@ -912,8 +849,7 @@ CREATE SEQUENCE public.unidades_historial_id_seq
 
 ALTER SEQUENCE public.unidades_historial_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.unidades_historial_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.unidades_historial_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.unidades_historial_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.unidades_historial_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.unidades_id_seq;
 
@@ -929,8 +865,7 @@ CREATE SEQUENCE public.unidades_id_seq
 
 ALTER SEQUENCE public.unidades_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.unidades_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.unidades_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.unidades_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.unidades_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.usuarios_id_seq;
 
@@ -946,8 +881,7 @@ CREATE SEQUENCE public.usuarios_id_seq
 
 ALTER SEQUENCE public.usuarios_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.usuarios_id_seq TO postgres;
-GRANT ALL ON SEQUENCE public.usuarios_id_seq TO sira_stg_user;
-GRANT USAGE, SELECT ON SEQUENCE public.usuarios_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.usuarios_id_seq TO sira_prod_user;
 
 -- DROP SEQUENCE public.vacaciones_id_seq;
 
@@ -963,7 +897,7 @@ CREATE SEQUENCE public.vacaciones_id_seq
 
 ALTER SEQUENCE public.vacaciones_id_seq OWNER TO postgres;
 GRANT ALL ON SEQUENCE public.vacaciones_id_seq TO postgres;
-GRANT USAGE, SELECT ON SEQUENCE public.vacaciones_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.vacaciones_id_seq TO sira_prod_user;
 -- public.areas definition
 
 -- Drop table
@@ -971,7 +905,7 @@ GRANT USAGE, SELECT ON SEQUENCE public.vacaciones_id_seq TO sira_prod_user;
 -- DROP TABLE public.areas;
 
 CREATE TABLE public.areas (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('areas_id_seq'::regclass) NOT NULL,
 	nombre_area varchar(100) NOT NULL,
 	creado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	actualizado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -999,7 +933,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.areas TO sira_prod_user;
 -- DROP TABLE public.catalogo_fuentes_pago;
 
 CREATE TABLE public.catalogo_fuentes_pago (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('catalogo_fuentes_pago_id_seq'::regclass) NOT NULL,
 	nombre varchar(120) NOT NULL,
 	tipo varchar(20) DEFAULT '''OTRO'''::character varying NOT NULL,
 	activo bool DEFAULT true NOT NULL,
@@ -1031,7 +965,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_fuentes_pago TO si
 -- DROP TABLE public.catalogo_incidencias_recepcion;
 
 CREATE TABLE public.catalogo_incidencias_recepcion (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('catalogo_incidencias_recepcion_id_seq'::regclass) NOT NULL,
 	codigo varchar(50) NOT NULL, -- Código corto para referencia interna (ej: DANO, CANT_INCORRECTA)
 	descripcion varchar(255) NOT NULL, -- Descripción legible para el usuario
 	activo bool DEFAULT true NULL,
@@ -1048,7 +982,6 @@ COMMENT ON COLUMN public.catalogo_incidencias_recepcion.descripcion IS 'Descripc
 
 ALTER TABLE public.catalogo_incidencias_recepcion OWNER TO postgres;
 GRANT ALL ON TABLE public.catalogo_incidencias_recepcion TO postgres;
-GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_incidencias_recepcion TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_incidencias_recepcion TO sira_prod_user;
 
 
@@ -1059,7 +992,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_incidencias_recepc
 -- DROP TABLE public.catalogo_metodos_notificacion;
 
 CREATE TABLE public.catalogo_metodos_notificacion (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('catalogo_metodos_notificacion_id_seq'::regclass) NOT NULL,
 	codigo varchar(20) NOT NULL, -- WHATSAPP, EMAIL, OTRO
 	nombre varchar(100) NOT NULL,
 	activo bool DEFAULT true NOT NULL,
@@ -1077,7 +1010,6 @@ COMMENT ON COLUMN public.catalogo_metodos_notificacion.codigo IS 'WHATSAPP, EMAI
 
 ALTER TABLE public.catalogo_metodos_notificacion OWNER TO postgres;
 GRANT ALL ON TABLE public.catalogo_metodos_notificacion TO postgres;
-GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_metodos_notificacion TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_metodos_notificacion TO sira_prod_user;
 
 
@@ -1088,7 +1020,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_metodos_notificaci
 -- DROP TABLE public.catalogo_metodos_recoleccion;
 
 CREATE TABLE public.catalogo_metodos_recoleccion (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('catalogo_metodos_recoleccion_id_seq'::regclass) NOT NULL,
 	codigo varchar(20) NOT NULL, -- Clave interna para lógica. Ej: LOCAL, PAQUETERIA, ENTREGA
 	nombre varchar(100) NOT NULL, -- Nombre visible para usuarios
 	activo bool DEFAULT true NOT NULL,
@@ -1107,7 +1039,6 @@ COMMENT ON COLUMN public.catalogo_metodos_recoleccion.nombre IS 'Nombre visible 
 
 ALTER TABLE public.catalogo_metodos_recoleccion OWNER TO postgres;
 GRANT ALL ON TABLE public.catalogo_metodos_recoleccion TO postgres;
-GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_metodos_recoleccion TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_metodos_recoleccion TO sira_prod_user;
 
 
@@ -1127,7 +1058,6 @@ CREATE TABLE public.catalogo_monedas (
 
 ALTER TABLE public.catalogo_monedas OWNER TO postgres;
 GRANT ALL ON TABLE public.catalogo_monedas TO postgres;
-GRANT ALL ON TABLE public.catalogo_monedas TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_monedas TO sira_prod_user;
 
 
@@ -1138,7 +1068,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_monedas TO sira_pr
 -- DROP TABLE public.catalogo_paqueterias;
 
 CREATE TABLE public.catalogo_paqueterias (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('catalogo_paqueterias_id_seq'::regclass) NOT NULL,
 	nombre varchar(100) NOT NULL,
 	activo bool DEFAULT true NOT NULL,
 	creado_en timestamptz DEFAULT now() NOT NULL,
@@ -1151,7 +1081,6 @@ CREATE TABLE public.catalogo_paqueterias (
 
 ALTER TABLE public.catalogo_paqueterias OWNER TO postgres;
 GRANT ALL ON TABLE public.catalogo_paqueterias TO postgres;
-GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_paqueterias TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_paqueterias TO sira_prod_user;
 
 
@@ -1162,7 +1091,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_paqueterias TO sir
 -- DROP TABLE public.catalogo_unidades;
 
 CREATE TABLE public.catalogo_unidades (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('catalogo_unidades_id_seq'::regclass) NOT NULL,
 	unidad varchar(50) NOT NULL,
 	simbolo varchar(10) NOT NULL,
 	creado_en timestamptz DEFAULT now() NOT NULL,
@@ -1185,7 +1114,6 @@ update
 
 ALTER TABLE public.catalogo_unidades OWNER TO postgres;
 GRANT ALL ON TABLE public.catalogo_unidades TO postgres;
-GRANT ALL ON TABLE public.catalogo_unidades TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_unidades TO sira_prod_user;
 
 
@@ -1196,7 +1124,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_unidades TO sira_p
 -- DROP TABLE public.clientes;
 
 CREATE TABLE public.clientes (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('clientes_id_seq'::regclass) NOT NULL,
 	razon_social varchar(200) NOT NULL,
 	rfc varchar(25) NOT NULL,
 	creado_en timestamptz DEFAULT now() NULL,
@@ -1217,7 +1145,6 @@ update
 
 ALTER TABLE public.clientes OWNER TO postgres;
 GRANT ALL ON TABLE public.clientes TO postgres;
-GRANT ALL ON TABLE public.clientes TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.clientes TO sira_prod_user;
 
 
@@ -1228,7 +1155,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.clientes TO sira_prod_user;
 -- DROP TABLE public.departamentos;
 
 CREATE TABLE public.departamentos (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('departamentos_id_seq'::regclass) NOT NULL,
 	codigo varchar(10) NOT NULL,
 	nombre varchar(100) NOT NULL,
 	creado_en timestamptz DEFAULT now() NULL,
@@ -1248,7 +1175,6 @@ update
 
 ALTER TABLE public.departamentos OWNER TO postgres;
 GRANT ALL ON TABLE public.departamentos TO postgres;
-GRANT ALL ON TABLE public.departamentos TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.departamentos TO sira_prod_user;
 
 
@@ -1259,7 +1185,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.departamentos TO sira_prod_
 -- DROP TABLE public.departamentos_rh;
 
 CREATE TABLE public.departamentos_rh (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('departamentos_rh_id_seq'::regclass) NOT NULL,
 	codigo varchar(20) NULL,
 	nombre varchar(100) NOT NULL,
 	creado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -1289,7 +1215,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.departamentos_rh TO sira_pr
 -- DROP TABLE public.dias_ley_vacaciones;
 
 CREATE TABLE public.dias_ley_vacaciones (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('dias_ley_vacaciones_id_seq'::regclass) NOT NULL,
 	anos_antiguedad int4 NOT NULL,
 	dias_otorgados int4 NOT NULL,
 	created_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -1310,7 +1236,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.dias_ley_vacaciones TO sira
 -- DROP TABLE public.empresas;
 
 CREATE TABLE public.empresas (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('empresas_id_seq'::regclass) NOT NULL,
 	razon_social varchar(255) NOT NULL,
 	nombre_comercial varchar(255) NULL,
 	rfc varchar(13) NOT NULL,
@@ -1343,7 +1269,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.empresas TO sira_prod_user;
 -- DROP TABLE public.funciones;
 
 CREATE TABLE public.funciones (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('funciones_id_seq'::regclass) NOT NULL,
 	codigo varchar(20) NOT NULL,
 	nombre varchar(100) NOT NULL,
 	modulo varchar(50) NULL,
@@ -1357,7 +1283,6 @@ CREATE TABLE public.funciones (
 
 ALTER TABLE public.funciones OWNER TO postgres;
 GRANT ALL ON TABLE public.funciones TO postgres;
-GRANT ALL ON TABLE public.funciones TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.funciones TO sira_prod_user;
 
 
@@ -1368,7 +1293,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.funciones TO sira_prod_user
 -- DROP TABLE public.notificacion_grupos;
 
 CREATE TABLE public.notificacion_grupos (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('notificacion_grupos_id_seq'::regclass) NOT NULL,
 	codigo varchar(50) NOT NULL, -- Código único usado por el sistema para identificar el grupo. No debe cambiarse.
 	nombre varchar(150) NOT NULL,
 	descripcion text NULL,
@@ -1385,7 +1310,6 @@ COMMENT ON COLUMN public.notificacion_grupos.codigo IS 'Código único usado por
 
 ALTER TABLE public.notificacion_grupos OWNER TO postgres;
 GRANT ALL ON TABLE public.notificacion_grupos TO postgres;
-GRANT ALL ON TABLE public.notificacion_grupos TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.notificacion_grupos TO sira_prod_user;
 
 
@@ -1405,7 +1329,6 @@ CREATE TABLE public.parametros_sistema (
 
 ALTER TABLE public.parametros_sistema OWNER TO postgres;
 GRANT ALL ON TABLE public.parametros_sistema TO postgres;
-GRANT ALL ON TABLE public.parametros_sistema TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.parametros_sistema TO sira_prod_user;
 
 
@@ -1416,7 +1339,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.parametros_sistema TO sira_
 -- DROP TABLE public.pgmigrations;
 
 CREATE TABLE public.pgmigrations (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('pgmigrations_id_seq'::regclass) NOT NULL,
 	"name" varchar(255) NOT NULL,
 	run_on timestamp NOT NULL,
 	CONSTRAINT pgmigrations_pkey PRIMARY KEY (id)
@@ -1426,7 +1349,6 @@ CREATE TABLE public.pgmigrations (
 
 ALTER TABLE public.pgmigrations OWNER TO postgres;
 GRANT ALL ON TABLE public.pgmigrations TO postgres;
-GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.pgmigrations TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.pgmigrations TO sira_prod_user;
 
 
@@ -1437,7 +1359,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.pgmigrations TO sira_prod_u
 -- DROP TABLE public.proveedores;
 
 CREATE TABLE public.proveedores (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('proveedores_id_seq'::regclass) NOT NULL,
 	marca varchar(100) NOT NULL,
 	razon_social varchar(150) NOT NULL,
 	rfc varchar(20) NOT NULL,
@@ -1474,7 +1396,6 @@ update
 
 ALTER TABLE public.proveedores OWNER TO postgres;
 GRANT ALL ON TABLE public.proveedores TO postgres;
-GRANT ALL ON TABLE public.proveedores TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.proveedores TO sira_prod_user;
 
 
@@ -1485,7 +1406,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.proveedores TO sira_prod_us
 -- DROP TABLE public.puestos;
 
 CREATE TABLE public.puestos (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('puestos_id_seq'::regclass) NOT NULL,
 	nombre_puesto varchar(100) NOT NULL,
 	creado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	actualizado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -1513,7 +1434,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.puestos TO sira_prod_user;
 -- DROP TABLE public.roles;
 
 CREATE TABLE public.roles (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('roles_id_seq'::regclass) NOT NULL,
 	codigo varchar(30) NOT NULL,
 	nombre varchar(100) NOT NULL,
 	creado_en timestamptz DEFAULT now() NULL,
@@ -1533,7 +1454,6 @@ update
 
 ALTER TABLE public.roles OWNER TO postgres;
 GRANT ALL ON TABLE public.roles TO postgres;
-GRANT ALL ON TABLE public.roles TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.roles TO sira_prod_user;
 
 
@@ -1544,7 +1464,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.roles TO sira_prod_user;
 -- DROP TABLE public.status_trabajador;
 
 CREATE TABLE public.status_trabajador (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('status_trabajador_id_seq'::regclass) NOT NULL,
 	nombre_status varchar(50) NOT NULL,
 	creado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	actualizado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -1572,7 +1492,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.status_trabajador TO sira_p
 -- DROP TABLE public.ubicaciones_almacen;
 
 CREATE TABLE public.ubicaciones_almacen (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('ubicaciones_almacen_id_seq'::regclass) NOT NULL,
 	nombre varchar(100) NOT NULL,
 	codigo varchar(20) NOT NULL,
 	descripcion text NULL,
@@ -1596,7 +1516,6 @@ update
 
 ALTER TABLE public.ubicaciones_almacen OWNER TO postgres;
 GRANT ALL ON TABLE public.ubicaciones_almacen TO postgres;
-GRANT ALL ON TABLE public.ubicaciones_almacen TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ubicaciones_almacen TO sira_prod_user;
 
 
@@ -1607,7 +1526,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ubicaciones_almacen TO sira
 -- DROP TABLE public.unidades_evento_tipos;
 
 CREATE TABLE public.unidades_evento_tipos (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('unidades_evento_tipos_id_seq'::regclass) NOT NULL,
 	codigo varchar(50) NOT NULL,
 	nombre varchar(100) NOT NULL,
 	descripcion text NULL,
@@ -1635,7 +1554,6 @@ COMMENT ON COLUMN public.unidades_evento_tipos.material_sku IS 'SKU del catálog
 
 ALTER TABLE public.unidades_evento_tipos OWNER TO postgres;
 GRANT ALL ON TABLE public.unidades_evento_tipos TO postgres;
-GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.unidades_evento_tipos TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.unidades_evento_tipos TO sira_prod_user;
 
 
@@ -1646,7 +1564,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.unidades_evento_tipos TO si
 -- DROP TABLE public.catalogo_materiales;
 
 CREATE TABLE public.catalogo_materiales (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('catalogo_materiales_id_seq'::regclass) NOT NULL,
 	tipo varchar(50) NOT NULL,
 	categoria varchar(50) NOT NULL,
 	detalle varchar(50) NOT NULL,
@@ -1676,7 +1594,6 @@ update
 
 ALTER TABLE public.catalogo_materiales OWNER TO postgres;
 GRANT ALL ON TABLE public.catalogo_materiales TO postgres;
-GRANT ALL ON TABLE public.catalogo_materiales TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_materiales TO sira_prod_user;
 
 
@@ -1722,7 +1639,7 @@ GRANT ALL ON TABLE public.departamentos_acceso_unidades TO sira_stg_user;
 -- DROP TABLE public.empleados;
 
 CREATE TABLE public.empleados (
-	id serial4 NOT NULL, -- Identificador único autoincremental del empleado
+	id varchar STORAGE PLAIN DEFAULT nextval('empleados_id_seq'::regclass) NOT NULL, -- Identificador único autoincremental del empleado
 	num_empl varchar(50) NOT NULL, -- Número de empleado único por empresa
 	empleado varchar(255) NOT NULL, -- Nombre completo del empleado
 	fecha_ingreso date NOT NULL, -- Fecha de ingreso a la empresa
@@ -1742,8 +1659,8 @@ CREATE TABLE public.empleados (
 	CONSTRAINT chk_edad_minima CHECK ((fecha_nacimiento <= (CURRENT_DATE - '18 years'::interval))),
 	CONSTRAINT chk_fecha_ingreso_valida CHECK ((fecha_ingreso <= CURRENT_DATE)),
 	CONSTRAINT chk_fecha_nacimiento_valida CHECK ((fecha_nacimiento <= CURRENT_DATE)),
-	CONSTRAINT chk_genero_valido CHECK (((genero)::text = ANY ((ARRAY['MASCULINO'::character varying, 'FEMENINO'::character varying, 'OTRO'::character varying, 'NO ESPECIFICADO'::character varying])::text[]))),
-	CONSTRAINT chk_status_laboral_valido CHECK (((status_laboral)::text = ANY ((ARRAY['activo'::character varying, 'inactivo'::character varying, 'vacaciones'::character varying, 'licencia'::character varying, 'baja'::character varying])::text[]))),
+	CONSTRAINT chk_genero_valido CHECK (((genero)::text = ANY (ARRAY[('MASCULINO'::character varying)::text, ('FEMENINO'::character varying)::text, ('OTRO'::character varying)::text, ('NO ESPECIFICADO'::character varying)::text]))),
+	CONSTRAINT chk_status_laboral_valido CHECK (((status_laboral)::text = ANY (ARRAY[('activo'::character varying)::text, ('inactivo'::character varying)::text, ('vacaciones'::character varying)::text, ('licencia'::character varying)::text, ('baja'::character varying)::text]))),
 	CONSTRAINT empleados_años_check CHECK ((("años" >= 0) AND ("años" <= 100))),
 	CONSTRAINT empleados_curp_key UNIQUE (curp),
 	CONSTRAINT empleados_nss_key UNIQUE (nss),
@@ -1791,7 +1708,6 @@ COMMENT ON COLUMN public.empleados.updated_at IS 'Fecha y hora de última actual
 ALTER TABLE public.empleados OWNER TO postgres;
 GRANT ALL ON TABLE public.empleados TO postgres;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.empleados TO sira_prod_user;
-GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.empleados TO sira_stg_user;
 
 
 -- public.inventario_actual definition
@@ -1801,7 +1717,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.empleados TO sira_stg_user;
 -- DROP TABLE public.inventario_actual;
 
 CREATE TABLE public.inventario_actual (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('inventario_actual_id_seq'::regclass) NOT NULL,
 	material_id int4 NOT NULL,
 	ubicacion_id int4 NOT NULL,
 	stock_actual numeric(12, 2) DEFAULT 0 NOT NULL,
@@ -1839,7 +1755,6 @@ update
 
 ALTER TABLE public.inventario_actual OWNER TO postgres;
 GRANT ALL ON TABLE public.inventario_actual TO postgres;
-GRANT ALL ON TABLE public.inventario_actual TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.inventario_actual TO sira_prod_user;
 
 
@@ -1861,7 +1776,6 @@ CREATE TABLE public.rol_funcion (
 
 ALTER TABLE public.rol_funcion OWNER TO postgres;
 GRANT ALL ON TABLE public.rol_funcion TO postgres;
-GRANT ALL ON TABLE public.rol_funcion TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.rol_funcion TO sira_prod_user;
 
 
@@ -1872,7 +1786,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.rol_funcion TO sira_prod_us
 -- DROP TABLE public.sitios;
 
 CREATE TABLE public.sitios (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('sitios_id_seq'::regclass) NOT NULL,
 	nombre varchar(200) NOT NULL,
 	cliente int4 NOT NULL,
 	ubicacion varchar(200) NOT NULL,
@@ -1900,7 +1814,6 @@ update
 
 ALTER TABLE public.sitios OWNER TO postgres;
 GRANT ALL ON TABLE public.sitios TO postgres;
-GRANT ALL ON TABLE public.sitios TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.sitios TO sira_prod_user;
 
 
@@ -1911,7 +1824,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.sitios TO sira_prod_user;
 -- DROP TABLE public.usuarios;
 
 CREATE TABLE public.usuarios (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('usuarios_id_seq'::regclass) NOT NULL,
 	nombre varchar(100) NOT NULL,
 	correo varchar(150) NOT NULL,
 	whatsapp varchar(20) NULL,
@@ -1941,7 +1854,6 @@ update
 
 ALTER TABLE public.usuarios OWNER TO postgres;
 GRANT ALL ON TABLE public.usuarios TO postgres;
-GRANT ALL ON TABLE public.usuarios TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.usuarios TO sira_prod_user;
 
 
@@ -1974,7 +1886,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.usuarios_ui_preferencias TO
 -- DROP TABLE public.vacaciones;
 
 CREATE TABLE public.vacaciones (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('vacaciones_id_seq'::regclass) NOT NULL,
 	empleado_id int4 NOT NULL,
 	fecha_solicitud timestamp DEFAULT CURRENT_TIMESTAMP NULL,
 	fecha_inicio date NOT NULL,
@@ -2020,7 +1932,6 @@ COMMENT ON TABLE public.notificacion_grupo_usuarios IS 'Tabla intermedia para la
 
 ALTER TABLE public.notificacion_grupo_usuarios OWNER TO postgres;
 GRANT ALL ON TABLE public.notificacion_grupo_usuarios TO postgres;
-GRANT ALL ON TABLE public.notificacion_grupo_usuarios TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.notificacion_grupo_usuarios TO sira_prod_user;
 
 
@@ -2031,7 +1942,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.notificacion_grupo_usuarios
 -- DROP TABLE public.ordenes_compra_extraordinarias;
 
 CREATE TABLE public.ordenes_compra_extraordinarias (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('ordenes_compra_extraordinarias_id_seq'::regclass) NOT NULL,
 	codigo varchar(32) NOT NULL,
 	usuario_id int4 NOT NULL,
 	status varchar(30) DEFAULT 'BORRADOR'::character varying NOT NULL, -- BORRADOR | EN_REVISION | APROBADA | RECHAZADA
@@ -2058,7 +1969,6 @@ COMMENT ON COLUMN public.ordenes_compra_extraordinarias.status IS 'BORRADOR | EN
 ALTER TABLE public.ordenes_compra_extraordinarias OWNER TO postgres;
 GRANT ALL ON TABLE public.ordenes_compra_extraordinarias TO postgres;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra_extraordinarias TO sira_prod_user;
-GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra_extraordinarias TO sira_stg_user;
 
 
 -- public.proyectos definition
@@ -2068,7 +1978,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra_extraordinar
 -- DROP TABLE public.proyectos;
 
 CREATE TABLE public.proyectos (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('proyectos_id_seq'::regclass) NOT NULL,
 	nombre varchar(100) NOT NULL,
 	descripcion varchar(400) NOT NULL,
 	responsable_id int4 NOT NULL,
@@ -2118,7 +2028,6 @@ update
 
 ALTER TABLE public.proyectos OWNER TO postgres;
 GRANT ALL ON TABLE public.proyectos TO postgres;
-GRANT ALL ON TABLE public.proyectos TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.proyectos TO sira_prod_user;
 
 
@@ -2129,7 +2038,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.proyectos TO sira_prod_user
 -- DROP TABLE public.proyectos_hitos;
 
 CREATE TABLE public.proyectos_hitos (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('proyectos_hitos_id_seq'::regclass) NOT NULL,
 	proyecto_id int4 NOT NULL,
 	nombre varchar(150) NOT NULL,
 	descripcion text NULL,
@@ -2137,10 +2046,13 @@ CREATE TABLE public.proyectos_hitos (
 	fecha_realizacion date NULL,
 	creado_en timestamptz DEFAULT now() NOT NULL,
 	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	responsable_id int4 NULL,
 	CONSTRAINT proyectos_hitos_pkey PRIMARY KEY (id),
-	CONSTRAINT proyectos_hitos_proyecto_id_fkey FOREIGN KEY (proyecto_id) REFERENCES public.proyectos(id) ON DELETE CASCADE
+	CONSTRAINT proyectos_hitos_proyecto_id_fkey FOREIGN KEY (proyecto_id) REFERENCES public.proyectos(id) ON DELETE CASCADE,
+	CONSTRAINT proyectos_hitos_responsable_id_fkey FOREIGN KEY (responsable_id) REFERENCES public.usuarios(id) ON DELETE SET NULL
 );
 CREATE INDEX idx_proyectos_hitos_proyecto_id ON public.proyectos_hitos USING btree (proyecto_id);
+CREATE INDEX idx_proyectos_hitos_responsable_id ON public.proyectos_hitos USING btree (responsable_id);
 CREATE INDEX idx_proyectos_hitos_target_date ON public.proyectos_hitos USING btree (target_date);
 
 -- Table Triggers
@@ -2158,69 +2070,6 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.proyectos_hitos TO sira_pro
 GRANT ALL ON TABLE public.proyectos_hitos TO sira_stg_user;
 
 
--- public.proyectos_hitos_comentarios definition
-
--- Drop table
-
--- DROP TABLE public.proyectos_hitos_comentarios;
-
-CREATE TABLE public.proyectos_hitos_comentarios (
-	id bigserial NOT NULL,
-	hito_id int4 NOT NULL,
-	usuario_id int4 NULL,
-	parent_id int8 NULL,
-	comentario text NOT NULL,
-	status public.proyectos_hito_comentario_status DEFAULT 'PENDIENTE'::proyectos_hito_comentario_status NOT NULL,
-	creado_en timestamptz DEFAULT now() NOT NULL,
-	actualizado_en timestamptz DEFAULT now() NOT NULL,
-	CONSTRAINT proyectos_hitos_comentarios_pkey PRIMARY KEY (id),
-	CONSTRAINT proyectos_hitos_comentarios_hito_id_fkey FOREIGN KEY (hito_id) REFERENCES public.proyectos_hitos(id) ON DELETE CASCADE,
-	CONSTRAINT proyectos_hitos_comentarios_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.proyectos_hitos_comentarios(id) ON DELETE SET NULL,
-	CONSTRAINT proyectos_hitos_comentarios_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE SET NULL
-);
-CREATE INDEX idx_proyectos_hitos_comentarios_hito_id_creado_en ON public.proyectos_hitos_comentarios USING btree (hito_id, creado_en);
-CREATE INDEX idx_proyectos_hitos_comentarios_hito_id_status ON public.proyectos_hitos_comentarios USING btree (hito_id, status);
-CREATE INDEX idx_proyectos_hitos_comentarios_parent_id ON public.proyectos_hitos_comentarios USING btree (parent_id);
-
--- Table Triggers
-
-create trigger trg_proyectos_hitos_comentarios_update before
-update
-    on
-    public.proyectos_hitos_comentarios for each row execute function update_timestamp();
-
--- Permissions
-
-ALTER TABLE public.proyectos_hitos_comentarios OWNER TO postgres;
-GRANT ALL ON TABLE public.proyectos_hitos_comentarios TO postgres;
-GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.proyectos_hitos_comentarios TO sira_prod_user;
-GRANT ALL ON TABLE public.proyectos_hitos_comentarios TO sira_stg_user;
-
-
--- public.proyectos_hitos_responsables definition
-
--- Drop table
-
--- DROP TABLE public.proyectos_hitos_responsables;
-
-CREATE TABLE public.proyectos_hitos_responsables (
-	hito_id int4 NOT NULL,
-	usuario_id int4 NOT NULL,
-	creado_en timestamptz DEFAULT now() NOT NULL,
-	CONSTRAINT proyectos_hitos_responsables_pkey PRIMARY KEY (hito_id, usuario_id),
-	CONSTRAINT proyectos_hitos_responsables_hito_id_fkey FOREIGN KEY (hito_id) REFERENCES public.proyectos_hitos(id) ON DELETE CASCADE,
-	CONSTRAINT proyectos_hitos_responsables_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE CASCADE
-);
-CREATE INDEX idx_proyectos_hitos_responsables_usuario_id ON public.proyectos_hitos_responsables USING btree (usuario_id);
-
--- Permissions
-
-ALTER TABLE public.proyectos_hitos_responsables OWNER TO postgres;
-GRANT ALL ON TABLE public.proyectos_hitos_responsables TO postgres;
-GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.proyectos_hitos_responsables TO sira_prod_user;
-GRANT ALL ON TABLE public.proyectos_hitos_responsables TO sira_stg_user;
-
-
 -- public.requisiciones definition
 
 -- Drop table
@@ -2228,7 +2077,7 @@ GRANT ALL ON TABLE public.proyectos_hitos_responsables TO sira_stg_user;
 -- DROP TABLE public.requisiciones;
 
 CREATE TABLE public.requisiciones (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('requisiciones_id_seq'::regclass) NOT NULL,
 	numero_requisicion varchar(50) NOT NULL,
 	usuario_id int4 NOT NULL,
 	departamento_id int4 NOT NULL,
@@ -2258,20 +2107,19 @@ CREATE INDEX idx_req_usuario_id ON public.requisiciones USING btree (usuario_id)
 
 -- Table Triggers
 
-create trigger trg_requisiciones_update before
-update
-    on
-    public.requisiciones for each row execute function update_timestamp();
 create trigger trg_generar_numero_requisicion before
 insert
     on
     public.requisiciones for each row execute function f_generar_numero_requisicion();
+create trigger trg_requisiciones_update before
+update
+    on
+    public.requisiciones for each row execute function update_timestamp();
 
 -- Permissions
 
 ALTER TABLE public.requisiciones OWNER TO postgres;
 GRANT ALL ON TABLE public.requisiciones TO postgres;
-GRANT ALL ON TABLE public.requisiciones TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones TO sira_prod_user;
 
 
@@ -2282,7 +2130,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones TO sira_prod_
 -- DROP TABLE public.requisiciones_adjuntos;
 
 CREATE TABLE public.requisiciones_adjuntos (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('requisiciones_adjuntos_id_seq'::regclass) NOT NULL,
 	requisicion_id int4 NOT NULL,
 	nombre_archivo varchar(255) NOT NULL,
 	ruta_archivo text NOT NULL,
@@ -2295,7 +2143,6 @@ CREATE TABLE public.requisiciones_adjuntos (
 
 ALTER TABLE public.requisiciones_adjuntos OWNER TO postgres;
 GRANT ALL ON TABLE public.requisiciones_adjuntos TO postgres;
-GRANT ALL ON TABLE public.requisiciones_adjuntos TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones_adjuntos TO sira_prod_user;
 
 
@@ -2306,7 +2153,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones_adjuntos TO s
 -- DROP TABLE public.requisiciones_borradores;
 
 CREATE TABLE public.requisiciones_borradores (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('requisiciones_borradores_id_seq'::regclass) NOT NULL,
 	usuario_id int4 NOT NULL,
 	"data" jsonb NOT NULL,
 	actualizado_en timestamptz DEFAULT now() NOT NULL,
@@ -2320,7 +2167,6 @@ CREATE INDEX idx_borradores_usuario ON public.requisiciones_borradores USING btr
 
 ALTER TABLE public.requisiciones_borradores OWNER TO postgres;
 GRANT ALL ON TABLE public.requisiciones_borradores TO postgres;
-GRANT ALL ON TABLE public.requisiciones_borradores TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones_borradores TO sira_prod_user;
 
 
@@ -2331,7 +2177,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones_borradores TO
 -- DROP TABLE public.requisiciones_detalle;
 
 CREATE TABLE public.requisiciones_detalle (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('requisiciones_detalle_id_seq'::regclass) NOT NULL,
 	requisicion_id int4 NOT NULL,
 	material_id int4 NOT NULL,
 	cantidad numeric(7, 2) NOT NULL,
@@ -2369,7 +2215,6 @@ update
 
 ALTER TABLE public.requisiciones_detalle OWNER TO postgres;
 GRANT ALL ON TABLE public.requisiciones_detalle TO postgres;
-GRANT ALL ON TABLE public.requisiciones_detalle TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones_detalle TO sira_prod_user;
 
 
@@ -2380,7 +2225,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones_detalle TO si
 -- DROP TABLE public.requisiciones_opciones;
 
 CREATE TABLE public.requisiciones_opciones (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('requisiciones_opciones_id_seq'::regclass) NOT NULL,
 	requisicion_id int4 NOT NULL,
 	requisicion_detalle_id int4 NOT NULL,
 	proveedor_id int4 NOT NULL,
@@ -2445,7 +2290,6 @@ update
 
 ALTER TABLE public.requisiciones_opciones OWNER TO postgres;
 GRANT ALL ON TABLE public.requisiciones_opciones TO postgres;
-GRANT ALL ON TABLE public.requisiciones_opciones TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones_opciones TO sira_prod_user;
 
 
@@ -2477,7 +2321,6 @@ update
 ALTER TABLE public.rfq_borradores OWNER TO postgres;
 GRANT ALL ON TABLE public.rfq_borradores TO postgres;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.rfq_borradores TO sira_prod_user;
-GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.rfq_borradores TO sira_stg_user;
 
 
 -- public.rfq_proveedor_adjuntos definition
@@ -2487,7 +2330,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.rfq_borradores TO sira_stg_
 -- DROP TABLE public.rfq_proveedor_adjuntos;
 
 CREATE TABLE public.rfq_proveedor_adjuntos (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('rfq_proveedor_adjuntos_id_seq'::regclass) NOT NULL,
 	requisicion_id int4 NOT NULL,
 	proveedor_id int4 NOT NULL,
 	nombre_archivo varchar(255) NOT NULL,
@@ -2503,7 +2346,6 @@ COMMENT ON TABLE public.rfq_proveedor_adjuntos IS 'Almacena los archivos de coti
 
 ALTER TABLE public.rfq_proveedor_adjuntos OWNER TO postgres;
 GRANT ALL ON TABLE public.rfq_proveedor_adjuntos TO postgres;
-GRANT ALL ON TABLE public.rfq_proveedor_adjuntos TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.rfq_proveedor_adjuntos TO sira_prod_user;
 
 
@@ -2514,7 +2356,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.rfq_proveedor_adjuntos TO s
 -- DROP TABLE public.salidas_almacen;
 
 CREATE TABLE public.salidas_almacen (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('salidas_almacen_id_seq'::regclass) NOT NULL,
 	fecha timestamptz DEFAULT now() NOT NULL,
 	tipo_retiro varchar(20) NOT NULL,
 	usuario_id int4 NOT NULL,
@@ -2558,7 +2400,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.salidas_almacen TO sira_pro
 -- DROP TABLE public.unidades;
 
 CREATE TABLE public.unidades (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('unidades_id_seq'::regclass) NOT NULL,
 	marca varchar(100) NOT NULL,
 	unidad varchar(100) NOT NULL,
 	serie varchar(100) NOT NULL,
@@ -2586,26 +2428,25 @@ CREATE INDEX idx_unidades_serie ON public.unidades USING btree (serie);
 
 -- Table Triggers
 
-create trigger trg_unidades_update before
-update
+create trigger tg_sync_unidad_delete after
+delete
     on
-    public.unidades for each row execute function update_timestamp();
+    public.unidades for each row execute function f_sync_unidad_a_proyecto();
 create trigger tg_sync_unidad_insert_update after
 insert
     or
 update
     on
     public.unidades for each row execute function f_sync_unidad_a_proyecto();
-create trigger tg_sync_unidad_delete after
-delete
+create trigger trg_unidades_update before
+update
     on
-    public.unidades for each row execute function f_sync_unidad_a_proyecto();
+    public.unidades for each row execute function update_timestamp();
 
 -- Permissions
 
 ALTER TABLE public.unidades OWNER TO postgres;
 GRANT ALL ON TABLE public.unidades TO postgres;
-GRANT ALL ON TABLE public.unidades TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.unidades TO sira_prod_user;
 
 
@@ -2616,7 +2457,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.unidades TO sira_prod_user;
 -- DROP TABLE public.budget;
 
 CREATE TABLE public.budget (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('budget_id_seq'::regclass) NOT NULL,
 	proyecto_id int4 NOT NULL,
 	responsable_id int4 NOT NULL,
 	monto_asignado numeric(14, 4) NOT NULL,
@@ -2646,7 +2487,6 @@ update
 
 ALTER TABLE public.budget OWNER TO postgres;
 GRANT ALL ON TABLE public.budget TO postgres;
-GRANT ALL ON TABLE public.budget TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.budget TO sira_prod_user;
 
 
@@ -2657,7 +2497,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.budget TO sira_prod_user;
 -- DROP TABLE public.inventario_asignado;
 
 CREATE TABLE public.inventario_asignado (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('inventario_asignado_id_seq'::regclass) NOT NULL,
 	inventario_id int4 NOT NULL,
 	requisicion_id int4 NULL,
 	proyecto_id int4 NOT NULL,
@@ -2683,7 +2523,6 @@ COMMENT ON COLUMN public.inventario_asignado.moneda IS 'Moneda del valor_unitari
 
 ALTER TABLE public.inventario_asignado OWNER TO postgres;
 GRANT ALL ON TABLE public.inventario_asignado TO postgres;
-GRANT ALL ON TABLE public.inventario_asignado TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.inventario_asignado TO sira_prod_user;
 
 
@@ -2694,10 +2533,10 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.inventario_asignado TO sira
 -- DROP TABLE public.ordenes_compra;
 
 CREATE TABLE public.ordenes_compra (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('ordenes_compra_id_seq'::regclass) NOT NULL,
 	numero_oc varchar(20) NOT NULL,
 	usuario_id int4 NOT NULL,
-	rfq_id int4 NULL,
+	rfq_id int4 NOT NULL,
 	sitio_id int4 NOT NULL,
 	proyecto_id int4 NOT NULL,
 	fecha_creacion timestamptz DEFAULT now() NOT NULL,
@@ -2781,7 +2620,6 @@ update
 
 ALTER TABLE public.ordenes_compra OWNER TO postgres;
 GRANT ALL ON TABLE public.ordenes_compra TO postgres;
-GRANT ALL ON TABLE public.ordenes_compra TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra TO sira_prod_user;
 
 
@@ -2792,7 +2630,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra TO sira_prod
 -- DROP TABLE public.ordenes_compra_detalle;
 
 CREATE TABLE public.ordenes_compra_detalle (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('ordenes_compra_detalle_id_seq'::regclass) NOT NULL,
 	orden_compra_id int4 NOT NULL,
 	requisicion_detalle_id int4 NOT NULL,
 	comparativa_precio_id int4 NOT NULL,
@@ -2847,7 +2685,6 @@ delete
 
 ALTER TABLE public.ordenes_compra_detalle OWNER TO postgres;
 GRANT ALL ON TABLE public.ordenes_compra_detalle TO postgres;
-GRANT ALL ON TABLE public.ordenes_compra_detalle TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra_detalle TO sira_prod_user;
 
 
@@ -2858,7 +2695,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra_detalle TO s
 -- DROP TABLE public.ordenes_compra_historial;
 
 CREATE TABLE public.ordenes_compra_historial (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('ordenes_compra_historial_id_seq'::regclass) NOT NULL,
 	orden_compra_id int4 NOT NULL,
 	usuario_id int4 NULL,
 	accion_realizada varchar(255) NOT NULL,
@@ -2874,7 +2711,6 @@ CREATE INDEX idx_historial_orden_compra_id ON public.ordenes_compra_historial US
 
 ALTER TABLE public.ordenes_compra_historial OWNER TO postgres;
 GRANT ALL ON TABLE public.ordenes_compra_historial TO postgres;
-GRANT ALL ON TABLE public.ordenes_compra_historial TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra_historial TO sira_prod_user;
 
 
@@ -2885,7 +2721,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra_historial TO
 -- DROP TABLE public.pagos_oc;
 
 CREATE TABLE public.pagos_oc (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('pagos_oc_id_seq'::regclass) NOT NULL,
 	orden_compra_id int4 NOT NULL,
 	fecha_pago timestamptz DEFAULT now() NOT NULL,
 	monto numeric(14, 4) NOT NULL, -- Monto pagado en esta transacción.
@@ -2918,12 +2754,6 @@ COMMENT ON COLUMN public.pagos_oc.comprobante_link IS 'URL al comprobante en Goo
 
 -- Table Triggers
 
-create trigger trg_update_liquidacion_oc after
-insert
-    or
-update
-    on
-    public.pagos_oc for each row execute function f_actualizar_liquidacion_oc();
 create trigger trg_recalc_monto_pagado after
 insert
     or
@@ -2932,6 +2762,12 @@ delete
 update
     on
     public.pagos_oc for each row execute function f_recalcular_monto_pagado_oc();
+create trigger trg_update_liquidacion_oc after
+insert
+    or
+update
+    on
+    public.pagos_oc for each row execute function f_actualizar_liquidacion_oc();
 create trigger trg_actualizar_liquidacion_oc after
 insert
     or
@@ -2945,7 +2781,6 @@ update
 
 ALTER TABLE public.pagos_oc OWNER TO postgres;
 GRANT ALL ON TABLE public.pagos_oc TO postgres;
-GRANT ALL ON TABLE public.pagos_oc TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.pagos_oc TO sira_prod_user;
 
 
@@ -2956,7 +2791,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.pagos_oc TO sira_prod_user;
 -- DROP TABLE public.recepciones_oc;
 
 CREATE TABLE public.recepciones_oc (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('recepciones_oc_id_seq'::regclass) NOT NULL,
 	orden_compra_id int4 NOT NULL,
 	requisicion_detalle_id int4 NOT NULL,
 	material_id int4 NOT NULL,
@@ -2977,7 +2812,6 @@ CREATE TABLE public.recepciones_oc (
 
 ALTER TABLE public.recepciones_oc OWNER TO postgres;
 GRANT ALL ON TABLE public.recepciones_oc TO postgres;
-GRANT ALL ON TABLE public.recepciones_oc TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.recepciones_oc TO sira_prod_user;
 
 
@@ -2988,7 +2822,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.recepciones_oc TO sira_prod
 -- DROP TABLE public.salidas_almacen_items;
 
 CREATE TABLE public.salidas_almacen_items (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('salidas_almacen_items_id_seq'::regclass) NOT NULL,
 	salida_almacen_id int4 NOT NULL,
 	material_id int4 NOT NULL,
 	ubicacion_id int4 NULL,
@@ -3019,7 +2853,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.salidas_almacen_items TO si
 -- DROP TABLE public.unidades_historial;
 
 CREATE TABLE public.unidades_historial (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('unidades_historial_id_seq'::regclass) NOT NULL,
 	unidad_id int4 NOT NULL,
 	fecha timestamptz DEFAULT now() NOT NULL,
 	kilometraje int4 NOT NULL,
@@ -3057,7 +2891,6 @@ COMMENT ON COLUMN public.unidades_historial.alerta_cerrada_en IS 'Timestamp en q
 
 ALTER TABLE public.unidades_historial OWNER TO postgres;
 GRANT ALL ON TABLE public.unidades_historial TO postgres;
-GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.unidades_historial TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.unidades_historial TO sira_prod_user;
 
 
@@ -3068,7 +2901,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.unidades_historial TO sira_
 -- DROP TABLE public.archivos_recoleccion_oc;
 
 CREATE TABLE public.archivos_recoleccion_oc (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('archivos_recoleccion_oc_id_seq'::regclass) NOT NULL,
 	orden_compra_id int4 NOT NULL,
 	archivo_link text NOT NULL, -- Link al archivo en Google Drive
 	tipo varchar(50) NULL, -- Tipo de archivo para categorización
@@ -3087,7 +2920,6 @@ COMMENT ON COLUMN public.archivos_recoleccion_oc.tipo IS 'Tipo de archivo para c
 
 ALTER TABLE public.archivos_recoleccion_oc OWNER TO postgres;
 GRANT ALL ON TABLE public.archivos_recoleccion_oc TO postgres;
-GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.archivos_recoleccion_oc TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.archivos_recoleccion_oc TO sira_prod_user;
 
 
@@ -3098,7 +2930,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.archivos_recoleccion_oc TO 
 -- DROP TABLE public.historial_kpi_tiempos_entrega;
 
 CREATE TABLE public.historial_kpi_tiempos_entrega (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('historial_kpi_tiempos_entrega_id_seq'::regclass) NOT NULL,
 	orden_compra_id int4 NOT NULL,
 	fecha_entrada_proceso timestamptz NOT NULL, -- Momento en que la OC pasó a EN_PROCESO
 	fecha_entregada timestamptz DEFAULT now() NOT NULL, -- Momento en que la OC pasó a ENTREGADA
@@ -3123,7 +2955,6 @@ COMMENT ON COLUMN public.historial_kpi_tiempos_entrega.dias_transcurridos IS 'Di
 
 ALTER TABLE public.historial_kpi_tiempos_entrega OWNER TO postgres;
 GRANT ALL ON TABLE public.historial_kpi_tiempos_entrega TO postgres;
-GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.historial_kpi_tiempos_entrega TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.historial_kpi_tiempos_entrega TO sira_prod_user;
 
 
@@ -3134,7 +2965,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.historial_kpi_tiempos_entre
 -- DROP TABLE public.incidencias_recepcion_oc;
 
 CREATE TABLE public.incidencias_recepcion_oc (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('incidencias_recepcion_oc_id_seq'::regclass) NOT NULL,
 	orden_compra_id int4 NOT NULL,
 	incidencia_id int4 NOT NULL,
 	cantidad_afectada numeric(12, 2) NULL, -- Cantidad del material afectado (opcional, si aplica a un ítem)
@@ -3161,7 +2992,6 @@ COMMENT ON COLUMN public.incidencias_recepcion_oc.descripcion_problema IS 'Descr
 
 ALTER TABLE public.incidencias_recepcion_oc OWNER TO postgres;
 GRANT ALL ON TABLE public.incidencias_recepcion_oc TO postgres;
-GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.incidencias_recepcion_oc TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.incidencias_recepcion_oc TO sira_prod_user;
 
 
@@ -3172,7 +3002,7 @@ GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.incidencias_recepcion_oc TO
 -- DROP TABLE public.movimientos_inventario;
 
 CREATE TABLE public.movimientos_inventario (
-	id serial4 NOT NULL,
+	id varchar STORAGE PLAIN DEFAULT nextval('movimientos_inventario_id_seq'::regclass) NOT NULL,
 	fecha timestamptz DEFAULT now() NOT NULL,
 	material_id int4 NOT NULL,
 	tipo_movimiento public.tipo_movimiento_inventario NOT NULL,
@@ -3244,7 +3074,6 @@ update
 
 ALTER TABLE public.movimientos_inventario OWNER TO postgres;
 GRANT ALL ON TABLE public.movimientos_inventario TO postgres;
-GRANT ALL ON TABLE public.movimientos_inventario TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.movimientos_inventario TO sira_prod_user;
 
 
@@ -3270,7 +3099,6 @@ AS SELECT cm.id AS material_id,
 
 ALTER TABLE public.vw_asignaciones_por_sitio OWNER TO postgres;
 GRANT ALL ON TABLE public.vw_asignaciones_por_sitio TO postgres;
-GRANT ALL ON TABLE public.vw_asignaciones_por_sitio TO sira_stg_user;
 GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.vw_asignaciones_por_sitio TO sira_prod_user;
 
 
@@ -3291,7 +3119,9 @@ AS $function$
 -- Permissions
 
 ALTER FUNCTION public.actualizar_fecha_modificacion() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.actualizar_fecha_modificacion() TO public;
 GRANT ALL ON FUNCTION public.actualizar_fecha_modificacion() TO postgres;
+GRANT ALL ON FUNCTION public.actualizar_fecha_modificacion() TO sira_prod_user;
 
 -- DROP FUNCTION public.f_actualizar_liquidacion_oc();
 
@@ -3341,7 +3171,9 @@ AS $function$
 -- Permissions
 
 ALTER FUNCTION public.f_actualizar_liquidacion_oc() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.f_actualizar_liquidacion_oc() TO public;
 GRANT ALL ON FUNCTION public.f_actualizar_liquidacion_oc() TO postgres;
+GRANT ALL ON FUNCTION public.f_actualizar_liquidacion_oc() TO sira_prod_user;
 
 -- DROP FUNCTION public.f_calcular_valor_total_movimiento();
 
@@ -3364,7 +3196,9 @@ AS $function$
 -- Permissions
 
 ALTER FUNCTION public.f_calcular_valor_total_movimiento() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.f_calcular_valor_total_movimiento() TO public;
 GRANT ALL ON FUNCTION public.f_calcular_valor_total_movimiento() TO postgres;
+GRANT ALL ON FUNCTION public.f_calcular_valor_total_movimiento() TO sira_prod_user;
 
 -- DROP FUNCTION public.f_generar_numero_requisicion();
 
@@ -3410,7 +3244,9 @@ $function$
 -- Permissions
 
 ALTER FUNCTION public.f_generar_numero_requisicion() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.f_generar_numero_requisicion() TO public;
 GRANT ALL ON FUNCTION public.f_generar_numero_requisicion() TO postgres;
+GRANT ALL ON FUNCTION public.f_generar_numero_requisicion() TO sira_prod_user;
 
 -- DROP FUNCTION public.f_recalcular_monto_pagado_oc();
 
@@ -3437,7 +3273,9 @@ $function$
 -- Permissions
 
 ALTER FUNCTION public.f_recalcular_monto_pagado_oc() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.f_recalcular_monto_pagado_oc() TO public;
 GRANT ALL ON FUNCTION public.f_recalcular_monto_pagado_oc() TO postgres;
+GRANT ALL ON FUNCTION public.f_recalcular_monto_pagado_oc() TO sira_prod_user;
 
 -- DROP FUNCTION public.f_sync_unidad_a_proyecto();
 
@@ -3522,7 +3360,9 @@ AS $function$
 -- Permissions
 
 ALTER FUNCTION public.f_sync_unidad_a_proyecto() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.f_sync_unidad_a_proyecto() TO public;
 GRANT ALL ON FUNCTION public.f_sync_unidad_a_proyecto() TO postgres;
+GRANT ALL ON FUNCTION public.f_sync_unidad_a_proyecto() TO sira_prod_user;
 
 -- DROP FUNCTION public.f_verificar_cierre_oc_completa();
 
@@ -3613,7 +3453,9 @@ AS $function$
 -- Permissions
 
 ALTER FUNCTION public.f_verificar_cierre_oc_completa() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.f_verificar_cierre_oc_completa() TO public;
 GRANT ALL ON FUNCTION public.f_verificar_cierre_oc_completa() TO postgres;
+GRANT ALL ON FUNCTION public.f_verificar_cierre_oc_completa() TO sira_prod_user;
 
 -- DROP FUNCTION public.f_verificar_cierre_requisicion(int4);
 
@@ -3729,7 +3571,9 @@ AS $function$
 -- Permissions
 
 ALTER FUNCTION public.f_verificar_cierre_requisicion(int4) OWNER TO postgres;
+GRANT ALL ON FUNCTION public.f_verificar_cierre_requisicion(int4) TO public;
 GRANT ALL ON FUNCTION public.f_verificar_cierre_requisicion(int4) TO postgres;
+GRANT ALL ON FUNCTION public.f_verificar_cierre_requisicion(int4) TO sira_prod_user;
 
 -- DROP FUNCTION public.fn_dau_update_timestamp();
 
@@ -3742,7 +3586,9 @@ AS $function$BEGIN NEW.actualizado_en = now(); RETURN NEW; END;$function$
 -- Permissions
 
 ALTER FUNCTION public.fn_dau_update_timestamp() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.fn_dau_update_timestamp() TO public;
 GRANT ALL ON FUNCTION public.fn_dau_update_timestamp() TO postgres;
+GRANT ALL ON FUNCTION public.fn_dau_update_timestamp() TO sira_prod_user;
 
 -- DROP FUNCTION public.sync_cliente_en_proyecto();
 
@@ -3770,7 +3616,9 @@ $function$
 -- Permissions
 
 ALTER FUNCTION public.sync_cliente_en_proyecto() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.sync_cliente_en_proyecto() TO public;
 GRANT ALL ON FUNCTION public.sync_cliente_en_proyecto() TO postgres;
+GRANT ALL ON FUNCTION public.sync_cliente_en_proyecto() TO sira_prod_user;
 
 -- DROP FUNCTION public.trg_requisicion_cierre_desde_oc();
 
@@ -3789,7 +3637,9 @@ AS $function$
 -- Permissions
 
 ALTER FUNCTION public.trg_requisicion_cierre_desde_oc() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_oc() TO public;
 GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_oc() TO postgres;
+GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_oc() TO sira_prod_user;
 
 -- DROP FUNCTION public.trg_requisicion_cierre_desde_ocd();
 
@@ -3818,7 +3668,9 @@ AS $function$
 -- Permissions
 
 ALTER FUNCTION public.trg_requisicion_cierre_desde_ocd() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_ocd() TO public;
 GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_ocd() TO postgres;
+GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_ocd() TO sira_prod_user;
 
 -- DROP FUNCTION public.trg_requisicion_cierre_desde_opciones();
 
@@ -3843,21 +3695,9 @@ AS $function$
 -- Permissions
 
 ALTER FUNCTION public.trg_requisicion_cierre_desde_opciones() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_opciones() TO public;
 GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_opciones() TO postgres;
-
--- DROP FUNCTION public.unaccent(text);
-
-CREATE OR REPLACE FUNCTION public.unaccent(text)
- RETURNS text
- LANGUAGE c
- STABLE PARALLEL SAFE STRICT
-AS '$libdir/unaccent', $function$unaccent_dict$function$
-;
-
--- Permissions
-
-ALTER FUNCTION public.unaccent(text) OWNER TO postgres;
-GRANT ALL ON FUNCTION public.unaccent(text) TO postgres;
+GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_opciones() TO sira_prod_user;
 
 -- DROP FUNCTION public.unaccent(regdictionary, text);
 
@@ -3871,7 +3711,25 @@ AS '$libdir/unaccent', $function$unaccent_dict$function$
 -- Permissions
 
 ALTER FUNCTION public.unaccent(regdictionary, text) OWNER TO postgres;
+GRANT ALL ON FUNCTION public.unaccent(regdictionary, text) TO public;
 GRANT ALL ON FUNCTION public.unaccent(regdictionary, text) TO postgres;
+GRANT ALL ON FUNCTION public.unaccent(regdictionary, text) TO sira_prod_user;
+
+-- DROP FUNCTION public.unaccent(text);
+
+CREATE OR REPLACE FUNCTION public.unaccent(text)
+ RETURNS text
+ LANGUAGE c
+ STABLE PARALLEL SAFE STRICT
+AS '$libdir/unaccent', $function$unaccent_dict$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.unaccent(text) OWNER TO postgres;
+GRANT ALL ON FUNCTION public.unaccent(text) TO public;
+GRANT ALL ON FUNCTION public.unaccent(text) TO postgres;
+GRANT ALL ON FUNCTION public.unaccent(text) TO sira_prod_user;
 
 -- DROP FUNCTION public.unaccent_init(internal);
 
@@ -3885,7 +3743,9 @@ AS '$libdir/unaccent', $function$unaccent_init$function$
 -- Permissions
 
 ALTER FUNCTION public.unaccent_init(internal) OWNER TO postgres;
+GRANT ALL ON FUNCTION public.unaccent_init(internal) TO public;
 GRANT ALL ON FUNCTION public.unaccent_init(internal) TO postgres;
+GRANT ALL ON FUNCTION public.unaccent_init(internal) TO sira_prod_user;
 
 -- DROP FUNCTION public.unaccent_lexize(internal, internal, internal, internal);
 
@@ -3899,7 +3759,9 @@ AS '$libdir/unaccent', $function$unaccent_lexize$function$
 -- Permissions
 
 ALTER FUNCTION public.unaccent_lexize(internal, internal, internal, internal) OWNER TO postgres;
+GRANT ALL ON FUNCTION public.unaccent_lexize(internal, internal, internal, internal) TO public;
 GRANT ALL ON FUNCTION public.unaccent_lexize(internal, internal, internal, internal) TO postgres;
+GRANT ALL ON FUNCTION public.unaccent_lexize(internal, internal, internal, internal) TO sira_prod_user;
 
 -- DROP FUNCTION public.update_timestamp();
 
@@ -3917,7 +3779,9 @@ $function$
 -- Permissions
 
 ALTER FUNCTION public.update_timestamp() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.update_timestamp() TO public;
 GRANT ALL ON FUNCTION public.update_timestamp() TO postgres;
+GRANT ALL ON FUNCTION public.update_timestamp() TO sira_prod_user;
 
 -- DROP FUNCTION public.uuid_generate_v1();
 
@@ -3931,7 +3795,9 @@ AS '$libdir/uuid-ossp', $function$uuid_generate_v1$function$
 -- Permissions
 
 ALTER FUNCTION public.uuid_generate_v1() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v1() TO public;
 GRANT ALL ON FUNCTION public.uuid_generate_v1() TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v1() TO sira_prod_user;
 
 -- DROP FUNCTION public.uuid_generate_v1mc();
 
@@ -3945,7 +3811,9 @@ AS '$libdir/uuid-ossp', $function$uuid_generate_v1mc$function$
 -- Permissions
 
 ALTER FUNCTION public.uuid_generate_v1mc() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v1mc() TO public;
 GRANT ALL ON FUNCTION public.uuid_generate_v1mc() TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v1mc() TO sira_prod_user;
 
 -- DROP FUNCTION public.uuid_generate_v3(uuid, text);
 
@@ -3959,7 +3827,9 @@ AS '$libdir/uuid-ossp', $function$uuid_generate_v3$function$
 -- Permissions
 
 ALTER FUNCTION public.uuid_generate_v3(uuid, text) OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v3(uuid, text) TO public;
 GRANT ALL ON FUNCTION public.uuid_generate_v3(uuid, text) TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v3(uuid, text) TO sira_prod_user;
 
 -- DROP FUNCTION public.uuid_generate_v4();
 
@@ -3973,7 +3843,9 @@ AS '$libdir/uuid-ossp', $function$uuid_generate_v4$function$
 -- Permissions
 
 ALTER FUNCTION public.uuid_generate_v4() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v4() TO public;
 GRANT ALL ON FUNCTION public.uuid_generate_v4() TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v4() TO sira_prod_user;
 
 -- DROP FUNCTION public.uuid_generate_v5(uuid, text);
 
@@ -3987,7 +3859,9 @@ AS '$libdir/uuid-ossp', $function$uuid_generate_v5$function$
 -- Permissions
 
 ALTER FUNCTION public.uuid_generate_v5(uuid, text) OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v5(uuid, text) TO public;
 GRANT ALL ON FUNCTION public.uuid_generate_v5(uuid, text) TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v5(uuid, text) TO sira_prod_user;
 
 -- DROP FUNCTION public.uuid_nil();
 
@@ -4001,7 +3875,9 @@ AS '$libdir/uuid-ossp', $function$uuid_nil$function$
 -- Permissions
 
 ALTER FUNCTION public.uuid_nil() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_nil() TO public;
 GRANT ALL ON FUNCTION public.uuid_nil() TO postgres;
+GRANT ALL ON FUNCTION public.uuid_nil() TO sira_prod_user;
 
 -- DROP FUNCTION public.uuid_ns_dns();
 
@@ -4015,7 +3891,9 @@ AS '$libdir/uuid-ossp', $function$uuid_ns_dns$function$
 -- Permissions
 
 ALTER FUNCTION public.uuid_ns_dns() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_ns_dns() TO public;
 GRANT ALL ON FUNCTION public.uuid_ns_dns() TO postgres;
+GRANT ALL ON FUNCTION public.uuid_ns_dns() TO sira_prod_user;
 
 -- DROP FUNCTION public.uuid_ns_oid();
 
@@ -4029,7 +3907,9 @@ AS '$libdir/uuid-ossp', $function$uuid_ns_oid$function$
 -- Permissions
 
 ALTER FUNCTION public.uuid_ns_oid() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_ns_oid() TO public;
 GRANT ALL ON FUNCTION public.uuid_ns_oid() TO postgres;
+GRANT ALL ON FUNCTION public.uuid_ns_oid() TO sira_prod_user;
 
 -- DROP FUNCTION public.uuid_ns_url();
 
@@ -4043,7 +3923,9 @@ AS '$libdir/uuid-ossp', $function$uuid_ns_url$function$
 -- Permissions
 
 ALTER FUNCTION public.uuid_ns_url() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_ns_url() TO public;
 GRANT ALL ON FUNCTION public.uuid_ns_url() TO postgres;
+GRANT ALL ON FUNCTION public.uuid_ns_url() TO sira_prod_user;
 
 -- DROP FUNCTION public.uuid_ns_x500();
 
@@ -4057,15 +3939,16 @@ AS '$libdir/uuid-ossp', $function$uuid_ns_x500$function$
 -- Permissions
 
 ALTER FUNCTION public.uuid_ns_x500() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_ns_x500() TO public;
 GRANT ALL ON FUNCTION public.uuid_ns_x500() TO postgres;
+GRANT ALL ON FUNCTION public.uuid_ns_x500() TO sira_prod_user;
 
 
 -- Permissions
 
-GRANT ALL ON SCHEMA public TO pg_database_owner;
+GRANT ALL ON SCHEMA public TO postgres;
 GRANT USAGE ON SCHEMA public TO public;
-GRANT ALL ON SCHEMA public TO cloudsqlsuperuser;
 GRANT USAGE ON SCHEMA public TO sira_prod_user;
-GRANT USAGE ON SCHEMA public TO sira_stg_user;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT INSERT, DELETE, SELECT, UPDATE ON TABLES TO sira_prod_user;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO sira_prod_user;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO sira_prod_user;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO sira_prod_user;

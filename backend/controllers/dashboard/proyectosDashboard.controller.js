@@ -10,6 +10,7 @@
  */
 
 const pool = require('../../db/pool');
+const { sendEmailWithAttachments } = require('../../services/emailService');
 
 const ALLOWED_PROYECTO_STATUS = [
   'POR_APROBAR',
@@ -202,12 +203,31 @@ const getProyectoDetalle = async (req, res) => {
       WHERE p.id = $1
     `;
 
-    // 2. Milestones query
+    // 2. Milestones query — incluye responsables desde tabla puente
     const hitosQuery = `
-      SELECT *
-      FROM proyectos_hitos
-      WHERE proyecto_id = $1
-      ORDER BY target_date ASC NULLS LAST, id ASC
+      SELECT
+        ph.id,
+        ph.proyecto_id,
+        ph.nombre,
+        ph.descripcion,
+        ph.target_date,
+        ph.fecha_realizacion,
+        ph.creado_en,
+        ph.actualizado_en,
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT('id', u.id, 'nombre', u.nombre)
+            ORDER BY u.nombre
+          ) FILTER (WHERE u.id IS NOT NULL),
+          '[]'::json
+        ) AS responsables
+      FROM proyectos_hitos ph
+      LEFT JOIN proyectos_hitos_responsables phr ON phr.hito_id = ph.id
+      LEFT JOIN usuarios u ON u.id = phr.usuario_id
+      WHERE ph.proyecto_id = $1
+      GROUP BY ph.id, ph.proyecto_id, ph.nombre, ph.descripcion, ph.target_date,
+               ph.fecha_realizacion, ph.creado_en, ph.actualizado_en
+      ORDER BY ph.target_date ASC NULLS LAST, ph.id ASC
     `;
 
     // 3. Expenses by OC query
@@ -267,8 +287,224 @@ const getProyectoDetalle = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/dashboard/proyectos/:id/hitos
+ * Retorna los hitos de un proyecto con responsables y conteo de comentarios.
+ */
+const getHitosProyecto = async (req, res) => {
+  const { id } = req.params;
+  if (!id) {
+    return res.status(400).json({ error: 'Se requiere ID del proyecto.' });
+  }
+
+  try {
+    const hitosQuery = `
+      SELECT
+        ph.id,
+        ph.proyecto_id,
+        ph.nombre,
+        ph.descripcion,
+        ph.target_date,
+        ph.fecha_realizacion,
+        ph.creado_en,
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT('id', u.id, 'nombre', u.nombre)
+            ORDER BY u.nombre
+          ) FILTER (WHERE u.id IS NOT NULL),
+          '[]'::json
+        ) AS responsables,
+        (SELECT COUNT(*) FROM public.proyectos_hitos_comentarios c WHERE c.hito_id = ph.id) AS total_comentarios
+      FROM public.proyectos_hitos ph
+      LEFT JOIN public.proyectos_hitos_responsables phr ON phr.hito_id = ph.id
+      LEFT JOIN public.usuarios u ON u.id = phr.usuario_id
+      WHERE ph.proyecto_id = $1
+      GROUP BY ph.id, ph.proyecto_id, ph.nombre, ph.descripcion, ph.target_date,
+               ph.fecha_realizacion, ph.creado_en
+      ORDER BY ph.target_date ASC NULLS LAST, ph.id ASC;
+    `;
+
+    const { rows } = await pool.query(hitosQuery, [id]);
+
+    const today = new Date().toISOString().split('T')[0];
+    const hitos = rows.map((h) => {
+      const td = h.target_date ? (h.target_date.toISOString?.()?.split('T')[0] ?? h.target_date) : null;
+      let estado;
+      if (h.fecha_realizacion) {
+        estado = 'REALIZADO';
+      } else if (td && td < today) {
+        estado = 'VENCIDO';
+      } else {
+        estado = 'PENDIENTE';
+      }
+      return {
+        ...h,
+        target_date: td,
+        fecha_realizacion: h.fecha_realizacion
+          ? (h.fecha_realizacion.toISOString?.()?.split('T')[0] ?? h.fecha_realizacion)
+          : null,
+        estado,
+        total_comentarios: parseInt(h.total_comentarios, 10) || 0,
+      };
+    });
+
+    return res.json({ hitos });
+  } catch (error) {
+    console.error(`Error en getHitosProyecto (ID: ${id}):`, error);
+    return res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+};
+
+/**
+ * POST /api/dashboard/proyectos/:id/hitos
+ * Body: { nombre, descripcion?, target_date?, responsable_id? }
+ * Agrega un hito rápidamente a un proyecto existente.
+ */
+const agregarHitoProyecto = async (req, res) => {
+  const proyectoId = Number(req.params.id);
+  if (!Number.isInteger(proyectoId) || proyectoId <= 0) {
+    return res.status(400).json({ error: 'ID de proyecto inválido.' });
+  }
+
+  const nombre = (req.body?.nombre || '').trim();
+  if (!nombre) return res.status(400).json({ error: 'El nombre del hito es obligatorio.' });
+  if (nombre.length > 150) return res.status(400).json({ error: 'El nombre no puede exceder 150 caracteres.' });
+
+  const descripcion = (req.body?.descripcion || '').trim() || null;
+  const target_date = req.body?.target_date || null;
+
+  // Aceptar responsable_ids (array) o responsable_id (legado) como fallback
+  let responsable_ids = [];
+  if (Array.isArray(req.body?.responsable_ids)) {
+    responsable_ids = req.body.responsable_ids.map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  } else if (req.body?.responsable_id) {
+    const single = Number(req.body.responsable_id);
+    if (Number.isInteger(single) && single > 0) responsable_ids = [single];
+  }
+
+  if (target_date && !/^\d{4}-\d{2}-\d{2}$/.test(target_date)) {
+    return res.status(400).json({ error: 'Formato de fecha inválido. Usa YYYY-MM-DD.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const proyCheck = await client.query(
+      `SELECT id, nombre FROM public.proyectos WHERE id = $1 AND activo = true`,
+      [proyectoId]
+    );
+    if (proyCheck.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Proyecto no encontrado o inactivo.' });
+    }
+    const proyectoNombre = proyCheck.rows[0].nombre;
+
+    // Verificar y cargar datos de todos los responsables
+    const responsablesData = [];
+    for (const rId of responsable_ids) {
+      const respCheck = await client.query(
+        `SELECT id, nombre, correo FROM public.usuarios WHERE id = $1`,
+        [rId]
+      );
+      if (respCheck.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Responsable con ID ${rId} no encontrado.` });
+      }
+      responsablesData.push(respCheck.rows[0]);
+    }
+
+    const hitoRes = await client.query(
+      `INSERT INTO public.proyectos_hitos (proyecto_id, nombre, descripcion, target_date)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, proyecto_id, nombre, descripcion, target_date, fecha_realizacion, creado_en`,
+      [proyectoId, nombre, descripcion, target_date]
+    );
+    const hito = hitoRes.rows[0];
+
+    for (const rId of responsable_ids) {
+      await client.query(
+        `INSERT INTO public.proyectos_hitos_responsables (hito_id, usuario_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [hito.id, rId]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    // Enviar correo a cada responsable (sin bloquear la respuesta)
+    if (responsablesData.length > 0) {
+      const asignador = req.usuarioSira?.nombre || 'Un usuario de SIRA';
+      const fechaStr = hito.target_date
+        ? new Date(hito.target_date).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
+        : null;
+      const descripcionHtml = descripcion
+        ? `<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-weight:600;white-space:nowrap;">Descripción</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${descripcion}</td></tr>`
+        : '';
+      const fechaHtml = fechaStr
+        ? `<tr><td style="padding:8px 12px;color:#6b7280;font-weight:600;white-space:nowrap;">Fecha objetivo</td><td style="padding:8px 12px;">${fechaStr}</td></tr>`
+        : '';
+      const subject = `Nuevo hito asignado: ${nombre} — ${proyectoNombre}`;
+
+      for (const r of responsablesData) {
+        if (!r.correo) continue;
+        const htmlBody = `
+          <div style="font-family:Arial,sans-serif;font-size:14px;color:#111827;max-width:600px;">
+            <p>Estimado/a <strong>${r.nombre}</strong>,</p>
+            <p>Se le ha asignado un nuevo hito dentro del sistema <strong>SIRA</strong>.
+               A continuación se detallan los datos correspondientes:</p>
+            <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin:16px 0;">
+              <tr style="background:#f9fafb;">
+                <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-weight:600;white-space:nowrap;">Hito</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:700;">${nombre}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-weight:600;white-space:nowrap;">Proyecto</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${proyectoNombre}</td>
+              </tr>
+              ${descripcionHtml}
+              ${fechaHtml}
+              <tr style="background:#f9fafb;">
+                <td style="padding:8px 12px;color:#6b7280;font-weight:600;white-space:nowrap;">Asignado por</td>
+                <td style="padding:8px 12px;">${asignador}</td>
+              </tr>
+            </table>
+            <p>Le solicitamos atender este hito conforme a los tiempos establecidos.</p>
+            <p style="color:#6b7280;font-size:12px;margin-top:24px;">
+              Este es un correo automático generado por SIRA. Por favor, no responda directamente a este mensaje.
+            </p>
+          </div>
+        `;
+        sendEmailWithAttachments([r.correo], subject, htmlBody, []).catch((emailErr) => {
+          console.error(`[agregarHitoProyecto] Error al enviar correo a ${r.correo}:`, emailErr);
+        });
+      }
+    }
+
+    return res.status(201).json({
+      mensaje: 'Hito agregado correctamente.',
+      hito: {
+        ...hito,
+        target_date: hito.target_date
+          ? (hito.target_date.toISOString?.()?.split('T')[0] ?? hito.target_date)
+          : null,
+        responsables: responsablesData.map(r => ({ id: r.id, nombre: r.nombre })),
+        total_comentarios: 0,
+        estado: 'PENDIENTE',
+      },
+    });
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error(`Error al agregar hito al proyecto ${proyectoId}:`, error);
+    return res.status(500).json({ error: 'Error interno del servidor.' });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   getProyectosDashboard,
   updateProyectoStatus,
   getProyectoDetalle,
+  getHitosProyecto,
+  agregarHitoProyecto,
 };

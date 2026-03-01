@@ -175,15 +175,22 @@ async function getProyectoDataForPdf(client, proyectoId) {
   const hitosQ = await client.query(
     `
     SELECT
-      id,
-      proyecto_id,
-      nombre,
-      descripcion,
-      target_date,
-      fecha_realizacion
-    FROM public.proyectos_hitos
-    WHERE proyecto_id = $1
-    ORDER BY target_date ASC NULLS LAST, id ASC;
+      ph.id,
+      ph.proyecto_id,
+      ph.nombre,
+      ph.descripcion,
+      ph.target_date,
+      ph.fecha_realizacion,
+      COALESCE(
+        (SELECT STRING_AGG(u2.nombre, ', ' ORDER BY u2.nombre)
+         FROM public.proyectos_hitos_responsables phr2
+         JOIN public.usuarios u2 ON u2.id = phr2.usuario_id
+         WHERE phr2.hito_id = ph.id),
+        ''
+      ) AS responsables_nombres
+    FROM public.proyectos_hitos ph
+    WHERE ph.proyecto_id = $1
+    ORDER BY ph.target_date ASC NULLS LAST, ph.id ASC;
     `,
     [proyectoId]
   );
@@ -414,20 +421,33 @@ const crearProyecto = async (req, res) => {
           return res.status(400).json({ error: 'Cada hito requiere un nombre si se incluye en el arreglo.' });
         }
 
-        const responsableHId = parseOptionalInt(h?.responsable_id);
+        // Soporta responsable_ids[] (nuevo) y responsable_id (legado)
+        const responsableHIds = Array.isArray(h?.responsable_ids)
+          ? h.responsable_ids.map(Number).filter((n) => Number.isInteger(n) && n > 0)
+          : (parseOptionalInt(h?.responsable_id) ? [parseOptionalInt(h.responsable_id)] : []);
 
         const rH = await client.query(
           `
           INSERT INTO public.proyectos_hitos (
-            proyecto_id, nombre, descripcion, target_date, fecha_realizacion, responsable_id
+            proyecto_id, nombre, descripcion, target_date, fecha_realizacion
           )
-          VALUES ($1,$2,$3,$4,$5,$6)
-          RETURNING id, proyecto_id, nombre, descripcion, target_date, fecha_realizacion, responsable_id;
+          VALUES ($1,$2,$3,$4,$5)
+          RETURNING id, proyecto_id, nombre, descripcion, target_date, fecha_realizacion;
           `,
-          [proyecto.id, nombreH, descripcionH || null, targetDate, fechaReal, responsableHId]
+          [proyecto.id, nombreH, descripcionH || null, targetDate, fechaReal]
         );
 
-        hitosInsertados.push(rH.rows[0]);
+        const hitoRow = rH.rows[0];
+
+        for (const rId of responsableHIds) {
+          await client.query(
+            `INSERT INTO public.proyectos_hitos_responsables (hito_id, usuario_id)
+             VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [hitoRow.id, rId]
+          );
+        }
+
+        hitosInsertados.push({ ...hitoRow, responsable_ids: responsableHIds });
       }
 
       await client.query('COMMIT');
@@ -667,7 +687,11 @@ const actualizarProyecto = async (req, res) => {
         const targetDate = parseOptionalDateISO(h.target_date, 'hitos.target_date');
         const fechaReal = parseOptionalDateISO(h.fecha_realizacion, 'hitos.fecha_realizacion');
         const hId = parseOptionalInt(h.id); // Si trae ID es update, si no es insert
-        const responsableHId = parseOptionalInt(h.responsable_id);
+
+        // Soporta responsable_ids[] (nuevo) y responsable_id (legado)
+        const responsableHIds = Array.isArray(h?.responsable_ids)
+          ? h.responsable_ids.map(Number).filter((n) => Number.isInteger(n) && n > 0)
+          : (parseOptionalInt(h?.responsable_id) ? [parseOptionalInt(h.responsable_id)] : []);
 
         // Si la fila viene vacía y sin ID, la ignoramos
         const filaVacia = !nombreH && !descripcionH && !targetDate && !fechaReal;
@@ -681,27 +705,49 @@ const actualizarProyecto = async (req, res) => {
         if (hId) {
           // Update
           if (!hitosActualesIds.has(hId)) {
-            // El ID que mandan no pertenece a este proyecto o no existe. Lo tratamos como error o ignoramos.
-            // Mejor error para integridad.
             await client.query('ROLLBACK');
             return res.status(400).json({ error: `Hito con ID ${hId} no pertenece al proyecto o no existe.` });
           }
 
           await client.query(
             `UPDATE public.proyectos_hitos
-                 SET nombre = $1, descripcion = $2, target_date = $3, fecha_realizacion = $4, responsable_id = $5
-                 WHERE id = $6`,
-            [nombreH, descripcionH || null, targetDate, fechaReal, responsableHId, hId]
+                 SET nombre = $1, descripcion = $2, target_date = $3, fecha_realizacion = $4
+                 WHERE id = $5`,
+            [nombreH, descripcionH || null, targetDate, fechaReal, hId]
           );
+
+          // Sync responsables en tabla puente: reemplazar todos
+          await client.query(
+            `DELETE FROM public.proyectos_hitos_responsables WHERE hito_id = $1`,
+            [hId]
+          );
+          for (const rId of responsableHIds) {
+            await client.query(
+              `INSERT INTO public.proyectos_hitos_responsables (hito_id, usuario_id)
+               VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+              [hId, rId]
+            );
+          }
+
           hitosEntrantesIds.add(hId);
         } else {
           // Insert
           const newH = await client.query(
-            `INSERT INTO public.proyectos_hitos (proyecto_id, nombre, descripcion, target_date, fecha_realizacion, responsable_id)
-                 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-            [proyectoId, nombreH, descripcionH || null, targetDate, fechaReal, responsableHId]
+            `INSERT INTO public.proyectos_hitos (proyecto_id, nombre, descripcion, target_date, fecha_realizacion)
+                 VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+            [proyectoId, nombreH, descripcionH || null, targetDate, fechaReal]
           );
-          hitosEntrantesIds.add(newH.rows[0].id);
+          const newHitoId = newH.rows[0].id;
+
+          for (const rId of responsableHIds) {
+            await client.query(
+              `INSERT INTO public.proyectos_hitos_responsables (hito_id, usuario_id)
+               VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+              [newHitoId, rId]
+            );
+          }
+
+          hitosEntrantesIds.add(newHitoId);
         }
       }
 

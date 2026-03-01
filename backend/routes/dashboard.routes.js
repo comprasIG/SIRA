@@ -11,9 +11,9 @@ const dashboardController = require("../controllers/dashboard.controller");
 // Importar el controlador específico para obtener detalles de OC
 const ordenCompraDashboardController = require("../controllers/dashboard/ordenCompraDashboard.controller");
 // Controlador de proyectos para el tab de Proyectos en dashboards
-const { getProyectosDashboard, updateProyectoStatus, getProyectoDetalle } = require("../controllers/dashboard/proyectosDashboard.controller");
+const { getProyectosDashboard, updateProyectoStatus, getProyectoDetalle, getHitosProyecto, agregarHitoProyecto } = require("../controllers/dashboard/proyectosDashboard.controller");
 // Controlador de hitos (KPI TO DO)
-const { getHitosDashboard, marcarHitoRealizado, marcarHitoPendiente } = require("../controllers/dashboard/hitosDashboard.controller");
+const { getHitosDashboard, marcarHitoRealizado, marcarHitoPendiente, getComentariosHito, addComentarioHito, responderComentario, cambiarStatusComentario } = require("../controllers/dashboard/hitosDashboard.controller");
 
 router.use(verifyFirebaseToken, loadSiraUser);
 
@@ -35,12 +35,22 @@ router.patch("/requisicion/:id/status", dashboardController.updateRequisicionSta
 // Tab de Proyectos en dashboards departamentales
 router.get("/proyectos", getProyectosDashboard);
 router.get("/proyectos/:id/detalle", getProyectoDetalle);
+router.get("/proyectos/:id/hitos", getHitosProyecto);
+router.post("/proyectos/:id/hitos", agregarHitoProyecto);
 router.patch("/proyectos/:id/status", updateProyectoStatus);
 
 // KPI TO DO: Hitos con responsable asignado
 router.get("/hitos", getHitosDashboard);
 router.patch("/hitos/:id/realizado", marcarHitoRealizado);
 router.patch("/hitos/:id/pendiente", marcarHitoPendiente);
+
+// Comentarios de hitos (threads)
+// IMPORTANTE: la ruta de comentarios/:id debe ir ANTES de la ruta /:id/comentarios
+// para que Express no confunda "comentarios" como un :id
+router.post("/hitos/comentarios/:comentarioId/responder", responderComentario);
+router.patch("/hitos/comentarios/:comentarioId/status", cambiarStatusComentario);
+router.get("/hitos/:id/comentarios", getComentariosHito);
+router.post("/hitos/:id/comentarios", addComentarioHito);
 
 // Analytics para modal TV (solo SSD)
 router.get("/analytics", dashboardController.getAnalyticsDashboard);
