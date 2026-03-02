@@ -48,6 +48,10 @@ export default function Unidades() {
     refetchUnidades();
   };
 
+  const handleUnidadActualizada = () => {
+    refetchUnidades();
+  };
+
   const puedeVerTodo = useMemo(() => {
     if (!usuario) return false;
     // La verificacion real viene del backend; aqui solo sirve para mostrar/ocultar filtro de dpto
@@ -140,6 +144,7 @@ export default function Unidades() {
             open={modalState.detalle}
             onClose={handleCloseModal}
             unidad={modalState.unidadSeleccionada}
+            onUnidadActualizada={handleUnidadActualizada}
           />
         </>
       )}
