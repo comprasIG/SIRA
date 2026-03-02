@@ -5,6 +5,7 @@ import FilterSection from './G_OC/FilterSection';
 import OCList from './G_OC/OCList';
 import OCInfoModal from './common/OCInfoModal';
 import OcEditModal from './G_OC/OcEditModal';
+import OcKardexModal from './G_OC/OcKardexModal';
 import { Box, Typography } from '@mui/material';
 import { useState } from 'react';
 import { toast } from 'react-toastify';
@@ -25,6 +26,7 @@ export default function G_OCForm() {
   } = useG_OC();
 
   const [editOc, setEditOc] = useState(null);
+  const [kardexOc, setKardexOc] = useState(null);
 
   const {
     previewOpen,
@@ -43,6 +45,9 @@ export default function G_OCForm() {
         break;
       case 'substitute':
         toast.info(`Sustituir OC: ${oc.numero_oc || oc.id} (Próximamente)`);
+        break;
+      case 'kardex':
+        setKardexOc(oc);
         break;
       case 'modify':
         setEditOc(oc);
@@ -136,6 +141,13 @@ export default function G_OCForm() {
           loading={previewLoading}
         />
       )}
+
+      {/* Kardex Modal */}
+      <OcKardexModal
+        open={Boolean(kardexOc)}
+        oc={kardexOc}
+        onClose={() => setKardexOc(null)}
+      />
 
       {/* Edit Modal */}
       <OcEditModal

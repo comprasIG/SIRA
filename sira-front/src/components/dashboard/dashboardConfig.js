@@ -25,6 +25,7 @@ const dashboardConfig = {
     showProyectosTab: true,
     showHitosTab: true,
     showGasolinaTab: true,
+    showIncrementablesTab: true,
   },
 
   // Todos los dashboards departamentales comparten el mismo endpoint

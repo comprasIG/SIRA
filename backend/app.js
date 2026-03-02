@@ -161,6 +161,10 @@ app.use('/api/ui-preferencias', uiPreferenciasRoutes);
 const ocDirectaRoutes = require('./routes/oc-directa.routes');
 app.use('/api/oc-directa', ocDirectaRoutes);
 
+// Incrementables de Importación
+const incrementablesRoutes = require('./routes/incrementables.routes');
+app.use('/api/incrementables', incrementablesRoutes);
+
 //rutas de vacaciones
 const vacacionesRoutes = require('./routes/vacaciones/vacaciones.routes');
 app.use('/api/vacaciones', vacacionesRoutes);

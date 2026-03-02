@@ -8,7 +8,7 @@
  * Paso 3: Resumen financiero por proveedor + Generar OC
  * =================================================================================================
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Stepper, Step, StepLabel, Button, Box, Typography, Paper, CircularProgress,
   Divider, List, ListItem, ListItemText, Alert, IconButton, Tooltip,
@@ -27,6 +27,7 @@ import api from '../api/api';
 import useVbOcForm from '../hooks/useVbOcForm';
 import FilaMaterialOC from './VB_OC/FilaMaterialOC';
 import ConfigPopover from './rfq/ConfigPopover';
+import ImpoPrefsSection from './ImpoPrefsSection';
 
 const steps = ['Datos Generales', 'Materiales y Precios', 'Resumen y Confirmar'];
 
@@ -50,6 +51,14 @@ export default function VB_OCForm() {
 
   // Estado de éxito
   const [ocsCreadas, setOcsCreadas] = useState(null);
+
+  // Preferencias IMPO por proveedor
+  const [impoPrefs, setImpoPrefs] = useState({});
+  const [incoterms, setIncoterms] = useState([]);
+
+  useEffect(() => {
+    api.get('/api/incrementables/catalogos/incoterms').then(d => setIncoterms(d || [])).catch(() => {});
+  }, []);
 
   const handleConfigClick = (event, providerId) => {
     setCurrentProviderId(providerId);
@@ -84,7 +93,7 @@ export default function VB_OCForm() {
 
   const doSubmit = async (formData) => {
     try {
-      const result = await onSubmit(formData);
+      const result = await onSubmit(formData, { preferencias_por_proveedor: impoPrefs });
       if (result?.ocs) {
         setOcsCreadas(result.ocs);
         for (const oc of result.ocs) {
@@ -366,7 +375,23 @@ export default function VB_OCForm() {
                     <Divider sx={{ my: 1 }} />
 
                     {bloque.esCompraImportacion && (
-                      <Alert severity="info" sx={{ mb: 1 }}>Compra de Importación.</Alert>
+                      <>
+                        <Alert severity="info" sx={{ mb: 1 }}>Compra de Importación.</Alert>
+                        <ImpoPrefsSection
+                          value={impoPrefs[bloque.proveedorId] || {
+                            imprimir_proyecto: true,
+                            sitio_entrega_id: null,
+                            imprimir_direccion_entrega: true,
+                            incoterm_id: null,
+                          }}
+                          onChange={(patch) => setImpoPrefs(prev => ({
+                            ...prev,
+                            [bloque.proveedorId]: { ...(prev[bloque.proveedorId] || {}), ...patch }
+                          }))}
+                          sitios={sitios}
+                          incoterms={incoterms}
+                        />
+                      </>
                     )}
 
                     {/* Totales */}

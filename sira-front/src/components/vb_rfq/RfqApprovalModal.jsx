@@ -41,6 +41,7 @@ import {
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import LockIcon from '@mui/icons-material/Lock';
 import { calcularResumenParaModal } from './vbRfqUtils';
+import ImpoPrefsSection from '../ImpoPrefsSection';
 
 export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, setGlobalLoading }) {
   // =============================================================================================
@@ -51,9 +52,11 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
 
   /**
    * Draft por proveedor (aplica a la OC que se generará en esa ejecución)
-   * { [proveedorId]: { esUrgente: boolean, comentariosFinanzas: string } }
+   * { [proveedorId]: { esUrgente, comentariosFinanzas, imprimir_proyecto, sitio_entrega_id, imprimir_direccion_entrega, incoterm_id } }
    */
   const [ocDraftByProveedor, setOcDraftByProveedor] = useState({});
+  const [incoterms, setIncoterms] = useState([]);
+  const [sitios,    setSitios]    = useState([]);
 
   // =============================================================================================
   // CARGA DE DETALLE RFQ
@@ -76,6 +79,9 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
   useEffect(() => {
     if (open) {
       fetchDetails();
+      // Cargar catálogos IMPO (ligeros, siempre útil tenerlos listos)
+      api.get('/api/incrementables/catalogos/incoterms').then(d => setIncoterms(d || [])).catch(() => {});
+      api.get('/api/sitios').then(d => setSitios(d || [])).catch(() => {});
     } else {
       setDetails(null);
       setOcDraftByProveedor({});
@@ -178,7 +184,14 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
         if (!provId) return;
 
         if (!next[provId]) {
-          next[provId] = { esUrgente: false, comentariosFinanzas: '' };
+          next[provId] = {
+            esUrgente: false,
+            comentariosFinanzas: '',
+            imprimir_proyecto: true,
+            sitio_entrega_id: null,
+            imprimir_direccion_entrega: true,
+            incoterm_id: null,
+          };
         }
       });
 
@@ -309,7 +322,13 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
       const payload = {
         proveedorId,
         esUrgente: Boolean(draft.esUrgente),
-        comentariosFinanzas: typeof draft.comentariosFinanzas === 'string' ? draft.comentariosFinanzas.trim() : ''
+        comentariosFinanzas: typeof draft.comentariosFinanzas === 'string' ? draft.comentariosFinanzas.trim() : '',
+        preferencias_impo: {
+          imprimir_proyecto: draft.imprimir_proyecto !== false,
+          sitio_entrega_id: draft.sitio_entrega_id || null,
+          imprimir_direccion_entrega: draft.imprimir_direccion_entrega !== false,
+          incoterm_id: draft.incoterm_id || null,
+        },
       };
 
       toast.info('Iniciando proceso de generación...');
@@ -370,6 +389,7 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
                 {proveedoresBloques.pendientes.map((grupo) => {
                   const provId = grupo?.opciones?.[0]?.proveedor_id;
                   const draft = ocDraftByProveedor?.[provId] || { esUrgente: false, comentariosFinanzas: '' };
+                  const esImpo = grupo.opciones.some(op => op.es_importacion === true);
 
                   return (
                     <Paper key={`pendiente-${provId}`} variant="outlined" sx={{ p: 2, mb: 2 }}>
@@ -428,6 +448,18 @@ export default function RfqApprovalModal({ open, onClose, rfqId, refreshList, se
                           placeholder="Ej. Prioridad alta, requerimos pago anticipado / condiciones especiales / etc."
                         />
                       </Box>
+
+                      {esImpo && (
+                        <ImpoPrefsSection
+                          value={draft}
+                          onChange={(patch) => setOcDraftByProveedor(prev => ({
+                            ...prev,
+                            [provId]: { ...(prev[provId] || {}), ...patch }
+                          }))}
+                          sitios={sitios}
+                          incoterms={incoterms}
+                        />
+                      )}
 
                       {grupo.adjuntos.length > 0 && (
                         <>

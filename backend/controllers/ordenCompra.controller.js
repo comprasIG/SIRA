@@ -833,6 +833,23 @@ const editarOc = async (req, res) => {
       );
     }
 
+    // Registrar modificación en historial
+    await client.query(
+      `INSERT INTO ordenes_compra_historial (orden_compra_id, usuario_id, accion_realizada, detalles)
+       VALUES ($1, $2, 'MODIFICACIÓN_OC', $3)`,
+      [idNum, req.usuarioSira.id, JSON.stringify({
+        motivo: String(motivo).trim(),
+        proveedor_id: nuevaProvId,
+        sub_total: subTotal,
+        iva,
+        ret_isr: retIsr,
+        total,
+        iva_rate: ivaRate,
+        isr_rate: isrRate,
+        impo: esImpo
+      })]
+    );
+
     await client.query('COMMIT');
 
     res.json({
@@ -849,10 +866,36 @@ const editarOc = async (req, res) => {
 };
 
 
+/* ================================================================================================
+ * Endpoint: Kardex de una OC (GET /api/ocs/:id/kardex)
+ * ==============================================================================================*/
+const getKardex = async (req, res) => {
+  const idNum = Number(req.params.id);
+  if (!idNum || Number.isNaN(idNum)) {
+    return res.status(400).json({ error: 'Parámetro id inválido.' });
+  }
+  try {
+    const { rows } = await pool.query(
+      `SELECT h.id, h.accion_realizada, h.detalles, h.fecha_registro,
+              u.nombre AS usuario_nombre
+       FROM ordenes_compra_historial h
+       LEFT JOIN usuarios u ON u.id = h.usuario_id
+       WHERE h.orden_compra_id = $1
+       ORDER BY h.fecha_registro ASC`,
+      [idNum]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('[getKardex]', err);
+    res.status(500).json({ error: 'Error al obtener kardex.' });
+  }
+};
+
 module.exports = {
   descargarOcPdf,
   getOcs,
   getOcFilters,
   getDatosParaEditar,
   editarOc,
+  getKardex,
 };

@@ -233,7 +233,7 @@ export default function useVbOcForm() {
     }, [JSON.stringify(watchedItems), providerConfigs]);
 
     // --- Submit ---
-    const onSubmit = useCallback(async (formData) => {
+    const onSubmit = useCallback(async (formData, extraPayload = {}) => {
         setIsSubmitting(true);
         try {
             // Armar items para el backend
@@ -267,6 +267,7 @@ export default function useVbOcForm() {
                 comentarios_finanzas: formData.comentarios_finanzas || null,
                 items: itemsPayload,
                 config_por_proveedor: providerConfigs,
+                ...extraPayload,
             };
 
             const result = await api.post('/api/oc-directa/crear', payload);
