@@ -121,6 +121,9 @@ app.use('/api/finanzas', pagosOCRoutes);
 const fuentesPagoRoutes = require('./routes/finanzas/fuentesPago.routes');
 app.use('/api/finanzas', fuentesPagoRoutes);
 
+const gasolinaRoutes = require('./routes/finanzas/gasolina.routes');
+app.use('/api/finanzas', gasolinaRoutes);
+
 const recoleccionRoutes = require('./routes/recoleccion.routes');
 app.use('/api/recoleccion', recoleccionRoutes);
 
@@ -157,6 +160,10 @@ app.use('/api/ui-preferencias', uiPreferenciasRoutes);
 // OC Directa (VB_OC)
 const ocDirectaRoutes = require('./routes/oc-directa.routes');
 app.use('/api/oc-directa', ocDirectaRoutes);
+
+// Incrementables de Importación
+const incrementablesRoutes = require('./routes/incrementables.routes');
+app.use('/api/incrementables', incrementablesRoutes);
 
 //rutas de vacaciones
 const vacacionesRoutes = require('./routes/vacaciones/vacaciones.routes');

@@ -21,6 +21,9 @@ import {
     Tabs,
     Tab,
     IconButton,
+    Avatar,
+    AvatarGroup,
+    Tooltip,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -30,6 +33,11 @@ import ReceiptIcon from '@mui/icons-material/Receipt';
 import DescriptionIcon from '@mui/icons-material/Description';
 import EditIcon from '@mui/icons-material/Edit';
 import NuevoProyectoForm from '../-p-m-o/proyectos/NuevoProyectoForm';
+import OCInfoModal from './OCInfoModal';
+import RFQInfoModal from './RFQInfoModal';
+import { useOcPreview } from '../../hooks/useOcPreview';
+import { useRfqPreview } from '../../hooks/useRfqPreview';
+import { RFQ_STATUS_COLOR, OC_STATUS_COLOR } from '../dashboard/statusColors';
 
 const formatCurrency = (value, currency = 'MXN') => {
     if (value == null || Number.isNaN(Number(value))) return '-';
@@ -82,6 +90,9 @@ export default function ProyectoInfoModal({
     const [tabValue, setTabValue] = useState(0);
     const [editOpen, setEditOpen] = useState(false);
 
+    const ocPreview  = useOcPreview();
+    const rfqPreview = useRfqPreview();
+
     const handleTabChange = (event, newValue) => {
         setTabValue(newValue);
     };
@@ -96,6 +107,35 @@ export default function ProyectoInfoModal({
             return acc;
         }, {});
         return Object.entries(totals).map(([moneda, total]) => ({ moneda, total }));
+    }, [gastos]);
+
+    // Group flat gastos rows (OC+moneda) into RFQ → OC[] structure
+    const gastosPorRfq = useMemo(() => {
+        if (!gastos || gastos.length === 0) return [];
+        const map = new Map();
+        for (const g of gastos) {
+            const rfqKey = g.rfq_id != null ? `rfq_${g.rfq_id}` : `oc_${g.id}`;
+            if (!map.has(rfqKey)) {
+                map.set(rfqKey, {
+                    rfq_id: g.rfq_id,
+                    numero_requisicion: g.numero_requisicion,
+                    rfq_status: g.rfq_status,
+                    ocs: new Map(),
+                });
+            }
+            const grupo = map.get(rfqKey);
+            if (!grupo.ocs.has(g.id)) {
+                grupo.ocs.set(g.id, {
+                    id: g.id,
+                    numero_oc: g.numero_oc,
+                    status: g.status,
+                    fecha_aprobacion: g.fecha_aprobacion,
+                    totales: [],
+                });
+            }
+            grupo.ocs.get(g.id).totales.push({ moneda: g.moneda, total: g.total });
+        }
+        return Array.from(map.values()).map(g => ({ ...g, ocs: Array.from(g.ocs.values()) }));
     }, [gastos]);
 
     const handleEditSuccess = () => {
@@ -195,7 +235,7 @@ export default function ProyectoInfoModal({
                             >
                                 <Tab label="Resumen" icon={<DescriptionIcon fontSize="small" />} iconPosition="start" />
                                 <Tab label={`Hitos (${hitos.length})`} icon={<FlagIcon fontSize="small" />} iconPosition="start" />
-                                <Tab label={`Gastos (${gastos.length} OCs)`} icon={<ReceiptIcon fontSize="small" />} iconPosition="start" />
+                                <Tab label={`Gastos (${gastosPorRfq.length})`} icon={<ReceiptIcon fontSize="small" />} iconPosition="start" />
                             </Tabs>
 
                             {/* TAB 0: RESUMEN */}
@@ -307,13 +347,33 @@ export default function ProyectoInfoModal({
                                     </Typography>
                                 ) : (
                                     <Stack spacing={2}>
-                                        {hitos.map((hito, idx) => (
-                                            <Paper key={hito.id} variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                                        {hitos.map((hito, idx) => {
+                                            const responsables = Array.isArray(hito.responsables) ? hito.responsables : [];
+                                            const isRealizado = !!hito.fecha_realizacion;
+                                            return (
+                                            <Paper key={hito.id} variant="outlined" sx={{ p: 2, borderRadius: 2, opacity: isRealizado ? 0.8 : 1 }}>
                                                 <Stack direction="row" alignItems="flex-start" spacing={2}>
-                                                    <Chip label={`#${idx + 1}`} size="small" />
+                                                    <Chip label={`#${idx + 1}`} size="small" color={isRealizado ? 'success' : 'default'} />
                                                     <Box flex={1}>
-                                                        <Typography variant="subtitle1" fontWeight={600}>{hito.nombre}</Typography>
+                                                        <Typography variant="subtitle1" fontWeight={600} sx={{ textDecoration: isRealizado ? 'line-through' : 'none' }}>{hito.nombre}</Typography>
                                                         {hito.descripcion && <Typography variant="body2" color="text.secondary">{hito.descripcion}</Typography>}
+                                                        {responsables.length > 0 && (
+                                                            <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mt: 0.75 }}>
+                                                                <Typography variant="caption" color="text.disabled">Resp.:</Typography>
+                                                                <AvatarGroup max={4} sx={{ '& .MuiAvatar-root': { width: 20, height: 20, fontSize: '0.55rem' } }}>
+                                                                    {responsables.map((r) => (
+                                                                        <Tooltip key={r.id} title={r.nombre}>
+                                                                            <Avatar sx={{ width: 20, height: 20, fontSize: '0.55rem', bgcolor: 'primary.main' }}>
+                                                                                {(r.nombre || '?')[0].toUpperCase()}
+                                                                            </Avatar>
+                                                                        </Tooltip>
+                                                                    ))}
+                                                                </AvatarGroup>
+                                                                {responsables.length === 1 && (
+                                                                    <Typography variant="caption" color="text.secondary">{responsables[0].nombre}</Typography>
+                                                                )}
+                                                            </Stack>
+                                                        )}
                                                     </Box>
                                                     <Box textAlign="right">
                                                         <Typography variant="caption" display="block" color="text.secondary">Fecha Objetivo</Typography>
@@ -326,49 +386,88 @@ export default function ProyectoInfoModal({
                                                     </Box>
                                                 </Stack>
                                             </Paper>
-                                        ))}
+                                            );
+                                        })}
                                     </Stack>
                                 )}
                             </TabPanel>
 
-                            {/* TAB 2: GASTOS (OCs) */}
+                            {/* TAB 2: GASTOS — agrupado por RFQ */}
                             <TabPanel value={tabValue} index={2}>
                                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                    Desglose de Órdenes de Compra asociadas al proyecto.
+                                    Desglose de Requisiciones y Órdenes de Compra asociadas al proyecto.
                                 </Typography>
                                 <Table size="small" stickyHeader>
                                     <TableHead>
                                         <TableRow>
-                                            <TableCell>Número OC</TableCell>
-                                            <TableCell>Status</TableCell>
-                                            <TableCell>Fecha Creación</TableCell>
-                                            <TableCell align="right">Total</TableCell>
-                                            <TableCell align="center">Moneda</TableCell>
+                                            <TableCell>Num RFQ</TableCell>
+                                            <TableCell>Status RFQ</TableCell>
+                                            <TableCell>Órdenes de Compra</TableCell>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
-                                        {gastos.length === 0 ? (
+                                        {gastosPorRfq.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                                                <TableCell colSpan={3} align="center" sx={{ py: 4 }}>
                                                     <Typography color="text.secondary">Sin órdenes de compra registradas.</Typography>
                                                 </TableCell>
                                             </TableRow>
                                         ) : (
-                                            gastos.map((gasto) => (
-                                                <TableRow key={`${gasto.id}-${gasto.moneda}`} hover>
-                                                    <TableCell fontWeiht={600}>{gasto.numero_oc}</TableCell>
-                                                    <TableCell>
-                                                        <Chip label={gasto.status} size="small" variant="outlined" color={gasto.status === 'AUTORIZADA' ? 'success' : 'default'} />
-                                                    </TableCell>
-                                                    <TableCell>{formatDate(gasto.fecha)}</TableCell>
-                                                    <TableCell align="right" sx={{ fontWeight: 600 }}>
-                                                        {formatCurrency(gasto.total, gasto.moneda)}
-                                                    </TableCell>
-                                                    <TableCell align="center">
-                                                        <Chip label={gasto.moneda} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))
+                                            gastosPorRfq.map((grupo) => {
+                                                const rfqKey = grupo.rfq_id != null ? `rfq_${grupo.rfq_id}` : `oc_${grupo.ocs[0]?.id}`;
+                                                return (
+                                                    <TableRow key={rfqKey} hover>
+                                                        <TableCell>
+                                                            {grupo.rfq_id ? (
+                                                                <Chip
+                                                                    label={grupo.numero_requisicion}
+                                                                    size="small"
+                                                                    variant="outlined"
+                                                                    color="info"
+                                                                    onClick={() => rfqPreview.openPreview({ rfq_id: grupo.rfq_id, id: grupo.rfq_id })}
+                                                                    sx={{ cursor: 'pointer', fontWeight: 600, fontFamily: 'monospace' }}
+                                                                />
+                                                            ) : (
+                                                                <Typography variant="caption" color="text.secondary">Sin RFQ</Typography>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {grupo.rfq_status ? (
+                                                                <Chip
+                                                                    label={grupo.rfq_status}
+                                                                    size="small"
+                                                                    color={RFQ_STATUS_COLOR[grupo.rfq_status] || 'default'}
+                                                                    sx={{ fontWeight: 'bold' }}
+                                                                />
+                                                            ) : '—'}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                                                {grupo.ocs.map((oc) => {
+                                                                    const totalStr = oc.totales.map(t =>
+                                                                        `${t.moneda} ${formatCurrency(t.total, t.moneda)}`
+                                                                    ).join(' + ');
+                                                                    const fechaStr = oc.fecha_aprobacion
+                                                                        ? `Aprobada: ${formatDate(oc.fecha_aprobacion)}`
+                                                                        : 'Sin fecha de aprobación';
+                                                                    return (
+                                                                        <Tooltip key={oc.id} title={`${fechaStr} · ${totalStr}`} arrow>
+                                                                            <Chip
+                                                                                label={oc.numero_oc}
+                                                                                size="small"
+                                                                                variant="outlined"
+                                                                                color={OC_STATUS_COLOR[oc.status] || 'default'}
+                                                                                onClick={() => ocPreview.openPreview({ id: oc.id, numero_oc: oc.numero_oc })}
+                                                                                sx={{ cursor: 'pointer', fontFamily: 'monospace' }}
+                                                                            />
+                                                                        </Tooltip>
+                                                                    );
+                                                                })}
+                                                            </Box>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })
                                         )}
                                     </TableBody>
                                 </Table>
@@ -380,6 +479,27 @@ export default function ProyectoInfoModal({
                     <Button onClick={onClose} variant="contained">Cerrar</Button>
                 </DialogActions>
             </Dialog>
+
+            {/* OC detail modal */}
+            <OCInfoModal
+                open={ocPreview.previewOpen}
+                onClose={ocPreview.closePreview}
+                oc={ocPreview.previewOc}
+                items={ocPreview.previewItems}
+                metadata={ocPreview.previewMetadata}
+                loading={ocPreview.loading}
+            />
+
+            {/* RFQ detail modal */}
+            <RFQInfoModal
+                open={rfqPreview.previewOpen}
+                onClose={rfqPreview.closePreview}
+                rfq={rfqPreview.previewRfq}
+                items={rfqPreview.previewItems}
+                metadata={rfqPreview.previewMetadata}
+                attachments={rfqPreview.previewAttachments}
+                loading={rfqPreview.loading}
+            />
 
             {/* Edit Dialog */}
             <Dialog

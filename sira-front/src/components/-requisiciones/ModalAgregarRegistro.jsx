@@ -6,8 +6,11 @@ import {
 } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import MyLocationIcon from '@mui/icons-material/MyLocation';
+import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import { useUnidadServicios } from '../../hooks/useUnidadServicios';
 import { toast } from 'react-toastify';
+import api from '../../api/api';
 
 const styleModal = {
   position: 'absolute',
@@ -62,13 +65,20 @@ export default function ModalAgregarRegistro({ open, onClose, unidad, onRegistro
     agregarRegistroManual, crearEventoTipo,
   } = useUnidadServicios();
 
-  const [eventoTipo, setEventoTipo] = useState(null);
-  const [kilometraje, setKilometraje] = useState('');
-  const [descripcion, setDescripcion] = useState('');
-  const [costoTotal, setCostoTotal] = useState('');
-  const [numerosSerie, setNumerosSerie] = useState('');
-  const [esAlerta, setEsAlerta] = useState(false);
+  const [eventoTipo,      setEventoTipo]      = useState(null);
+  const [kilometraje,     setKilometraje]     = useState('');
+  const [descripcion,     setDescripcion]     = useState('');
+  const [costoTotal,      setCostoTotal]      = useState('');
+  const [numerosSerie,    setNumerosSerie]    = useState('');
+  const [esAlerta,        setEsAlerta]        = useState(false);
   const [mostrarNuevoTipo, setMostrarNuevoTipo] = useState(false);
+
+  // Campos extra para COMBUSTIBLE
+  const [sitios,          setSitios]          = useState([]);
+  const [proyectos,       setProyectos]       = useState([]);
+  const [sitioDestino,    setSitioDestino]    = useState(null);
+  const [proyectoDestino, setProyectoDestino] = useState(null);
+  const [loadingSitios,   setLoadingSitios]   = useState(false);
 
   useEffect(() => {
     if (unidad) {
@@ -79,8 +89,21 @@ export default function ModalAgregarRegistro({ open, onClose, unidad, onRegistro
       setNumerosSerie('');
       setEsAlerta(false);
       setMostrarNuevoTipo(false);
+      setSitioDestino(null);
+      setProyectoDestino(null);
     }
   }, [unidad, open]);
+
+  // Cargar sitios y proyectos la primera vez que se selecciona tipo COMBUSTIBLE
+  useEffect(() => {
+    if (eventoTipo?.codigo === 'COMBUSTIBLE' && sitios.length === 0) {
+      setLoadingSitios(true);
+      Promise.all([api.get('/api/sitios'), api.get('/api/proyectos')])
+        .then(([s, p]) => { setSitios(s); setProyectos(p); })
+        .catch(() => {})
+        .finally(() => setLoadingSitios(false));
+    }
+  }, [eventoTipo, sitios.length]);
 
   // Solo tipos que NO generan requisicion (manuales)
   const tiposManuales = useMemo(
@@ -121,16 +144,19 @@ export default function ModalAgregarRegistro({ open, onClose, unidad, onRegistro
       toast.error('Para carga de combustible el costo total es obligatorio.');
       return;
     }
-    if (!descripcion.trim()) { toast.error('La descripcion es obligatoria.'); return; }
+    if (!esCombustible && !descripcion.trim()) { toast.error('La descripcion es obligatoria.'); return; }
 
     const payload = {
-      unidad_id:      unidad.id,
-      evento_tipo_id: eventoTipo.id,
-      kilometraje:    kmNum,
+      unidad_id:          unidad.id,
+      evento_tipo_id:     eventoTipo.id,
+      kilometraje:        kmNum,
       descripcion,
-      costo_total:    costoTotal || 0,
-      numeros_serie:  numerosSerie?.trim() || null,
-      es_alerta:      esAlerta,
+      costo_total:        costoTotal || 0,
+      numeros_serie:      numerosSerie?.trim() || null,
+      es_alerta:          esAlerta,
+      // Solo para COMBUSTIBLE
+      sitio_destino_id:   sitioDestino?.id    || null,
+      proyecto_destino_id: proyectoDestino?.id || null,
     };
 
     const exito = await agregarRegistroManual(payload);
@@ -192,11 +218,11 @@ export default function ModalAgregarRegistro({ open, onClose, unidad, onRegistro
               />
 
               <TextField
-                label="Descripcion del Evento"
+                label={esCombustible ? 'Descripcion del Evento (opcional)' : 'Descripcion del Evento'}
                 multiline
                 rows={3}
                 fullWidth
-                required
+                required={!esCombustible}
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
                 placeholder="Describe el evento, incidencia o carga de combustible..."
@@ -212,6 +238,62 @@ export default function ModalAgregarRegistro({ open, onClose, unidad, onRegistro
                 helperText={esCombustible ? 'Requerido para carga de combustible.' : 'Si el evento tuvo un costo, ingresalo aqui.'}
                 inputProps={{ min: 0, step: '0.01' }}
               />
+
+              {/* Campos extra: Sitio/Proyecto destino — solo para COMBUSTIBLE */}
+              <Collapse in={esCombustible}>
+                <Stack spacing={2}>
+                  {loadingSitios ? (
+                    <CircularProgress size={20} sx={{ alignSelf: 'center' }} />
+                  ) : (
+                    <>
+                      <Autocomplete
+                        options={sitios}
+                        getOptionLabel={(s) => s.nombre || ''}
+                        value={sitioDestino}
+                        onChange={(_, v) => { setSitioDestino(v); setProyectoDestino(null); }}
+                        fullWidth
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Sitio Destino (opcional)"
+                            size="small"
+                            InputProps={{
+                              ...params.InputProps,
+                              startAdornment: (
+                                <MyLocationIcon sx={{ mr: 0.5, color: 'text.disabled', fontSize: 18 }} />
+                              ),
+                            }}
+                          />
+                        )}
+                      />
+                      <Autocomplete
+                        options={
+                          sitioDestino
+                            ? proyectos.filter((p) => p.sitio_id === sitioDestino.id)
+                            : proyectos
+                        }
+                        getOptionLabel={(p) => p.nombre || ''}
+                        value={proyectoDestino}
+                        onChange={(_, v) => setProyectoDestino(v)}
+                        fullWidth
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Proyecto Destino (opcional)"
+                            size="small"
+                            InputProps={{
+                              ...params.InputProps,
+                              startAdornment: (
+                                <FolderOpenIcon sx={{ mr: 0.5, color: 'text.disabled', fontSize: 18 }} />
+                              ),
+                            }}
+                          />
+                        )}
+                      />
+                    </>
+                  )}
+                </Stack>
+              </Collapse>
 
               {(eventoTipo?.requiere_num_serie || (numerosSerie && numerosSerie.trim())) ? (
                 <TextField

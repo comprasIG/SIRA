@@ -422,7 +422,118 @@ const cerrarOcVehicular = async (req, res) => {
   }
 };
 
-// ... (asegúrate de que el module.exports sigue incluyendo cerrarOcVehicular)
+/* ─────────────────────────────────────────────────────────────────────────────
+ * POST /api/recoleccion/ocs/:id/cerrar-incrementable
+ * Aplica la distribución de costos incrementables al inventario (costos_incrementables JSONB).
+ * No ingresa nada al stock físico; solo actualiza el campo de costos adicionales por artículo.
+ * ───────────────────────────────────────────────────────────────────────────*/
+const cerrarIncrementable = async (req, res) => {
+  const { id: ocId } = req.params;
+  const { id: usuarioId } = req.usuarioSira;
+  const idNum = Number(ocId);
+
+  if (!idNum) return res.status(400).json({ error: 'ID de OC inválido.' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1) Verificar OC y obtener datos
+    const ocRes = await client.query(
+      `SELECT oc.id, oc.numero_oc, oc.status, io.id AS incrementable_id
+       FROM ordenes_compra oc
+       JOIN incrementables_oc io ON io.oc_incrementable_id = oc.id
+       WHERE oc.id = $1
+       FOR UPDATE OF oc`,
+      [idNum]
+    );
+
+    if (ocRes.rowCount === 0) {
+      throw new Error(`La OC ${idNum} no es una OC incrementable o no existe.`);
+    }
+
+    const oc = ocRes.rows[0];
+
+    if (!['APROBADA', 'EN_PROCESO'].includes(oc.status)) {
+      throw new Error(`La OC ${oc.numero_oc} tiene status ${oc.status}. Solo se puede cerrar si está APROBADA o EN_PROCESO.`);
+    }
+
+    // 2) Obtener distribución pendiente de aplicar
+    const distRes = await client.query(
+      `SELECT id, material_id, monto_incrementable, moneda_incrementable, oc_base_id
+       FROM incrementables_distribucion_items
+       WHERE incrementable_id = $1 AND aplicado_en IS NULL`,
+      [oc.incrementable_id]
+    );
+
+    // 3) Obtener descripción del tipo de incrementable para el JSON
+    const tipoRes = await client.query(
+      `SELECT ti.nombre
+       FROM incrementables_oc io
+       JOIN tipo_incrementables ti ON io.tipo_incrementable_id = ti.id
+       WHERE io.id = $1`,
+      [oc.incrementable_id]
+    );
+    const tipoNombre = tipoRes.rows[0]?.nombre || 'Incrementable';
+
+    // 4) Aplicar al inventario: actualizar costos_incrementables JSONB por material
+    for (const item of distRes.rows) {
+      const entrada = JSON.stringify({
+        incrementable_id: oc.incrementable_id,
+        oc_incrementable_id: idNum,
+        descripcion: tipoNombre,
+        monto: item.monto_incrementable,
+        moneda: item.moneda_incrementable,
+        oc_base_id: item.oc_base_id,
+        aplicado_en: new Date().toISOString(),
+      });
+
+      // Append a la columna JSONB (soporta multi-moneda de forma nativa)
+      await client.query(
+        `UPDATE inventario_actual
+         SET costos_incrementables = costos_incrementables || $1::jsonb
+         WHERE material_id = $2`,
+        [`[${entrada}]`, item.material_id]
+      );
+
+      // Marcar como aplicado
+      await client.query(
+        `UPDATE incrementables_distribucion_items
+         SET aplicado_en = NOW()
+         WHERE id = $1`,
+        [item.id]
+      );
+    }
+
+    // 5) Cerrar la OC incrementable
+    await client.query(
+      `UPDATE ordenes_compra SET status = 'ENTREGADA', actualizado_en = NOW() WHERE id = $1`,
+      [idNum]
+    );
+
+    // 6) Auditoría
+    await client.query(
+      `INSERT INTO ordenes_compra_historial (orden_compra_id, usuario_id, accion_realizada, detalles)
+       VALUES ($1, $2, 'ENTREGADA', $3)`,
+      [idNum, usuarioId, `Incrementable cerrado. ${distRes.rowCount} artículos afectados.`]
+    );
+
+    await client.query('COMMIT');
+
+    res.json({
+      mensaje: `OC incrementable ${oc.numero_oc} cerrada. ${distRes.rowCount} artículo(s) actualizados en inventario.`,
+      articulos_actualizados: distRes.rowCount,
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('[INCREMENTABLES] Error en cerrarIncrementable:', error);
+    res.status(500).json({ error: error.message || 'Error interno del servidor.' });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   getOcsAprobadas,
   procesarOcParaRecoleccion,
@@ -431,4 +542,5 @@ module.exports = {
   getOcsEnProceso,
   getDatosParaFiltros,
   cerrarOcVehicular,
+  cerrarIncrementable,
 };

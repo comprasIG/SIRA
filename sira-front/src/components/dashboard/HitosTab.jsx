@@ -1,22 +1,24 @@
 // src/components/dashboard/HitosTab.jsx
 /**
- * Tab "TO DO" — KPI de Hitos con responsable asignado.
- *
- * Cada departamento ve por default sus propios hitos pendientes.
- * Puede usar filtros para ver otros departamentos o todos.
+ * Tab "TO DO" — KPI de Hitos con responsables asignados (múltiples).
+ * Permite marcar hitos como realizados/pendientes y ver/gestionar comentarios.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box, Paper, CircularProgress, Typography, Chip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Tooltip, IconButton, Stack, ToggleButton, ToggleButtonGroup,
   TextField, InputAdornment, MenuItem, Select, FormControl,
+  Avatar, AvatarGroup,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import UndoIcon from '@mui/icons-material/Undo';
 import SearchIcon from '@mui/icons-material/Search';
+import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import { useHitosDashboard } from '../../hooks/useHitosDashboard';
+import HitoComentariosModal from './HitoComentariosModal';
 
 const paperSx = {
   p: 2,
@@ -27,6 +29,19 @@ const paperSx = {
   transition: 'box-shadow 0.3s ease',
   '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.06)' },
 };
+
+const AVATAR_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#0ea5e9'];
+function avatarColor(nombre) {
+  if (!nombre) return AVATAR_COLORS[0];
+  let h = 0;
+  for (let i = 0; i < nombre.length; i++) h = nombre.charCodeAt(i) + ((h << 5) - h);
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+function initials(nombre) {
+  if (!nombre) return '?';
+  const p = nombre.trim().split(' ');
+  return p.length >= 2 ? `${p[0][0]}${p[1][0]}`.toUpperCase() : nombre[0].toUpperCase();
+}
 
 /* ── KPI chips ── */
 function KpiCard({ label, value, color }) {
@@ -62,6 +77,47 @@ function EstadoBadge({ estado }) {
   };
   const cfg = map[estado] || map.PENDIENTE;
   return <Chip label={cfg.label} color={cfg.color} size="small" variant="outlined" />;
+}
+
+/* ── Responsables (múltiples avatares) ── */
+function ResponsablesCell({ responsables }) {
+  if (!responsables || responsables.length === 0) {
+    return <Typography variant="caption" color="text.disabled">—</Typography>;
+  }
+  if (responsables.length === 1) {
+    const r = responsables[0];
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+        <Tooltip title={r.nombre}>
+          <Avatar
+            sx={{
+              width: 26, height: 26, fontSize: '0.62rem', fontWeight: 700,
+              bgcolor: avatarColor(r.nombre),
+            }}
+          >
+            {initials(r.nombre)}
+          </Avatar>
+        </Tooltip>
+        <Typography variant="body2" sx={{ fontSize: '0.78rem' }}>
+          {r.nombre}
+        </Typography>
+      </Box>
+    );
+  }
+  return (
+    <AvatarGroup
+      max={3}
+      sx={{ '& .MuiAvatar-root': { width: 26, height: 26, fontSize: '0.62rem', fontWeight: 700 } }}
+    >
+      {responsables.map((r) => (
+        <Tooltip key={r.id} title={r.nombre}>
+          <Avatar sx={{ bgcolor: avatarColor(r.nombre) }}>
+            {initials(r.nombre)}
+          </Avatar>
+        </Tooltip>
+      ))}
+    </AvatarGroup>
+  );
 }
 
 /* ── Filtros ── */
@@ -183,7 +239,7 @@ function HitosFilters({ filters, estadoOptions, departamentoOptions, proyectoOpt
 }
 
 /* ── Tabla principal ── */
-function HitosTable({ hitos, onMarcarRealizado, onMarcarPendiente }) {
+function HitosTable({ hitos, onMarcarRealizado, onMarcarPendiente, onVerComentarios }) {
   const fmtDate = (d) => {
     if (!d) return '—';
     const [y, m, dia] = d.split('-');
@@ -207,11 +263,10 @@ function HitosTable({ hitos, onMarcarRealizado, onMarcarPendiente }) {
           <TableRow sx={{ '& th': { fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary', bgcolor: 'grey.50' } }}>
             <TableCell>Hito</TableCell>
             <TableCell>Proyecto</TableCell>
-            <TableCell>Responsable</TableCell>
-            <TableCell>Departamento</TableCell>
+            <TableCell>Responsables</TableCell>
             <TableCell align="center">Objetivo</TableCell>
             <TableCell align="center">Estado</TableCell>
-            <TableCell align="center">Acción</TableCell>
+            <TableCell align="center">Acciones</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -224,7 +279,7 @@ function HitosTable({ hitos, onMarcarRealizado, onMarcarPendiente }) {
               }}
             >
               {/* Hito */}
-              <TableCell sx={{ maxWidth: 200 }}>
+              <TableCell sx={{ maxWidth: 220 }}>
                 <Typography variant="body2" fontWeight={600} sx={{ lineHeight: 1.3 }}>
                   {h.nombre}
                 </Typography>
@@ -242,30 +297,9 @@ function HitosTable({ hitos, onMarcarRealizado, onMarcarPendiente }) {
                 </Typography>
               </TableCell>
 
-              {/* Responsable */}
+              {/* Responsables (múltiples) */}
               <TableCell>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box
-                    sx={{
-                      width: 26, height: 26, borderRadius: '50%',
-                      bgcolor: 'primary.100', color: 'primary.main',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '0.65rem', fontWeight: 700, flexShrink: 0,
-                    }}
-                  >
-                    {(h.responsable_nombre || '?')[0].toUpperCase()}
-                  </Box>
-                  <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
-                    {h.responsable_nombre || '—'}
-                  </Typography>
-                </Box>
-              </TableCell>
-
-              {/* Departamento */}
-              <TableCell>
-                <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
-                  {h.departamento_nombre || '—'}
-                </Typography>
+                <ResponsablesCell responsables={h.responsables} />
               </TableCell>
 
               {/* Objetivo */}
@@ -292,29 +326,48 @@ function HitosTable({ hitos, onMarcarRealizado, onMarcarPendiente }) {
                 )}
               </TableCell>
 
-              {/* Acción */}
+              {/* Acciones */}
               <TableCell align="center">
-                {h.estado !== 'REALIZADO' ? (
-                  <Tooltip title="Marcar como realizado">
+                <Stack direction="row" spacing={0.5} justifyContent="center" alignItems="center">
+                  {/* Comentarios */}
+                  <Tooltip title="Ver comentarios">
                     <IconButton
                       size="small"
-                      color="success"
-                      onClick={() => onMarcarRealizado(h.id)}
+                      color="primary"
+                      onClick={() => onVerComentarios(h)}
+                      sx={{
+                        '& .MuiSvgIcon-root': { fontSize: 16 },
+                        bgcolor: alpha('#6366f1', 0.06),
+                        '&:hover': { bgcolor: alpha('#6366f1', 0.12) },
+                      }}
                     >
-                      <CheckCircleOutlineIcon fontSize="small" />
+                      <ChatBubbleOutlineIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                ) : (
-                  <Tooltip title="Revertir a pendiente">
-                    <IconButton
-                      size="small"
-                      color="default"
-                      onClick={() => onMarcarPendiente(h.id)}
-                    >
-                      <UndoIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                )}
+
+                  {/* Marcar realizado / revertir */}
+                  {h.estado !== 'REALIZADO' ? (
+                    <Tooltip title="Marcar como realizado">
+                      <IconButton
+                        size="small"
+                        color="success"
+                        onClick={() => onMarcarRealizado(h.id)}
+                      >
+                        <CheckCircleOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip title="Revertir a pendiente">
+                      <IconButton
+                        size="small"
+                        color="default"
+                        onClick={() => onMarcarPendiente(h.id)}
+                      >
+                        <UndoIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </Stack>
               </TableCell>
             </TableRow>
           ))}
@@ -326,6 +379,8 @@ function HitosTable({ hitos, onMarcarRealizado, onMarcarPendiente }) {
 
 /* ── Componente principal ── */
 export default function HitosTab() {
+  const [comentariosHito, setComentariosHito] = useState(null);
+
   const {
     loading,
     error,
@@ -340,49 +395,66 @@ export default function HitosTab() {
     resetFilters,
     marcarRealizado,
     marcarPendiente,
+    reload,
   } = useHitosDashboard();
 
+  const handleComentariosClose = () => {
+    setComentariosHito(null);
+    reload(); // refrescar por si cambió algo
+  };
+
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-      {/* KPIs */}
-      <Paper sx={paperSx}>
-        <Stack direction="row" flexWrap="wrap" gap={1.5}>
-          <KpiCard label="Total" value={kpis.total} color="primary" />
-          <KpiCard label="Pendientes" value={kpis.pendientes} color="warning" />
-          <KpiCard label="Vencidos" value={kpis.vencidos} color="error" />
-          <KpiCard label="Realizados" value={kpis.realizados} color="success" />
-        </Stack>
-      </Paper>
+    <>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+        {/* KPIs */}
+        <Paper sx={paperSx}>
+          <Stack direction="row" flexWrap="wrap" gap={1.5}>
+            <KpiCard label="Total" value={kpis.total} color="primary" />
+            <KpiCard label="Pendientes" value={kpis.pendientes} color="warning" />
+            <KpiCard label="Vencidos" value={kpis.vencidos} color="error" />
+            <KpiCard label="Realizados" value={kpis.realizados} color="success" />
+          </Stack>
+        </Paper>
 
-      {/* Filtros */}
-      <Paper sx={paperSx}>
-        <HitosFilters
-          filters={filters}
-          estadoOptions={estadoOptions}
-          departamentoOptions={departamentoOptions}
-          proyectoOptions={proyectoOptions}
-          responsableOptions={responsableOptions}
-          onChange={setFilter}
-          onReset={resetFilters}
-        />
-      </Paper>
-
-      {/* Tabla */}
-      <Paper sx={paperSx}>
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-            <CircularProgress size={36} />
-          </Box>
-        ) : error ? (
-          <Typography color="error">{error}</Typography>
-        ) : (
-          <HitosTable
-            hitos={hitos}
-            onMarcarRealizado={marcarRealizado}
-            onMarcarPendiente={marcarPendiente}
+        {/* Filtros */}
+        <Paper sx={paperSx}>
+          <HitosFilters
+            filters={filters}
+            estadoOptions={estadoOptions}
+            departamentoOptions={departamentoOptions}
+            proyectoOptions={proyectoOptions}
+            responsableOptions={responsableOptions}
+            onChange={setFilter}
+            onReset={resetFilters}
           />
-        )}
-      </Paper>
-    </Box>
+        </Paper>
+
+        {/* Tabla */}
+        <Paper sx={paperSx}>
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+              <CircularProgress size={36} />
+            </Box>
+          ) : error ? (
+            <Typography color="error">{error}</Typography>
+          ) : (
+            <HitosTable
+              hitos={hitos}
+              onMarcarRealizado={marcarRealizado}
+              onMarcarPendiente={marcarPendiente}
+              onVerComentarios={setComentariosHito}
+            />
+          )}
+        </Paper>
+      </Box>
+
+      {/* Modal de comentarios */}
+      <HitoComentariosModal
+        open={!!comentariosHito}
+        onClose={handleComentariosClose}
+        hitoId={comentariosHito?.id}
+        hitoNombre={comentariosHito?.nombre}
+      />
+    </>
   );
 }

@@ -248,6 +248,8 @@ const generarOcsDesdeRfq = async (req, res) => {
 
   const esUrgenteRaw = req.body.esUrgente ?? req.body.es_urgente ?? false;
   const comentariosRaw = req.body.comentariosFinanzas ?? req.body.comentarios_finanzas ?? null;
+  const preferenciasImpo = req.body.preferencias_impo || null;
+  // { imprimir_proyecto, sitio_entrega_id, imprimir_direccion_entrega, incoterm_id }
 
   const esUrgente = Boolean(esUrgenteRaw);
   const comentariosFinanzas = typeof comentariosRaw === 'string' ? comentariosRaw.trim() : null;
@@ -380,6 +382,36 @@ const generarOcsDesdeRfq = async (req, res) => {
         ]
       );
 
+      // Registrar creación en historial
+      await client.query(
+        `INSERT INTO ordenes_compra_historial (orden_compra_id, usuario_id, accion_realizada, detalles)
+         VALUES ($1, $2, 'CREACIÓN_OC', $3)`,
+        [nuevaOcId, usuarioId, JSON.stringify({
+          origen: 'VB_RFQ',
+          numero_oc: numeroOcDb,
+          proveedor_id: provId,
+          total: tot.total,
+          impo: tot.esImportacion
+        })]
+      );
+
+      // Guardar preferencias IMPO si aplica
+      if (tot.esImportacion && preferenciasImpo) {
+        await client.query(
+          `INSERT INTO oc_preferencias_importacion
+             (orden_compra_id, imprimir_proyecto, sitio_entrega_id, imprimir_direccion_entrega, incoterm_id)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (orden_compra_id) DO NOTHING`,
+          [
+            nuevaOcId,
+            preferenciasImpo.imprimir_proyecto !== false,
+            preferenciasImpo.sitio_entrega_id || null,
+            preferenciasImpo.imprimir_direccion_entrega !== false,
+            preferenciasImpo.incoterm_id || null,
+          ]
+        );
+      }
+
       // Una vez que existe al menos una OC para este RFQ, el RFQ ya no debe "regresar" a G_RFQ.
       // Por eso, si venía en ABIERTA/COTIZANDO o estaba cerrado pero se está reactivando (OC cancelada),
       // lo movemos a POR_APROBAR (solo una vez).
@@ -451,7 +483,11 @@ const generarOcsDesdeRfq = async (req, res) => {
           u.correo       AS usuario_correo,
           r.rfq_code     AS rfq_code,
           (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) AS moneda,
-          NOW() AS fecha_aprobacion
+          NOW() AS fecha_aprobacion,
+          opref.imprimir_proyecto          AS prefs_imprimir_proyecto,
+          opref.imprimir_direccion_entrega AS prefs_imprimir_direccion_entrega,
+          ci.abreviatura                   AS prefs_incoterm_abreviatura,
+          s_prefs.ubicacion                AS prefs_sitio_entrega_ubicacion
         FROM ordenes_compra oc
         JOIN proveedores p ON oc.proveedor_id = p.id
         JOIN proyectos proy ON oc.proyecto_id = proy.id
@@ -459,6 +495,9 @@ const generarOcsDesdeRfq = async (req, res) => {
         LEFT JOIN sitios s_entrega ON s_entrega.id = oc.lugar_entrega::int
         JOIN usuarios u ON oc.usuario_id = u.id
         JOIN requisiciones r ON oc.rfq_id = r.id
+        LEFT JOIN oc_preferencias_importacion opref ON opref.orden_compra_id = oc.id
+        LEFT JOIN catalogo_incoterms ci ON ci.id = opref.incoterm_id
+        LEFT JOIN sitios s_prefs ON s_prefs.id = opref.sitio_entrega_id
         WHERE oc.id = $1;
         `,
         [nuevaOcId]

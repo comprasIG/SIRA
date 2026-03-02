@@ -171,7 +171,13 @@ function drawInfoSection(doc, oc) {
   const usuarioCorreo      = String(oc?.usuario_correo ?? '').trim();
   const lugarEntregaNombre = String(oc?.lugar_entrega_nombre ?? '').trim();
   const lugarEntregaRaw    = String(oc?.lugar_entrega ?? '').trim();
-  const lugarEntrega       = lugarEntregaNombre || lugarEntregaRaw;
+
+  // ── Preferencias IMPO ────────────────────────────────────────────────────
+  const mostrarProyecto      = oc?.prefs_imprimir_proyecto !== false;
+  const dirEntregaImpo       = String(oc?.prefs_sitio_entrega_ubicacion ?? '').trim();
+  const mostrarDirEntrega    = oc?.prefs_imprimir_direccion_entrega !== false;
+  const incotermAbreviatura  = String(oc?.prefs_incoterm_abreviatura ?? '').trim();
+  const lugarEntrega         = dirEntregaImpo || lugarEntregaNombre || lugarEntregaRaw;
 
   doc.save();
 
@@ -199,7 +205,7 @@ function drawInfoSection(doc, oc) {
 
   doc.font('Helvetica').fontSize(10).fillColor('#111111');
 
-  const sitioProyecto = proyecto ? `${sitio} - ${proyecto}` : sitio;
+  const sitioProyecto = (mostrarProyecto && proyecto) ? `${sitio} - ${proyecto}` : sitio;
   const sitioH = doc.heightOfString(`Sitio: ${sitioProyecto}`, { width: RIGHT_W });
   doc.text(`Sitio: ${sitioProyecto}`, RIGHT_X, rightY, { width: RIGHT_W });
   rightY += sitioH + 4;
@@ -217,8 +223,15 @@ function drawInfoSection(doc, oc) {
     rightY += 14;
   }
 
-  if (lugarEntrega) {
+  if (mostrarDirEntrega && lugarEntrega) {
     doc.text(`Lugar de entrega: ${lugarEntrega}`, RIGHT_X, rightY, { width: RIGHT_W });
+    rightY += 14;
+  }
+
+  if (incotermAbreviatura) {
+    doc.font('Helvetica-Bold').fontSize(10);
+    doc.text(`Incoterm: ${incotermAbreviatura}`, RIGHT_X, rightY, { width: RIGHT_W });
+    doc.font('Helvetica').fontSize(10);
     rightY += 14;
   }
 

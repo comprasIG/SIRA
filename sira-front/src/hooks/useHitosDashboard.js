@@ -2,11 +2,9 @@
 /**
  * Hook para el tab "TO DO" (KPI de Hitos) en los dashboards departamentales.
  *
- * Carga los hitos con responsable asignado, calcula KPIs y provee
- * filtros en cascada por departamento, estado, proyecto y responsable.
- *
- * Por default muestra solo los hitos del departamento del usuario autenticado.
- * El filtro `departamento` permite ver los de otro depto o todos.
+ * Cada hito puede tener múltiples responsables (tabla puente).
+ * Los filtros de responsable y departamento aplican si CUALQUIERA de los
+ * responsables del hito coincide.
  */
 
 import { useState, useEffect, useCallback, useMemo, useContext } from 'react';
@@ -19,12 +17,35 @@ const DEFAULT_FILTERS = {
   departamento: '', // nombre del departamento (vacío = propio del usuario)
   proyecto: '',
   responsable: '',
-  showAll: false,   // true = todos los deptos; false = solo el filtrado
+  showAll: false,
   includeDone: false,
 };
 
 function uniqSorted(arr) {
   return [...new Set((arr || []).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Extrae todos los nombres de responsables de un hito como un array plano.
+ */
+function getResponsablesNombres(h) {
+  if (Array.isArray(h.responsables) && h.responsables.length > 0) {
+    return h.responsables.map((r) => r.nombre).filter(Boolean);
+  }
+  // compatibilidad legacy
+  if (h.responsable_nombre) return [h.responsable_nombre];
+  return [];
+}
+
+/**
+ * Extrae todos los nombres de departamento de los responsables de un hito.
+ */
+function getDepartamentosNombres(h) {
+  if (Array.isArray(h.responsables) && h.responsables.length > 0) {
+    return h.responsables.map((r) => r.departamento_nombre).filter(Boolean);
+  }
+  if (h.departamento_nombre) return [h.departamento_nombre];
+  return [];
 }
 
 function applyFilters(data, filters, exclude) {
@@ -36,7 +57,7 @@ function applyFilters(data, filters, exclude) {
       (h) =>
         (h.nombre || '').toLowerCase().includes(q) ||
         (h.proyecto_nombre || '').toLowerCase().includes(q) ||
-        (h.responsable_nombre || '').toLowerCase().includes(q)
+        getResponsablesNombres(h).some((r) => r.toLowerCase().includes(q))
     );
   }
 
@@ -45,7 +66,9 @@ function applyFilters(data, filters, exclude) {
   }
 
   if (filters.departamento && exclude !== 'departamento') {
-    out = out.filter((h) => (h.departamento_nombre || '') === filters.departamento);
+    out = out.filter((h) =>
+      getDepartamentosNombres(h).includes(filters.departamento)
+    );
   }
 
   if (filters.proyecto && exclude !== 'proyecto') {
@@ -53,7 +76,9 @@ function applyFilters(data, filters, exclude) {
   }
 
   if (filters.responsable && exclude !== 'responsable') {
-    out = out.filter((h) => (h.responsable_nombre || '') === filters.responsable);
+    out = out.filter((h) =>
+      getResponsablesNombres(h).includes(filters.responsable)
+    );
   }
 
   return out;
@@ -85,7 +110,6 @@ export function useHitosDashboard() {
       if (filters.showAll) {
         params.append('all_depts', 'true');
       } else if (filters.departamento) {
-        // Enviar el id del departamento seleccionado
         const dept = departamentos.find((d) => d.nombre === filters.departamento);
         if (dept) params.append('departamento_id', String(dept.id));
       } else if (usuario?.departamento_id) {
@@ -115,29 +139,31 @@ export function useHitosDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuario?.departamento_id, filters.showAll, filters.includeDone]);
 
-  // Re-fetch cuando cambia el filtro de departamento (enviamos al backend)
   useEffect(() => {
-    // Solo re-fetch si ya cargamos al menos una vez (departamentos ya disponibles)
     if (departamentos.length > 0 || filters.departamento === '') {
       loadData();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.departamento]);
 
-  // Lista completamente filtrada (filtros de UI)
   const filtered = useMemo(
     () => applyFilters(allHitos, filters),
     [allHitos, filters]
   );
 
-  // Opciones en cascada
   const estadoOptions = useMemo(
     () => ['', 'PENDIENTE', 'VENCIDO', 'REALIZADO'],
     []
   );
 
+  // Opciones de departamento: todos los departamentos presentes en responsables de los hitos
   const departamentoOptions = useMemo(
-    () => [''].concat(uniqSorted(applyFilters(allHitos, filters, 'departamento').map((h) => h.departamento_nombre))),
+    () => [''].concat(
+      uniqSorted(
+        applyFilters(allHitos, filters, 'departamento')
+          .flatMap((h) => getDepartamentosNombres(h))
+      )
+    ),
     [allHitos, filters]
   );
 
@@ -146,12 +172,17 @@ export function useHitosDashboard() {
     [allHitos, filters]
   );
 
+  // Opciones de responsable: todos los responsables de todos los hitos filtrados
   const responsableOptions = useMemo(
-    () => [''].concat(uniqSorted(applyFilters(allHitos, filters, 'responsable').map((h) => h.responsable_nombre))),
+    () => [''].concat(
+      uniqSorted(
+        applyFilters(allHitos, filters, 'responsable')
+          .flatMap((h) => getResponsablesNombres(h))
+      )
+    ),
     [allHitos, filters]
   );
 
-  // KPIs (sobre el dataset filtrado)
   const kpis = useMemo(() => ({
     total: filtered.length,
     pendientes: filtered.filter((h) => h.estado === 'PENDIENTE').length,

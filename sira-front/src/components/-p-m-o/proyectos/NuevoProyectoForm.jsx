@@ -30,6 +30,28 @@ function parseFilenameFromContentDisposition(cd) {
   return std?.[1] ?? null;
 }
 
+function normalizeSearchText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function splitSearchTokens(value) {
+  return normalizeSearchText(value).split(/\s+/).filter(Boolean);
+}
+
+function matchesUserSearch(usuario, query) {
+  const tokens = splitSearchTokens(query);
+  if (tokens.length === 0) return true;
+  const nombre = usuario?.nombre_completo || usuario?.nombre || '';
+  const correo = usuario?.correo_google || usuario?.correo || usuario?.email || '';
+  const departamento = usuario?.departamento || '';
+  const haystack = normalizeSearchText(`${nombre} ${correo} ${departamento}`);
+  return tokens.every((token) => haystack.includes(token));
+}
+
 /* ─────────────────────────────────────────────
    ÍCONOS SVG INLINE
 ───────────────────────────────────────────── */
@@ -285,16 +307,22 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
           }
           if (Array.isArray(iv.hitos)) {
             setHitos(iv.hitos.map((h) => {
-              const respUser = h.responsable_id
-                ? satUsuarios.find((u) => String(u.id) === String(h.responsable_id))
-                : null;
+              // Soporte para nueva forma (responsables array) y forma legacy (responsable_id)
+              const responsablesArr = Array.isArray(h.responsables) && h.responsables.length > 0
+                ? h.responsables
+                : (h.responsable_id ? [{ id: h.responsable_id, nombre: h._responsableNombre || '' }] : []);
+              const responsableIds = responsablesArr.map(r => r.id).filter(Boolean);
+              const responsablesData = responsablesArr.map((r) => {
+                const found = satUsuarios.find((u) => String(u.id) === String(r.id));
+                return { id: r.id, nombre: found ? getNombreUsuario(found) : (r.nombre || '') };
+              });
               return {
                 ...h,
                 _tmpId: makeTmpId(),
                 target_date: h.target_date ? h.target_date.split('T')[0] : '',
                 fecha_realizacion: h.fecha_realizacion ? h.fecha_realizacion.split('T')[0] : '',
-                responsable_id: h.responsable_id || '',
-                _responsableNombre: respUser ? getNombreUsuario(respUser) : '',
+                responsable_ids: responsableIds,
+                _responsablesData: responsablesData,
               };
             }));
           }
@@ -321,13 +349,7 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
 
   const responsablesFiltrados = useMemo(() => {
     if (!usuarios.length) return [];
-    const term = busquedaResponsable.trim().toLowerCase();
-    if (!term) return usuarios;
-    const tokens = term.split(/\s+/).filter(Boolean);
-    return usuarios.filter((u) => {
-      const h = `${getNombreUsuario(u)} ${getCorreoUsuario(u)} ${getDepartamentoUsuario(u)}`.toLowerCase();
-      return tokens.every((t) => h.includes(t));
-    });
+    return usuarios.filter((u) => matchesUserSearch(u, busquedaResponsable));
   }, [usuarios, busquedaResponsable]);
 
   const margenSugerido = useMemo(() => {
@@ -384,7 +406,7 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
   };
 
   const addHito = () => {
-    setHitos((p) => [...p, { _tmpId: makeTmpId(), nombre: '', descripcion: '', target_date: '', fecha_realizacion: '', responsable_id: '', _responsableNombre: '' }]);
+    setHitos((p) => [...p, { _tmpId: makeTmpId(), nombre: '', descripcion: '', target_date: '', fecha_realizacion: '', responsable_ids: [], _responsablesData: [] }]);
     setHitosOpen(true);
   };
   const removeHito = (id) => setHitos((p) => p.filter((h) => h._tmpId !== id));
@@ -438,7 +460,7 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
       setError('El margen estimado debe ser un número válido.'); setStep(1); return;
     }
     const hitosPayload = (hitos || [])
-      .map((h) => ({ id: h.id || undefined, nombre: (h.nombre || '').trim(), descripcion: (h.descripcion || '').trim() || null, target_date: h.target_date || null, fecha_realizacion: h.fecha_realizacion || null, responsable_id: h.responsable_id ? Number(h.responsable_id) : null }))
+      .map((h) => ({ id: h.id || undefined, nombre: (h.nombre || '').trim(), descripcion: (h.descripcion || '').trim() || null, target_date: h.target_date || null, fecha_realizacion: h.fecha_realizacion || null, responsable_ids: (h.responsable_ids || []).map(Number).filter(Boolean) }))
       .filter((h) => h.nombre || h.descripcion || h.target_date || h.fecha_realizacion);
 
     const payload = {
@@ -575,78 +597,78 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
     );
   }
 
-  /* ── Selector de responsable para un hito individual ── */
-  function HitoResponsableSelector({ hito, usuarios, getNombreUsuario, getDepartamentoUsuario, onSelect, onClear, inputCls }) {
-    const [busqueda, setBusqueda] = React.useState(hito._responsableNombre || '');
+  /* ── Selector de responsables (multi) para un hito individual ── */
+  function HitoResponsableSelector({ hito, usuarios, getNombreUsuario, getDepartamentoUsuario, onAdd, onRemove, inputCls }) {
+    const [busqueda, setBusqueda] = React.useState('');
     const [showLista, setShowLista] = React.useState(false);
-
-    // Sync búsqueda cuando el hito cambia desde fuera
-    React.useEffect(() => {
-      setBusqueda(hito._responsableNombre || '');
-    }, [hito._responsableNombre]);
+    const seleccionados = hito._responsablesData || [];
+    const selIds = new Set(seleccionados.map(r => String(r.id)));
 
     const filtrados = React.useMemo(() => {
-      const term = busqueda.trim().toLowerCase();
-      if (!term) return usuarios.slice(0, 30);
-      const tokens = term.split(/\s+/).filter(Boolean);
-      return usuarios.filter((u) => {
-        const h = `${getNombreUsuario(u)} ${getDepartamentoUsuario(u)}`.toLowerCase();
-        return tokens.every((t) => h.includes(t));
-      });
-    }, [usuarios, busqueda]);
+      const base = usuarios.filter(u => !selIds.has(String(u.id)));
+      return base.filter((u) => matchesUserSearch(u, busqueda));
+    }, [usuarios, busqueda, selIds]);
 
     const handleSelect = (u) => {
-      setBusqueda(getNombreUsuario(u));
-      setShowLista(false);
-      onSelect(u);
-    };
-
-    const handleClear = () => {
       setBusqueda('');
-      onClear();
+      onAdd(u);
     };
 
     return (
       <div className="relative mb-2">
-        <label className="mb-1 block text-[10px] font-medium text-gray-500">Responsable del hito</label>
-        <div className="flex gap-1">
-          <div className="relative flex-1">
-            <input
-              type="text"
-              className={`${inputCls} pr-6 text-xs`}
-              placeholder="Busca usuario…"
-              value={busqueda}
-              onChange={(e) => { setBusqueda(e.target.value); if (!e.target.value) onClear(); }}
-              onFocus={() => setShowLista(true)}
-              onBlur={() => setTimeout(() => setShowLista(false), 180)}
-              autoComplete="off"
-            />
-            {hito.responsable_id && (
-              <button
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); handleClear(); }}
-                className="absolute inset-y-0 right-1 flex items-center text-gray-300 hover:text-red-400"
-                title="Quitar responsable"
+        <label className="mb-1 block text-[10px] font-medium text-gray-500">Responsables del hito</label>
+
+        {/* Chips de seleccionados */}
+        {seleccionados.length > 0 && (
+          <div className="mb-1.5 flex flex-wrap gap-1">
+            {seleccionados.map((r) => (
+              <span
+                key={r.id}
+                className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700"
               >
-                <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            )}
+                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-200 text-[8px] font-bold text-blue-800">
+                  {(r.nombre || '?')[0].toUpperCase()}
+                </span>
+                {r.nombre}
+                <button
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); onRemove(r.id); }}
+                  className="ml-0.5 text-blue-300 hover:text-red-400 transition"
+                  title="Quitar"
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
           </div>
+        )}
+
+        <div className="relative">
+          <input
+            type="text"
+            className={`${inputCls} text-xs`}
+            placeholder={seleccionados.length > 0 ? 'Agregar otro responsable…' : 'Busca usuario…'}
+            value={busqueda}
+            onChange={(e) => { setBusqueda(e.target.value); setShowLista(true); }}
+            onFocus={() => setShowLista(true)}
+            onBlur={() => setTimeout(() => setShowLista(false), 180)}
+            autoComplete="off"
+          />
         </div>
 
         {showLista && (
           <div className="absolute left-0 right-0 top-full z-40 mt-0.5 max-h-44 overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-xl ring-1 ring-black/5">
             {filtrados.length === 0 ? (
-              <div className="px-3 py-4 text-center text-xs text-gray-400">Sin resultados</div>
+              <div className="px-3 py-4 text-center text-xs text-gray-400">
+                {busqueda.trim() ? 'Sin resultados' : 'No hay usuarios disponibles'}
+              </div>
             ) : (
               filtrados.map((u) => (
                 <button
                   key={u.id}
                   type="button"
                   onMouseDown={(e) => { e.preventDefault(); handleSelect(u); }}
-                  className={`flex w-full items-center gap-2.5 border-b border-gray-50 px-3 py-2 text-left last:border-0 transition hover:bg-blue-50/60 ${String(hito.responsable_id) === String(u.id) ? 'bg-blue-50' : ''}`}
+                  className="flex w-full items-center gap-2.5 border-b border-gray-50 px-3 py-2 text-left last:border-0 transition hover:bg-blue-50/60"
                 >
                   <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
                     {(getNombreUsuario(u) || '?')[0].toUpperCase()}
@@ -1159,14 +1181,24 @@ export default function NuevoProyectoForm({ proyectoId = null, initialValues = n
                               onChange={(e) => updateHito(h._tmpId, { descripcion: e.target.value })}
                             />
 
-                            {/* Responsable del hito */}
+                            {/* Responsables del hito (multi) */}
                             <HitoResponsableSelector
                               hito={h}
                               usuarios={usuarios}
                               getNombreUsuario={getNombreUsuario}
                               getDepartamentoUsuario={getDepartamentoUsuario}
-                              onSelect={(u) => updateHito(h._tmpId, { responsable_id: String(u.id), _responsableNombre: getNombreUsuario(u) })}
-                              onClear={() => updateHito(h._tmpId, { responsable_id: '', _responsableNombre: '' })}
+                              onAdd={(u) => {
+                                const nombre = getNombreUsuario(u);
+                                const id = u.id;
+                                updateHito(h._tmpId, {
+                                  responsable_ids: [...(h.responsable_ids || []).filter(r => r !== id), id],
+                                  _responsablesData: [...(h._responsablesData || []).filter(r => String(r.id) !== String(id)), { id, nombre }],
+                                });
+                              }}
+                              onRemove={(id) => updateHito(h._tmpId, {
+                                responsable_ids: (h.responsable_ids || []).filter(r => String(r) !== String(id)),
+                                _responsablesData: (h._responsablesData || []).filter(r => String(r.id) !== String(id)),
+                              })}
                               inputCls={inputCls}
                             />
 

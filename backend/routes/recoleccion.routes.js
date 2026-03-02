@@ -38,4 +38,10 @@ router.post(
   recoleccionController.cerrarOcVehicular
 );
 
+// Ruta para cerrar una OC Incrementable (aplica costos al inventario)
+router.post(
+  '/ocs/:id/cerrar-incrementable',
+  recoleccionController.cerrarIncrementable
+);
+
 module.exports = router;

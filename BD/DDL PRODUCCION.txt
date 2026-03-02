@@ -1,0 +1,4034 @@
+-- DROP SCHEMA public;
+
+CREATE SCHEMA public AUTHORIZATION postgres;
+
+-- DROP TYPE public.estatus_pago_enum;
+
+CREATE TYPE public.estatus_pago_enum AS ENUM (
+	'PENDIENTE',
+	'PARCIAL',
+	'PAGADO');
+
+-- DROP TYPE public.orden_compra_status;
+
+CREATE TYPE public.orden_compra_status AS ENUM (
+	'POR_AUTORIZAR',
+	'APROBADA',
+	'RECHAZADA',
+	'EN_PROCESO',
+	'ENTREGADA',
+	'CANCELADA',
+	'HOLD',
+	'CONFIRMAR_SPEI');
+
+-- DROP TYPE public.proyecto_status;
+
+CREATE TYPE public.proyecto_status AS ENUM (
+	'POR_APROBAR',
+	'EN_EJECUCION',
+	'EN_PAUSA',
+	'CANCELADO',
+	'CERRADO');
+
+-- DROP TYPE public.proyectos_hito_comentario_status;
+
+CREATE TYPE public.proyectos_hito_comentario_status AS ENUM (
+	'PENDIENTE',
+	'RESUELTO');
+
+-- DROP TYPE public.requisicion_status;
+
+CREATE TYPE public.requisicion_status AS ENUM (
+	'ABIERTA',
+	'COTIZANDO',
+	'POR_APROBAR',
+	'ESPERANDO_ENTREGA',
+	'ENTREGADA',
+	'CANCELADA');
+
+-- DROP TYPE public.tipo_movimiento_inventario;
+
+CREATE TYPE public.tipo_movimiento_inventario AS ENUM (
+	'ENTRADA',
+	'SALIDA',
+	'AJUSTE_POSITIVO',
+	'AJUSTE_NEGATIVO',
+	'TRASPASO',
+	'APARTADO');
+
+-- DROP SEQUENCE public.archivos_recoleccion_oc_id_seq;
+
+CREATE SEQUENCE public.archivos_recoleccion_oc_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.archivos_recoleccion_oc_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.archivos_recoleccion_oc_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.archivos_recoleccion_oc_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.areas_id_seq;
+
+CREATE SEQUENCE public.areas_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.areas_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.areas_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.areas_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.budget_id_seq;
+
+CREATE SEQUENCE public.budget_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.budget_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.budget_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.budget_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.catalogo_fuentes_pago_id_seq;
+
+CREATE SEQUENCE public.catalogo_fuentes_pago_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.catalogo_fuentes_pago_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.catalogo_fuentes_pago_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.catalogo_fuentes_pago_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.catalogo_incidencias_recepcion_id_seq;
+
+CREATE SEQUENCE public.catalogo_incidencias_recepcion_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.catalogo_incidencias_recepcion_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.catalogo_incidencias_recepcion_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.catalogo_incidencias_recepcion_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.catalogo_materiales_id_seq;
+
+CREATE SEQUENCE public.catalogo_materiales_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.catalogo_materiales_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.catalogo_materiales_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.catalogo_materiales_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.catalogo_metodos_notificacion_id_seq;
+
+CREATE SEQUENCE public.catalogo_metodos_notificacion_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.catalogo_metodos_notificacion_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.catalogo_metodos_notificacion_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.catalogo_metodos_notificacion_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.catalogo_metodos_recoleccion_id_seq;
+
+CREATE SEQUENCE public.catalogo_metodos_recoleccion_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.catalogo_metodos_recoleccion_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.catalogo_metodos_recoleccion_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.catalogo_metodos_recoleccion_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.catalogo_paqueterias_id_seq;
+
+CREATE SEQUENCE public.catalogo_paqueterias_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.catalogo_paqueterias_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.catalogo_paqueterias_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.catalogo_paqueterias_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.catalogo_unidades_id_seq;
+
+CREATE SEQUENCE public.catalogo_unidades_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.catalogo_unidades_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.catalogo_unidades_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.catalogo_unidades_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.clientes_id_seq;
+
+CREATE SEQUENCE public.clientes_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.clientes_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.clientes_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.clientes_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.departamentos_id_seq;
+
+CREATE SEQUENCE public.departamentos_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.departamentos_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.departamentos_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.departamentos_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.departamentos_rh_id_seq;
+
+CREATE SEQUENCE public.departamentos_rh_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.departamentos_rh_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.departamentos_rh_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.departamentos_rh_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.dias_ley_vacaciones_id_seq;
+
+CREATE SEQUENCE public.dias_ley_vacaciones_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.dias_ley_vacaciones_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.dias_ley_vacaciones_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.dias_ley_vacaciones_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.empleados_id_seq;
+
+CREATE SEQUENCE public.empleados_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.empleados_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.empleados_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.empleados_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.empresas_id_seq;
+
+CREATE SEQUENCE public.empresas_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.empresas_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.empresas_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.empresas_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.funciones_id_seq;
+
+CREATE SEQUENCE public.funciones_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.funciones_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.funciones_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.funciones_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.historial_kpi_tiempos_entrega_id_seq;
+
+CREATE SEQUENCE public.historial_kpi_tiempos_entrega_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.historial_kpi_tiempos_entrega_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.historial_kpi_tiempos_entrega_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.historial_kpi_tiempos_entrega_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.incidencias_recepcion_oc_id_seq;
+
+CREATE SEQUENCE public.incidencias_recepcion_oc_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.incidencias_recepcion_oc_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.incidencias_recepcion_oc_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.incidencias_recepcion_oc_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.inventario_actual_id_seq;
+
+CREATE SEQUENCE public.inventario_actual_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.inventario_actual_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.inventario_actual_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.inventario_actual_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.inventario_asignado_id_seq;
+
+CREATE SEQUENCE public.inventario_asignado_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.inventario_asignado_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.inventario_asignado_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.inventario_asignado_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.movimientos_inventario_id_seq;
+
+CREATE SEQUENCE public.movimientos_inventario_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.movimientos_inventario_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.movimientos_inventario_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.movimientos_inventario_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.notificacion_grupos_id_seq;
+
+CREATE SEQUENCE public.notificacion_grupos_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.notificacion_grupos_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.notificacion_grupos_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.notificacion_grupos_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.ordenes_compra_detalle_id_seq;
+
+CREATE SEQUENCE public.ordenes_compra_detalle_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.ordenes_compra_detalle_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.ordenes_compra_detalle_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.ordenes_compra_detalle_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.ordenes_compra_extraordinarias_codigo_seq;
+
+CREATE SEQUENCE public.ordenes_compra_extraordinarias_codigo_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 9223372036854775807
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.ordenes_compra_extraordinarias_codigo_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.ordenes_compra_extraordinarias_codigo_seq TO postgres;
+GRANT ALL ON SEQUENCE public.ordenes_compra_extraordinarias_codigo_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.ordenes_compra_extraordinarias_id_seq;
+
+CREATE SEQUENCE public.ordenes_compra_extraordinarias_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.ordenes_compra_extraordinarias_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.ordenes_compra_extraordinarias_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.ordenes_compra_extraordinarias_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.ordenes_compra_historial_id_seq;
+
+CREATE SEQUENCE public.ordenes_compra_historial_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.ordenes_compra_historial_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.ordenes_compra_historial_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.ordenes_compra_historial_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.ordenes_compra_id_seq;
+
+CREATE SEQUENCE public.ordenes_compra_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.ordenes_compra_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.ordenes_compra_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.ordenes_compra_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.pagos_oc_id_seq;
+
+CREATE SEQUENCE public.pagos_oc_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.pagos_oc_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.pagos_oc_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.pagos_oc_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.pgmigrations_id_seq;
+
+CREATE SEQUENCE public.pgmigrations_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.pgmigrations_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.pgmigrations_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.pgmigrations_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.proveedores_id_seq;
+
+CREATE SEQUENCE public.proveedores_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.proveedores_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.proveedores_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.proveedores_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.proyectos_hitos_comentarios_id_seq;
+
+CREATE SEQUENCE public.proyectos_hitos_comentarios_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 9223372036854775807
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.proyectos_hitos_comentarios_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.proyectos_hitos_comentarios_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.proyectos_hitos_comentarios_id_seq TO sira_prod_user;
+GRANT ALL ON SEQUENCE public.proyectos_hitos_comentarios_id_seq TO sira_stg_user;
+
+-- DROP SEQUENCE public.proyectos_hitos_id_seq;
+
+CREATE SEQUENCE public.proyectos_hitos_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.proyectos_hitos_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.proyectos_hitos_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.proyectos_hitos_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.proyectos_id_seq;
+
+CREATE SEQUENCE public.proyectos_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.proyectos_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.proyectos_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.proyectos_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.puestos_id_seq;
+
+CREATE SEQUENCE public.puestos_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.puestos_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.puestos_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.puestos_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.recepciones_oc_id_seq;
+
+CREATE SEQUENCE public.recepciones_oc_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.recepciones_oc_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.recepciones_oc_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.recepciones_oc_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.requisiciones_adjuntos_id_seq;
+
+CREATE SEQUENCE public.requisiciones_adjuntos_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.requisiciones_adjuntos_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.requisiciones_adjuntos_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.requisiciones_adjuntos_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.requisiciones_borradores_id_seq;
+
+CREATE SEQUENCE public.requisiciones_borradores_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.requisiciones_borradores_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.requisiciones_borradores_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.requisiciones_borradores_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.requisiciones_detalle_id_seq;
+
+CREATE SEQUENCE public.requisiciones_detalle_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.requisiciones_detalle_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.requisiciones_detalle_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.requisiciones_detalle_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.requisiciones_id_seq;
+
+CREATE SEQUENCE public.requisiciones_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.requisiciones_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.requisiciones_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.requisiciones_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.requisiciones_opciones_id_seq;
+
+CREATE SEQUENCE public.requisiciones_opciones_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.requisiciones_opciones_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.requisiciones_opciones_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.requisiciones_opciones_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.rfq_consecutivo_seq;
+
+CREATE SEQUENCE public.rfq_consecutivo_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 999999
+	START 1
+	CACHE 1
+	NO CYCLE;
+COMMENT ON SEQUENCE public.rfq_consecutivo_seq IS 'Secuencia global para los consecutivos de los RFQ.';
+
+-- Permissions
+
+ALTER SEQUENCE public.rfq_consecutivo_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.rfq_consecutivo_seq TO postgres;
+GRANT ALL ON SEQUENCE public.rfq_consecutivo_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.rfq_proveedor_adjuntos_id_seq;
+
+CREATE SEQUENCE public.rfq_proveedor_adjuntos_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.rfq_proveedor_adjuntos_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.rfq_proveedor_adjuntos_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.rfq_proveedor_adjuntos_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.roles_id_seq;
+
+CREATE SEQUENCE public.roles_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.roles_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.roles_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.roles_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.salidas_almacen_id_seq;
+
+CREATE SEQUENCE public.salidas_almacen_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.salidas_almacen_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.salidas_almacen_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.salidas_almacen_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.salidas_almacen_items_id_seq;
+
+CREATE SEQUENCE public.salidas_almacen_items_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.salidas_almacen_items_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.salidas_almacen_items_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.salidas_almacen_items_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.sitios_id_seq;
+
+CREATE SEQUENCE public.sitios_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.sitios_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.sitios_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.sitios_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.status_trabajador_id_seq;
+
+CREATE SEQUENCE public.status_trabajador_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.status_trabajador_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.status_trabajador_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.status_trabajador_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.ubicaciones_almacen_id_seq;
+
+CREATE SEQUENCE public.ubicaciones_almacen_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.ubicaciones_almacen_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.ubicaciones_almacen_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.ubicaciones_almacen_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.unidades_evento_tipos_id_seq;
+
+CREATE SEQUENCE public.unidades_evento_tipos_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.unidades_evento_tipos_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.unidades_evento_tipos_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.unidades_evento_tipos_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.unidades_historial_id_seq;
+
+CREATE SEQUENCE public.unidades_historial_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.unidades_historial_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.unidades_historial_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.unidades_historial_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.unidades_id_seq;
+
+CREATE SEQUENCE public.unidades_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.unidades_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.unidades_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.unidades_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.usuarios_id_seq;
+
+CREATE SEQUENCE public.usuarios_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.usuarios_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.usuarios_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.usuarios_id_seq TO sira_prod_user;
+
+-- DROP SEQUENCE public.vacaciones_id_seq;
+
+CREATE SEQUENCE public.vacaciones_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 2147483647
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+-- Permissions
+
+ALTER SEQUENCE public.vacaciones_id_seq OWNER TO postgres;
+GRANT ALL ON SEQUENCE public.vacaciones_id_seq TO postgres;
+GRANT ALL ON SEQUENCE public.vacaciones_id_seq TO sira_prod_user;
+-- public.areas definition
+
+-- Drop table
+
+-- DROP TABLE public.areas;
+
+CREATE TABLE public.areas (
+	id serial4 NOT NULL,
+	nombre_area varchar(100) NOT NULL,
+	creado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	actualizado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	CONSTRAINT areas_pkey PRIMARY KEY (id)
+);
+
+-- Table Triggers
+
+create trigger tr_actualizar_fecha_areas before
+update
+    on
+    public.areas for each row execute function actualizar_fecha_modificacion();
+
+-- Permissions
+
+ALTER TABLE public.areas OWNER TO postgres;
+GRANT ALL ON TABLE public.areas TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.areas TO sira_prod_user;
+
+
+-- public.catalogo_fuentes_pago definition
+
+-- Drop table
+
+-- DROP TABLE public.catalogo_fuentes_pago;
+
+CREATE TABLE public.catalogo_fuentes_pago (
+	id serial4 NOT NULL,
+	nombre varchar(120) NOT NULL,
+	tipo varchar(20) DEFAULT '''OTRO'''::character varying NOT NULL,
+	activo bool DEFAULT true NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT catalogo_fuentes_pago_nombre_key UNIQUE (nombre),
+	CONSTRAINT catalogo_fuentes_pago_pkey PRIMARY KEY (id),
+	CONSTRAINT catalogo_fuentes_pago_tipo_check CHECK (((tipo)::text = ANY ((ARRAY['BANCO'::character varying, 'EFECTIVO'::character varying, 'TARJETA'::character varying, 'OTRO'::character varying])::text[])))
+);
+
+-- Table Triggers
+
+create trigger trg_catalogo_fuentes_pago_update before
+update
+    on
+    public.catalogo_fuentes_pago for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.catalogo_fuentes_pago OWNER TO postgres;
+GRANT ALL ON TABLE public.catalogo_fuentes_pago TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_fuentes_pago TO sira_prod_user;
+
+
+-- public.catalogo_incidencias_recepcion definition
+
+-- Drop table
+
+-- DROP TABLE public.catalogo_incidencias_recepcion;
+
+CREATE TABLE public.catalogo_incidencias_recepcion (
+	id serial4 NOT NULL,
+	codigo varchar(50) NOT NULL, -- Código corto para referencia interna (ej: DANO, CANT_INCORRECTA)
+	descripcion varchar(255) NOT NULL, -- Descripción legible para el usuario
+	activo bool DEFAULT true NULL,
+	CONSTRAINT catalogo_incidencias_recepcion_codigo_key UNIQUE (codigo),
+	CONSTRAINT catalogo_incidencias_recepcion_pkey PRIMARY KEY (id)
+);
+
+-- Column comments
+
+COMMENT ON COLUMN public.catalogo_incidencias_recepcion.codigo IS 'Código corto para referencia interna (ej: DANO, CANT_INCORRECTA)';
+COMMENT ON COLUMN public.catalogo_incidencias_recepcion.descripcion IS 'Descripción legible para el usuario';
+
+-- Permissions
+
+ALTER TABLE public.catalogo_incidencias_recepcion OWNER TO postgres;
+GRANT ALL ON TABLE public.catalogo_incidencias_recepcion TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_incidencias_recepcion TO sira_prod_user;
+
+
+-- public.catalogo_metodos_notificacion definition
+
+-- Drop table
+
+-- DROP TABLE public.catalogo_metodos_notificacion;
+
+CREATE TABLE public.catalogo_metodos_notificacion (
+	id serial4 NOT NULL,
+	codigo varchar(20) NOT NULL, -- WHATSAPP, EMAIL, OTRO
+	nombre varchar(100) NOT NULL,
+	activo bool DEFAULT true NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT catalogo_metodos_notificacion_codigo_key UNIQUE (codigo),
+	CONSTRAINT catalogo_metodos_notificacion_pkey PRIMARY KEY (id)
+);
+
+-- Column comments
+
+COMMENT ON COLUMN public.catalogo_metodos_notificacion.codigo IS 'WHATSAPP, EMAIL, OTRO';
+
+-- Permissions
+
+ALTER TABLE public.catalogo_metodos_notificacion OWNER TO postgres;
+GRANT ALL ON TABLE public.catalogo_metodos_notificacion TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_metodos_notificacion TO sira_prod_user;
+
+
+-- public.catalogo_metodos_recoleccion definition
+
+-- Drop table
+
+-- DROP TABLE public.catalogo_metodos_recoleccion;
+
+CREATE TABLE public.catalogo_metodos_recoleccion (
+	id serial4 NOT NULL,
+	codigo varchar(20) NOT NULL, -- Clave interna para lógica. Ej: LOCAL, PAQUETERIA, ENTREGA
+	nombre varchar(100) NOT NULL, -- Nombre visible para usuarios
+	activo bool DEFAULT true NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT catalogo_metodos_recoleccion_codigo_key UNIQUE (codigo),
+	CONSTRAINT catalogo_metodos_recoleccion_pkey PRIMARY KEY (id)
+);
+
+-- Column comments
+
+COMMENT ON COLUMN public.catalogo_metodos_recoleccion.codigo IS 'Clave interna para lógica. Ej: LOCAL, PAQUETERIA, ENTREGA';
+COMMENT ON COLUMN public.catalogo_metodos_recoleccion.nombre IS 'Nombre visible para usuarios';
+
+-- Permissions
+
+ALTER TABLE public.catalogo_metodos_recoleccion OWNER TO postgres;
+GRANT ALL ON TABLE public.catalogo_metodos_recoleccion TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_metodos_recoleccion TO sira_prod_user;
+
+
+-- public.catalogo_monedas definition
+
+-- Drop table
+
+-- DROP TABLE public.catalogo_monedas;
+
+CREATE TABLE public.catalogo_monedas (
+	codigo bpchar(3) NOT NULL,
+	nombre varchar(50) NOT NULL,
+	CONSTRAINT catalogo_monedas_pkey PRIMARY KEY (codigo)
+);
+
+-- Permissions
+
+ALTER TABLE public.catalogo_monedas OWNER TO postgres;
+GRANT ALL ON TABLE public.catalogo_monedas TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_monedas TO sira_prod_user;
+
+
+-- public.catalogo_paqueterias definition
+
+-- Drop table
+
+-- DROP TABLE public.catalogo_paqueterias;
+
+CREATE TABLE public.catalogo_paqueterias (
+	id serial4 NOT NULL,
+	nombre varchar(100) NOT NULL,
+	activo bool DEFAULT true NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT catalogo_paqueterias_nombre_key UNIQUE (nombre),
+	CONSTRAINT catalogo_paqueterias_pkey PRIMARY KEY (id)
+);
+
+-- Permissions
+
+ALTER TABLE public.catalogo_paqueterias OWNER TO postgres;
+GRANT ALL ON TABLE public.catalogo_paqueterias TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_paqueterias TO sira_prod_user;
+
+
+-- public.catalogo_unidades definition
+
+-- Drop table
+
+-- DROP TABLE public.catalogo_unidades;
+
+CREATE TABLE public.catalogo_unidades (
+	id serial4 NOT NULL,
+	unidad varchar(50) NOT NULL,
+	simbolo varchar(10) NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT catalogo_unidades_pkey PRIMARY KEY (id),
+	CONSTRAINT catalogo_unidades_simbolo_key UNIQUE (simbolo),
+	CONSTRAINT catalogo_unidades_unidad_key UNIQUE (unidad)
+);
+CREATE INDEX idx_unidades_simbolo ON public.catalogo_unidades USING btree (simbolo);
+CREATE INDEX idx_unidades_unidad ON public.catalogo_unidades USING btree (unidad);
+
+-- Table Triggers
+
+create trigger trg_catalogo_unidades_update before
+update
+    on
+    public.catalogo_unidades for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.catalogo_unidades OWNER TO postgres;
+GRANT ALL ON TABLE public.catalogo_unidades TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_unidades TO sira_prod_user;
+
+
+-- public.clientes definition
+
+-- Drop table
+
+-- DROP TABLE public.clientes;
+
+CREATE TABLE public.clientes (
+	id serial4 NOT NULL,
+	razon_social varchar(200) NOT NULL,
+	rfc varchar(25) NOT NULL,
+	creado_en timestamptz DEFAULT now() NULL,
+	actualizado_en timestamptz DEFAULT now() NULL,
+	CONSTRAINT clientes_pkey PRIMARY KEY (id),
+	CONSTRAINT clientes_rfc_key UNIQUE (rfc)
+);
+CREATE INDEX idx_clientes_rfc ON public.clientes USING btree (rfc);
+
+-- Table Triggers
+
+create trigger trg_clientes_update before
+update
+    on
+    public.clientes for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.clientes OWNER TO postgres;
+GRANT ALL ON TABLE public.clientes TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.clientes TO sira_prod_user;
+
+
+-- public.departamentos definition
+
+-- Drop table
+
+-- DROP TABLE public.departamentos;
+
+CREATE TABLE public.departamentos (
+	id serial4 NOT NULL,
+	codigo varchar(10) NOT NULL,
+	nombre varchar(100) NOT NULL,
+	creado_en timestamptz DEFAULT now() NULL,
+	actualizado_en timestamptz DEFAULT now() NULL,
+	CONSTRAINT departamentos_codigo_key UNIQUE (codigo),
+	CONSTRAINT departamentos_pkey PRIMARY KEY (id)
+);
+
+-- Table Triggers
+
+create trigger trg_departamentos_update before
+update
+    on
+    public.departamentos for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.departamentos OWNER TO postgres;
+GRANT ALL ON TABLE public.departamentos TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.departamentos TO sira_prod_user;
+
+
+-- public.departamentos_rh definition
+
+-- Drop table
+
+-- DROP TABLE public.departamentos_rh;
+
+CREATE TABLE public.departamentos_rh (
+	id serial4 NOT NULL,
+	codigo varchar(20) NULL,
+	nombre varchar(100) NOT NULL,
+	creado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	actualizado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	CONSTRAINT departamentos_rh_codigo_key UNIQUE (codigo),
+	CONSTRAINT departamentos_rh_pkey PRIMARY KEY (id)
+);
+
+-- Table Triggers
+
+create trigger tr_actualizar_fecha_departamentos_rh before
+update
+    on
+    public.departamentos_rh for each row execute function actualizar_fecha_modificacion();
+
+-- Permissions
+
+ALTER TABLE public.departamentos_rh OWNER TO postgres;
+GRANT ALL ON TABLE public.departamentos_rh TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.departamentos_rh TO sira_prod_user;
+
+
+-- public.dias_ley_vacaciones definition
+
+-- Drop table
+
+-- DROP TABLE public.dias_ley_vacaciones;
+
+CREATE TABLE public.dias_ley_vacaciones (
+	id serial4 NOT NULL,
+	anos_antiguedad int4 NOT NULL,
+	dias_otorgados int4 NOT NULL,
+	created_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	CONSTRAINT dias_ley_vacaciones_pkey PRIMARY KEY (id)
+);
+
+-- Permissions
+
+ALTER TABLE public.dias_ley_vacaciones OWNER TO postgres;
+GRANT ALL ON TABLE public.dias_ley_vacaciones TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.dias_ley_vacaciones TO sira_prod_user;
+
+
+-- public.empresas definition
+
+-- Drop table
+
+-- DROP TABLE public.empresas;
+
+CREATE TABLE public.empresas (
+	id serial4 NOT NULL,
+	razon_social varchar(255) NOT NULL,
+	nombre_comercial varchar(255) NULL,
+	rfc varchar(13) NOT NULL,
+	telefono varchar(20) NULL,
+	email varchar(255) NULL,
+	creado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	actualizado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	CONSTRAINT empresas_pkey PRIMARY KEY (id),
+	CONSTRAINT empresas_rfc_key UNIQUE (rfc)
+);
+
+-- Table Triggers
+
+create trigger tr_actualizar_fecha_empresas before
+update
+    on
+    public.empresas for each row execute function actualizar_fecha_modificacion();
+
+-- Permissions
+
+ALTER TABLE public.empresas OWNER TO postgres;
+GRANT ALL ON TABLE public.empresas TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.empresas TO sira_prod_user;
+
+
+-- public.funciones definition
+
+-- Drop table
+
+-- DROP TABLE public.funciones;
+
+CREATE TABLE public.funciones (
+	id serial4 NOT NULL,
+	codigo varchar(20) NOT NULL,
+	nombre varchar(100) NOT NULL,
+	modulo varchar(50) NULL,
+	icono varchar(50) NULL,
+	ruta varchar(100) NULL,
+	CONSTRAINT funciones_codigo_key UNIQUE (codigo),
+	CONSTRAINT funciones_pkey PRIMARY KEY (id)
+);
+
+-- Permissions
+
+ALTER TABLE public.funciones OWNER TO postgres;
+GRANT ALL ON TABLE public.funciones TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.funciones TO sira_prod_user;
+
+
+-- public.notificacion_grupos definition
+
+-- Drop table
+
+-- DROP TABLE public.notificacion_grupos;
+
+CREATE TABLE public.notificacion_grupos (
+	id serial4 NOT NULL,
+	codigo varchar(50) NOT NULL, -- Código único usado por el sistema para identificar el grupo. No debe cambiarse.
+	nombre varchar(150) NOT NULL,
+	descripcion text NULL,
+	CONSTRAINT notificacion_grupos_codigo_key UNIQUE (codigo),
+	CONSTRAINT notificacion_grupos_pkey PRIMARY KEY (id)
+);
+COMMENT ON TABLE public.notificacion_grupos IS 'Almacena grupos de notificación para diferentes eventos del sistema.';
+
+-- Column comments
+
+COMMENT ON COLUMN public.notificacion_grupos.codigo IS 'Código único usado por el sistema para identificar el grupo. No debe cambiarse.';
+
+-- Permissions
+
+ALTER TABLE public.notificacion_grupos OWNER TO postgres;
+GRANT ALL ON TABLE public.notificacion_grupos TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.notificacion_grupos TO sira_prod_user;
+
+
+-- public.parametros_sistema definition
+
+-- Drop table
+
+-- DROP TABLE public.parametros_sistema;
+
+CREATE TABLE public.parametros_sistema (
+	clave text NOT NULL,
+	valor text NOT NULL,
+	CONSTRAINT parametros_sistema_pkey PRIMARY KEY (clave)
+);
+
+-- Permissions
+
+ALTER TABLE public.parametros_sistema OWNER TO postgres;
+GRANT ALL ON TABLE public.parametros_sistema TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.parametros_sistema TO sira_prod_user;
+
+
+-- public.pgmigrations definition
+
+-- Drop table
+
+-- DROP TABLE public.pgmigrations;
+
+CREATE TABLE public.pgmigrations (
+	id serial4 NOT NULL,
+	"name" varchar(255) NOT NULL,
+	run_on timestamp NOT NULL,
+	CONSTRAINT pgmigrations_pkey PRIMARY KEY (id)
+);
+
+-- Permissions
+
+ALTER TABLE public.pgmigrations OWNER TO postgres;
+GRANT ALL ON TABLE public.pgmigrations TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.pgmigrations TO sira_prod_user;
+
+
+-- public.proveedores definition
+
+-- Drop table
+
+-- DROP TABLE public.proveedores;
+
+CREATE TABLE public.proveedores (
+	id serial4 NOT NULL,
+	marca varchar(100) NOT NULL,
+	razon_social varchar(150) NOT NULL,
+	rfc varchar(20) NOT NULL,
+	contacto varchar(100) NULL,
+	telefono varchar(20) NULL,
+	correo varchar(150) NULL,
+	direccion text NULL,
+	web varchar(200) NULL,
+	comentarios text NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	dias_credito int4 NULL,
+	whatsapp_notificaciones varchar(30) NULL, -- Teléfono WhatsApp para notificaciones automatizadas
+	correo_notificaciones varchar(150) NULL, -- Correo alternativo para notificaciones
+	CONSTRAINT proveedores_pkey PRIMARY KEY (id),
+	CONSTRAINT proveedores_rfc_key UNIQUE (rfc)
+);
+CREATE INDEX idx_proveedores_marca ON public.proveedores USING btree (marca);
+CREATE INDEX idx_proveedores_rfc ON public.proveedores USING btree (rfc);
+
+-- Column comments
+
+COMMENT ON COLUMN public.proveedores.whatsapp_notificaciones IS 'Teléfono WhatsApp para notificaciones automatizadas';
+COMMENT ON COLUMN public.proveedores.correo_notificaciones IS 'Correo alternativo para notificaciones';
+
+-- Table Triggers
+
+create trigger trg_proveedores_update before
+update
+    on
+    public.proveedores for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.proveedores OWNER TO postgres;
+GRANT ALL ON TABLE public.proveedores TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.proveedores TO sira_prod_user;
+
+
+-- public.puestos definition
+
+-- Drop table
+
+-- DROP TABLE public.puestos;
+
+CREATE TABLE public.puestos (
+	id serial4 NOT NULL,
+	nombre_puesto varchar(100) NOT NULL,
+	creado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	actualizado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	CONSTRAINT puestos_pkey PRIMARY KEY (id)
+);
+
+-- Table Triggers
+
+create trigger tr_actualizar_fecha_puestos before
+update
+    on
+    public.puestos for each row execute function actualizar_fecha_modificacion();
+
+-- Permissions
+
+ALTER TABLE public.puestos OWNER TO postgres;
+GRANT ALL ON TABLE public.puestos TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.puestos TO sira_prod_user;
+
+
+-- public.roles definition
+
+-- Drop table
+
+-- DROP TABLE public.roles;
+
+CREATE TABLE public.roles (
+	id serial4 NOT NULL,
+	codigo varchar(30) NOT NULL,
+	nombre varchar(100) NOT NULL,
+	creado_en timestamptz DEFAULT now() NULL,
+	actualizado_en timestamptz DEFAULT now() NULL,
+	CONSTRAINT roles_codigo_key UNIQUE (codigo),
+	CONSTRAINT roles_pkey PRIMARY KEY (id)
+);
+
+-- Table Triggers
+
+create trigger trg_roles_update before
+update
+    on
+    public.roles for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.roles OWNER TO postgres;
+GRANT ALL ON TABLE public.roles TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.roles TO sira_prod_user;
+
+
+-- public.status_trabajador definition
+
+-- Drop table
+
+-- DROP TABLE public.status_trabajador;
+
+CREATE TABLE public.status_trabajador (
+	id serial4 NOT NULL,
+	nombre_status varchar(50) NOT NULL,
+	creado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	actualizado_en timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	CONSTRAINT status_trabajador_pkey PRIMARY KEY (id)
+);
+
+-- Table Triggers
+
+create trigger tr_actualizar_fecha_status_trabajador before
+update
+    on
+    public.status_trabajador for each row execute function actualizar_fecha_modificacion();
+
+-- Permissions
+
+ALTER TABLE public.status_trabajador OWNER TO postgres;
+GRANT ALL ON TABLE public.status_trabajador TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.status_trabajador TO sira_prod_user;
+
+
+-- public.ubicaciones_almacen definition
+
+-- Drop table
+
+-- DROP TABLE public.ubicaciones_almacen;
+
+CREATE TABLE public.ubicaciones_almacen (
+	id serial4 NOT NULL,
+	nombre varchar(100) NOT NULL,
+	codigo varchar(20) NOT NULL,
+	descripcion text NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT ubicaciones_almacen_codigo_key UNIQUE (codigo),
+	CONSTRAINT ubicaciones_almacen_nombre_key UNIQUE (nombre),
+	CONSTRAINT ubicaciones_almacen_pkey PRIMARY KEY (id)
+);
+CREATE INDEX idx_ubicaciones_codigo ON public.ubicaciones_almacen USING btree (codigo);
+CREATE INDEX idx_ubicaciones_nombre ON public.ubicaciones_almacen USING btree (nombre);
+
+-- Table Triggers
+
+create trigger trg_ubicaciones_almacen_update before
+update
+    on
+    public.ubicaciones_almacen for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.ubicaciones_almacen OWNER TO postgres;
+GRANT ALL ON TABLE public.ubicaciones_almacen TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ubicaciones_almacen TO sira_prod_user;
+
+
+-- public.unidades_evento_tipos definition
+
+-- Drop table
+
+-- DROP TABLE public.unidades_evento_tipos;
+
+CREATE TABLE public.unidades_evento_tipos (
+	id serial4 NOT NULL,
+	codigo varchar(50) NOT NULL,
+	nombre varchar(100) NOT NULL,
+	descripcion text NULL,
+	activo bool DEFAULT true NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	genera_requisicion bool DEFAULT false NOT NULL, -- Si true, este evento crea una requisición de compra en lugar de un registro manual
+	requiere_num_serie bool DEFAULT false NOT NULL, -- Si true, el formulario exigirá ingresar número de serie
+	km_intervalo int4 NULL, -- Kilometraje de duración del servicio. El sistema notifica cuando km_actual >= km_ultimo_servicio + km_intervalo
+	tipo_combustible_aplica varchar(50) DEFAULT NULL::character varying NULL, -- Si se especifica, este tipo de servicio solo aparece para unidades con ese tipo de combustible. NULL = aplica a todos
+	material_sku varchar(50) DEFAULT NULL::character varying NULL, -- SKU del catálogo de materiales que se usará al generar la requisición para este tipo de evento
+	CONSTRAINT unidades_evento_tipos_codigo_key UNIQUE (codigo),
+	CONSTRAINT unidades_evento_tipos_pkey PRIMARY KEY (id)
+);
+
+-- Column comments
+
+COMMENT ON COLUMN public.unidades_evento_tipos.genera_requisicion IS 'Si true, este evento crea una requisición de compra en lugar de un registro manual';
+COMMENT ON COLUMN public.unidades_evento_tipos.requiere_num_serie IS 'Si true, el formulario exigirá ingresar número de serie';
+COMMENT ON COLUMN public.unidades_evento_tipos.km_intervalo IS 'Kilometraje de duración del servicio. El sistema notifica cuando km_actual >= km_ultimo_servicio + km_intervalo';
+COMMENT ON COLUMN public.unidades_evento_tipos.tipo_combustible_aplica IS 'Si se especifica, este tipo de servicio solo aparece para unidades con ese tipo de combustible. NULL = aplica a todos';
+COMMENT ON COLUMN public.unidades_evento_tipos.material_sku IS 'SKU del catálogo de materiales que se usará al generar la requisición para este tipo de evento';
+
+-- Permissions
+
+ALTER TABLE public.unidades_evento_tipos OWNER TO postgres;
+GRANT ALL ON TABLE public.unidades_evento_tipos TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.unidades_evento_tipos TO sira_prod_user;
+
+
+-- public.catalogo_materiales definition
+
+-- Drop table
+
+-- DROP TABLE public.catalogo_materiales;
+
+CREATE TABLE public.catalogo_materiales (
+	id serial4 NOT NULL,
+	tipo varchar(50) NOT NULL,
+	categoria varchar(50) NOT NULL,
+	detalle varchar(50) NOT NULL,
+	sku varchar(50) NULL,
+	unidad_de_compra int4 NOT NULL,
+	ultimo_precio varchar(50) NOT NULL,
+	activo bool DEFAULT true NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	nombre varchar(150) GENERATED ALWAYS AS ((((((COALESCE(tipo, ''::character varying)::text || ' '::text) || COALESCE(categoria, ''::character varying)::text) || ' '::text) || COALESCE(detalle, ''::character varying)::text))) STORED NULL,
+	CONSTRAINT catalogo_materiales_nombre_key UNIQUE (nombre),
+	CONSTRAINT catalogo_materiales_pkey PRIMARY KEY (id),
+	CONSTRAINT catalogo_materiales_unidad_de_compra_fkey FOREIGN KEY (unidad_de_compra) REFERENCES public.catalogo_unidades(id)
+);
+CREATE INDEX idx_mat_categoria ON public.catalogo_materiales USING btree (categoria);
+CREATE INDEX idx_mat_detalle ON public.catalogo_materiales USING btree (detalle);
+CREATE INDEX idx_mat_tipo ON public.catalogo_materiales USING btree (tipo);
+
+-- Table Triggers
+
+create trigger trg_catalogo_materiales_update before
+update
+    on
+    public.catalogo_materiales for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.catalogo_materiales OWNER TO postgres;
+GRANT ALL ON TABLE public.catalogo_materiales TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.catalogo_materiales TO sira_prod_user;
+
+
+-- public.departamentos_acceso_unidades definition
+
+-- Drop table
+
+-- DROP TABLE public.departamentos_acceso_unidades;
+
+CREATE TABLE public.departamentos_acceso_unidades (
+	departamento_id int4 NOT NULL,
+	puede_ver_todo bool DEFAULT false NOT NULL, -- Si true, usuarios de este departamento ven todas las unidades (equivalente al antiguo hardcode FIN/SSD)
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT departamentos_acceso_unidades_pkey PRIMARY KEY (departamento_id),
+	CONSTRAINT departamentos_acceso_unidades_departamento_id_fkey FOREIGN KEY (departamento_id) REFERENCES public.departamentos(id) ON DELETE CASCADE
+);
+COMMENT ON TABLE public.departamentos_acceso_unidades IS 'Configura qué departamentos pueden ver TODAS las unidades de la flotilla, sin importar el responsable';
+
+-- Column comments
+
+COMMENT ON COLUMN public.departamentos_acceso_unidades.puede_ver_todo IS 'Si true, usuarios de este departamento ven todas las unidades (equivalente al antiguo hardcode FIN/SSD)';
+
+-- Table Triggers
+
+create trigger trg_dau_update before
+update
+    on
+    public.departamentos_acceso_unidades for each row execute function fn_dau_update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.departamentos_acceso_unidades OWNER TO postgres;
+GRANT ALL ON TABLE public.departamentos_acceso_unidades TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.departamentos_acceso_unidades TO sira_prod_user;
+GRANT ALL ON TABLE public.departamentos_acceso_unidades TO sira_stg_user;
+
+
+-- public.empleados definition
+
+-- Drop table
+
+-- DROP TABLE public.empleados;
+
+CREATE TABLE public.empleados (
+	id serial4 NOT NULL, -- Identificador único autoincremental del empleado
+	num_empl varchar(50) NOT NULL, -- Número de empleado único por empresa
+	empleado varchar(255) NOT NULL, -- Nombre completo del empleado
+	fecha_ingreso date NOT NULL, -- Fecha de ingreso a la empresa
+	rfc varchar(15) NOT NULL, -- RFC único del empleado (13 caracteres)
+	nss varchar(15) NOT NULL, -- Número de Seguridad Social único (11 caracteres)
+	curp varchar(20) NOT NULL, -- CURP único del empleado (18 caracteres)
+	genero varchar(20) NOT NULL, -- Género del empleado: MASCULINO, FEMENINO, OTRO, NO ESPECIFICADO
+	fecha_nacimiento date NOT NULL, -- Fecha de nacimiento del empleado
+	años int4 NULL, -- Edad del empleado en años (0-100)
+	empresa varchar(255) NOT NULL, -- Nombre de la empresa donde labora
+	puesto varchar(255) NOT NULL, -- Puesto del empleado
+	departamento varchar(255) NOT NULL, -- Departamento o área del empleado
+	status_laboral varchar(50) DEFAULT 'activo'::character varying NOT NULL, -- Estado laboral: activo, inactivo, vacaciones, licencia, baja
+	created_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL, -- Fecha y hora de creación del registro
+	updated_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL, -- Fecha y hora de última actualización del registro
+	departamento_id int4 NULL,
+	CONSTRAINT chk_edad_minima CHECK ((fecha_nacimiento <= (CURRENT_DATE - '18 years'::interval))),
+	CONSTRAINT chk_fecha_ingreso_valida CHECK ((fecha_ingreso <= CURRENT_DATE)),
+	CONSTRAINT chk_fecha_nacimiento_valida CHECK ((fecha_nacimiento <= CURRENT_DATE)),
+	CONSTRAINT chk_genero_valido CHECK (((genero)::text = ANY (ARRAY[('MASCULINO'::character varying)::text, ('FEMENINO'::character varying)::text, ('OTRO'::character varying)::text, ('NO ESPECIFICADO'::character varying)::text]))),
+	CONSTRAINT chk_status_laboral_valido CHECK (((status_laboral)::text = ANY (ARRAY[('activo'::character varying)::text, ('inactivo'::character varying)::text, ('vacaciones'::character varying)::text, ('licencia'::character varying)::text, ('baja'::character varying)::text]))),
+	CONSTRAINT empleados_años_check CHECK ((("años" >= 0) AND ("años" <= 100))),
+	CONSTRAINT empleados_curp_key UNIQUE (curp),
+	CONSTRAINT empleados_nss_key UNIQUE (nss),
+	CONSTRAINT empleados_num_empl_key UNIQUE (num_empl),
+	CONSTRAINT empleados_pkey PRIMARY KEY (id),
+	CONSTRAINT empleados_rfc_key UNIQUE (rfc),
+	CONSTRAINT uq_empleado_empresa UNIQUE (num_empl, empresa),
+	CONSTRAINT empleados_departamento_id_fkey FOREIGN KEY (departamento_id) REFERENCES public.departamentos(id) ON DELETE SET NULL,
+	CONSTRAINT fk_empleados_departamento FOREIGN KEY (departamento_id) REFERENCES public.departamentos(id) ON DELETE SET NULL ON UPDATE CASCADE
+);
+CREATE INDEX empleados_curp_index ON public.empleados USING btree (curp);
+CREATE INDEX empleados_departamento_id_index ON public.empleados USING btree (departamento_id);
+CREATE INDEX empleados_departamento_index ON public.empleados USING btree (departamento);
+CREATE INDEX empleados_empresa_departamento_index ON public.empleados USING btree (empresa, departamento);
+CREATE INDEX empleados_empresa_index ON public.empleados USING btree (empresa);
+CREATE INDEX empleados_fecha_ingreso_index ON public.empleados USING btree (fecha_ingreso);
+CREATE INDEX empleados_nss_index ON public.empleados USING btree (nss);
+CREATE INDEX empleados_num_empl_index ON public.empleados USING btree (num_empl);
+CREATE INDEX empleados_rfc_index ON public.empleados USING btree (rfc);
+CREATE INDEX empleados_status_laboral_empresa_index ON public.empleados USING btree (status_laboral, empresa);
+CREATE INDEX empleados_status_laboral_index ON public.empleados USING btree (status_laboral);
+COMMENT ON TABLE public.empleados IS 'Tabla para almacenar información de empleados';
+
+-- Column comments
+
+COMMENT ON COLUMN public.empleados.id IS 'Identificador único autoincremental del empleado';
+COMMENT ON COLUMN public.empleados.num_empl IS 'Número de empleado único por empresa';
+COMMENT ON COLUMN public.empleados.empleado IS 'Nombre completo del empleado';
+COMMENT ON COLUMN public.empleados.fecha_ingreso IS 'Fecha de ingreso a la empresa';
+COMMENT ON COLUMN public.empleados.rfc IS 'RFC único del empleado (13 caracteres)';
+COMMENT ON COLUMN public.empleados.nss IS 'Número de Seguridad Social único (11 caracteres)';
+COMMENT ON COLUMN public.empleados.curp IS 'CURP único del empleado (18 caracteres)';
+COMMENT ON COLUMN public.empleados.genero IS 'Género del empleado: MASCULINO, FEMENINO, OTRO, NO ESPECIFICADO';
+COMMENT ON COLUMN public.empleados.fecha_nacimiento IS 'Fecha de nacimiento del empleado';
+COMMENT ON COLUMN public.empleados.años IS 'Edad del empleado en años (0-100)';
+COMMENT ON COLUMN public.empleados.empresa IS 'Nombre de la empresa donde labora';
+COMMENT ON COLUMN public.empleados.puesto IS 'Puesto del empleado';
+COMMENT ON COLUMN public.empleados.departamento IS 'Departamento o área del empleado';
+COMMENT ON COLUMN public.empleados.status_laboral IS 'Estado laboral: activo, inactivo, vacaciones, licencia, baja';
+COMMENT ON COLUMN public.empleados.created_at IS 'Fecha y hora de creación del registro';
+COMMENT ON COLUMN public.empleados.updated_at IS 'Fecha y hora de última actualización del registro';
+
+-- Permissions
+
+ALTER TABLE public.empleados OWNER TO postgres;
+GRANT ALL ON TABLE public.empleados TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.empleados TO sira_prod_user;
+
+
+-- public.inventario_actual definition
+
+-- Drop table
+
+-- DROP TABLE public.inventario_actual;
+
+CREATE TABLE public.inventario_actual (
+	id serial4 NOT NULL,
+	material_id int4 NOT NULL,
+	ubicacion_id int4 NOT NULL,
+	stock_actual numeric(12, 2) DEFAULT 0 NOT NULL,
+	stock_minimo numeric(12, 2) DEFAULT 0 NOT NULL,
+	stock_maximo numeric(12, 2) DEFAULT 0 NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	asignado numeric(12, 2) DEFAULT 0 NOT NULL,
+	existencia_total numeric(12, 2) GENERATED ALWAYS AS ((stock_actual + asignado)) STORED NULL,
+	ultimo_precio_entrada numeric(14, 4) DEFAULT 0 NULL, -- Último costo unitario registrado al ingresar a STOCK este material en esta ubicación.
+	moneda bpchar(3) NULL, -- Moneda del ultimo_precio_entrada.
+	CONSTRAINT inventario_actual_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_inv_material_ubicacion UNIQUE (material_id, ubicacion_id),
+	CONSTRAINT inventario_actual_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.catalogo_materiales(id) ON DELETE RESTRICT,
+	CONSTRAINT inventario_actual_moneda_fkey FOREIGN KEY (moneda) REFERENCES public.catalogo_monedas(codigo) ON DELETE SET NULL,
+	CONSTRAINT inventario_actual_ubicacion_id_fkey FOREIGN KEY (ubicacion_id) REFERENCES public.ubicaciones_almacen(id) ON DELETE RESTRICT
+);
+CREATE INDEX idx_inv_material ON public.inventario_actual USING btree (material_id);
+CREATE INDEX idx_inv_stock_actual ON public.inventario_actual USING btree (stock_actual);
+CREATE INDEX idx_inv_ubicacion ON public.inventario_actual USING btree (ubicacion_id);
+
+-- Column comments
+
+COMMENT ON COLUMN public.inventario_actual.ultimo_precio_entrada IS 'Último costo unitario registrado al ingresar a STOCK este material en esta ubicación.';
+COMMENT ON COLUMN public.inventario_actual.moneda IS 'Moneda del ultimo_precio_entrada.';
+
+-- Table Triggers
+
+create trigger trg_inventario_actual_update before
+update
+    on
+    public.inventario_actual for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.inventario_actual OWNER TO postgres;
+GRANT ALL ON TABLE public.inventario_actual TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.inventario_actual TO sira_prod_user;
+
+
+-- public.rol_funcion definition
+
+-- Drop table
+
+-- DROP TABLE public.rol_funcion;
+
+CREATE TABLE public.rol_funcion (
+	rol_id int4 NOT NULL,
+	funcion_id int4 NOT NULL,
+	CONSTRAINT pk_rol_funcion PRIMARY KEY (rol_id, funcion_id),
+	CONSTRAINT fk_funcion FOREIGN KEY (funcion_id) REFERENCES public.funciones(id) ON DELETE CASCADE,
+	CONSTRAINT fk_rol FOREIGN KEY (rol_id) REFERENCES public.roles(id) ON DELETE CASCADE
+);
+
+-- Permissions
+
+ALTER TABLE public.rol_funcion OWNER TO postgres;
+GRANT ALL ON TABLE public.rol_funcion TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.rol_funcion TO sira_prod_user;
+
+
+-- public.sitios definition
+
+-- Drop table
+
+-- DROP TABLE public.sitios;
+
+CREATE TABLE public.sitios (
+	id serial4 NOT NULL,
+	nombre varchar(200) NOT NULL,
+	cliente int4 NOT NULL,
+	ubicacion varchar(200) NOT NULL,
+	creado_en timestamptz DEFAULT now() NULL,
+	actualizado_en timestamptz DEFAULT now() NULL,
+	activo bool DEFAULT true NOT NULL, -- Indica si el sitio está activo. Los sitios inactivos no aparecen en dropdowns de G_REQ.
+	CONSTRAINT sitios_nombre_key UNIQUE (nombre),
+	CONSTRAINT sitios_pkey PRIMARY KEY (id),
+	CONSTRAINT sitios_cliente_fkey FOREIGN KEY (cliente) REFERENCES public.clientes(id)
+);
+CREATE INDEX idx_sitios_nombre ON public.sitios USING btree (nombre);
+
+-- Column comments
+
+COMMENT ON COLUMN public.sitios.activo IS 'Indica si el sitio está activo. Los sitios inactivos no aparecen en dropdowns de G_REQ.';
+
+-- Table Triggers
+
+create trigger trg_sitios_update before
+update
+    on
+    public.sitios for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.sitios OWNER TO postgres;
+GRANT ALL ON TABLE public.sitios TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.sitios TO sira_prod_user;
+
+
+-- public.usuarios definition
+
+-- Drop table
+
+-- DROP TABLE public.usuarios;
+
+CREATE TABLE public.usuarios (
+	id serial4 NOT NULL,
+	nombre varchar(100) NOT NULL,
+	correo varchar(150) NOT NULL,
+	whatsapp varchar(20) NULL,
+	role_id int4 NOT NULL,
+	departamento_id int4 NOT NULL,
+	activo bool DEFAULT true NULL,
+	creado_en timestamptz DEFAULT now() NULL,
+	actualizado_en timestamptz DEFAULT now() NULL,
+	es_superusuario bool DEFAULT false NOT NULL,
+	correo_google varchar(150) NULL,
+	CONSTRAINT usuarios_correo_google_key UNIQUE (correo_google),
+	CONSTRAINT usuarios_correo_key UNIQUE (correo),
+	CONSTRAINT usuarios_pkey PRIMARY KEY (id),
+	CONSTRAINT usuarios_departamento_id_fkey FOREIGN KEY (departamento_id) REFERENCES public.departamentos(id),
+	CONSTRAINT usuarios_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id)
+);
+CREATE INDEX idx_usuarios_correo ON public.usuarios USING btree (correo);
+
+-- Table Triggers
+
+create trigger trg_usuarios_update before
+update
+    on
+    public.usuarios for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.usuarios OWNER TO postgres;
+GRANT ALL ON TABLE public.usuarios TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.usuarios TO sira_prod_user;
+
+
+-- public.usuarios_ui_preferencias definition
+
+-- Drop table
+
+-- DROP TABLE public.usuarios_ui_preferencias;
+
+CREATE TABLE public.usuarios_ui_preferencias (
+	usuario_id int4 NOT NULL,
+	"data" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT usuarios_ui_preferencias_pkey PRIMARY KEY (usuario_id),
+	CONSTRAINT usuarios_ui_preferencias_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_usuarios_ui_preferencias_actualizado_en ON public.usuarios_ui_preferencias USING btree (actualizado_en DESC);
+
+-- Permissions
+
+ALTER TABLE public.usuarios_ui_preferencias OWNER TO postgres;
+GRANT ALL ON TABLE public.usuarios_ui_preferencias TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.usuarios_ui_preferencias TO sira_prod_user;
+
+
+-- public.vacaciones definition
+
+-- Drop table
+
+-- DROP TABLE public.vacaciones;
+
+CREATE TABLE public.vacaciones (
+	id serial4 NOT NULL,
+	empleado_id int4 NOT NULL,
+	fecha_solicitud timestamp DEFAULT CURRENT_TIMESTAMP NULL,
+	fecha_inicio date NOT NULL,
+	fecha_fin date NOT NULL,
+	fecha_retorno date NULL,
+	dias_solicitados int4 NOT NULL,
+	periodo_antiguedad int4 NOT NULL,
+	estatus varchar(20) DEFAULT 'Pendiente'::character varying NULL,
+	observaciones text NULL,
+	aprobado_por int4 NULL,
+	fecha_aprobacion timestamp NULL,
+	created_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	updated_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	CONSTRAINT vacaciones_pkey PRIMARY KEY (id),
+	CONSTRAINT vacaciones_empleado_id_fkey FOREIGN KEY (empleado_id) REFERENCES public.empleados(id) ON DELETE CASCADE
+);
+CREATE INDEX vacaciones_empleado_id_index ON public.vacaciones USING btree (empleado_id);
+CREATE INDEX vacaciones_estatus_index ON public.vacaciones USING btree (estatus);
+
+-- Permissions
+
+ALTER TABLE public.vacaciones OWNER TO postgres;
+GRANT ALL ON TABLE public.vacaciones TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.vacaciones TO sira_prod_user;
+
+
+-- public.notificacion_grupo_usuarios definition
+
+-- Drop table
+
+-- DROP TABLE public.notificacion_grupo_usuarios;
+
+CREATE TABLE public.notificacion_grupo_usuarios (
+	grupo_id int4 NOT NULL,
+	usuario_id int4 NOT NULL,
+	CONSTRAINT notificacion_grupo_usuarios_pkey PRIMARY KEY (grupo_id, usuario_id),
+	CONSTRAINT fk_grupo FOREIGN KEY (grupo_id) REFERENCES public.notificacion_grupos(id) ON DELETE CASCADE,
+	CONSTRAINT fk_usuario FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE CASCADE
+);
+COMMENT ON TABLE public.notificacion_grupo_usuarios IS 'Tabla intermedia para la relación muchos-a-muchos entre grupos y usuarios.';
+
+-- Permissions
+
+ALTER TABLE public.notificacion_grupo_usuarios OWNER TO postgres;
+GRANT ALL ON TABLE public.notificacion_grupo_usuarios TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.notificacion_grupo_usuarios TO sira_prod_user;
+
+
+-- public.ordenes_compra_extraordinarias definition
+
+-- Drop table
+
+-- DROP TABLE public.ordenes_compra_extraordinarias;
+
+CREATE TABLE public.ordenes_compra_extraordinarias (
+	id serial4 NOT NULL,
+	codigo varchar(32) NOT NULL,
+	usuario_id int4 NOT NULL,
+	status varchar(30) DEFAULT 'BORRADOR'::character varying NOT NULL, -- BORRADOR | EN_REVISION | APROBADA | RECHAZADA
+	datos_generales jsonb NOT NULL,
+	materiales jsonb NOT NULL,
+	configuraciones jsonb NOT NULL,
+	totales jsonb NOT NULL,
+	historial jsonb DEFAULT '[]'::jsonb NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT ordenes_compra_extraordinarias_codigo_key UNIQUE (codigo),
+	CONSTRAINT ordenes_compra_extraordinarias_pkey PRIMARY KEY (id),
+	CONSTRAINT ordenes_compra_extraordinarias_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE RESTRICT
+);
+CREATE INDEX ordenes_compra_extraordinarias_creado_en_index ON public.ordenes_compra_extraordinarias USING btree (creado_en);
+CREATE INDEX ordenes_compra_extraordinarias_status_index ON public.ordenes_compra_extraordinarias USING btree (status);
+
+-- Column comments
+
+COMMENT ON COLUMN public.ordenes_compra_extraordinarias.status IS 'BORRADOR | EN_REVISION | APROBADA | RECHAZADA';
+
+-- Permissions
+
+ALTER TABLE public.ordenes_compra_extraordinarias OWNER TO postgres;
+GRANT ALL ON TABLE public.ordenes_compra_extraordinarias TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra_extraordinarias TO sira_prod_user;
+
+
+-- public.proyectos definition
+
+-- Drop table
+
+-- DROP TABLE public.proyectos;
+
+CREATE TABLE public.proyectos (
+	id serial4 NOT NULL,
+	nombre varchar(100) NOT NULL,
+	descripcion varchar(400) NOT NULL,
+	responsable_id int4 NOT NULL,
+	sitio_id int4 NOT NULL,
+	cliente_id int4 NOT NULL,
+	activo bool DEFAULT true NULL,
+	creado_en timestamptz DEFAULT now() NULL,
+	actualizado_en timestamptz DEFAULT now() NULL,
+	status public.proyecto_status DEFAULT 'POR_APROBAR'::proyecto_status NOT NULL,
+	total_facturado numeric(14, 4) NULL,
+	total_facturado_moneda bpchar(3) NULL,
+	costo_total numeric(14, 4) NULL,
+	costo_total_moneda bpchar(3) NULL,
+	margen_estimado numeric(14, 4) NULL,
+	margen_moneda bpchar(3) NULL,
+	margen_es_forzado bool DEFAULT false NOT NULL,
+	fecha_inicio date NULL,
+	fecha_cierre date NULL,
+	CONSTRAINT chk_proyectos_costo_total_nonneg CHECK (((costo_total IS NULL) OR (costo_total >= (0)::numeric))),
+	CONSTRAINT chk_proyectos_fechas_orden CHECK (((fecha_inicio IS NULL) OR (fecha_cierre IS NULL) OR (fecha_cierre >= fecha_inicio))),
+	CONSTRAINT chk_proyectos_total_facturado_nonneg CHECK (((total_facturado IS NULL) OR (total_facturado >= (0)::numeric))),
+	CONSTRAINT proyectos_pkey PRIMARY KEY (id),
+	CONSTRAINT proyectos_costo_total_moneda_fkey FOREIGN KEY (costo_total_moneda) REFERENCES public.catalogo_monedas(codigo) ON DELETE SET NULL,
+	CONSTRAINT proyectos_margen_moneda_fkey FOREIGN KEY (margen_moneda) REFERENCES public.catalogo_monedas(codigo) ON DELETE SET NULL,
+	CONSTRAINT proyectos_responsable_id_fkey FOREIGN KEY (responsable_id) REFERENCES public.usuarios(id),
+	CONSTRAINT proyectos_sitio_id_fkey FOREIGN KEY (sitio_id) REFERENCES public.sitios(id),
+	CONSTRAINT proyectos_total_facturado_moneda_fkey FOREIGN KEY (total_facturado_moneda) REFERENCES public.catalogo_monedas(codigo) ON DELETE SET NULL
+);
+CREATE INDEX idx_proyectos_cliente_id ON public.proyectos USING btree (cliente_id);
+CREATE INDEX idx_proyectos_sitio_id ON public.proyectos USING btree (sitio_id);
+CREATE INDEX idx_proyectos_status ON public.proyectos USING btree (status);
+
+-- Table Triggers
+
+create trigger trg_proyectos_sync_cliente before
+insert
+    or
+update
+    on
+    public.proyectos for each row execute function sync_cliente_en_proyecto();
+create trigger trg_proyectos_update before
+update
+    on
+    public.proyectos for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.proyectos OWNER TO postgres;
+GRANT ALL ON TABLE public.proyectos TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.proyectos TO sira_prod_user;
+
+
+-- public.proyectos_hitos definition
+
+-- Drop table
+
+-- DROP TABLE public.proyectos_hitos;
+
+CREATE TABLE public.proyectos_hitos (
+	id serial4 NOT NULL,
+	proyecto_id int4 NOT NULL,
+	nombre varchar(150) NOT NULL,
+	descripcion text NULL,
+	target_date date NULL,
+	fecha_realizacion date NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT proyectos_hitos_pkey PRIMARY KEY (id),
+	CONSTRAINT proyectos_hitos_proyecto_id_fkey FOREIGN KEY (proyecto_id) REFERENCES public.proyectos(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_proyectos_hitos_proyecto_id ON public.proyectos_hitos USING btree (proyecto_id);
+CREATE INDEX idx_proyectos_hitos_target_date ON public.proyectos_hitos USING btree (target_date);
+
+-- Table Triggers
+
+create trigger trg_proyectos_hitos_update before
+update
+    on
+    public.proyectos_hitos for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.proyectos_hitos OWNER TO postgres;
+GRANT ALL ON TABLE public.proyectos_hitos TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.proyectos_hitos TO sira_prod_user;
+GRANT ALL ON TABLE public.proyectos_hitos TO sira_stg_user;
+
+
+-- public.proyectos_hitos_comentarios definition
+
+-- Drop table
+
+-- DROP TABLE public.proyectos_hitos_comentarios;
+
+CREATE TABLE public.proyectos_hitos_comentarios (
+	id bigserial NOT NULL,
+	hito_id int4 NOT NULL,
+	usuario_id int4 NULL,
+	parent_id int8 NULL,
+	comentario text NOT NULL,
+	status public.proyectos_hito_comentario_status DEFAULT 'PENDIENTE'::proyectos_hito_comentario_status NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT proyectos_hitos_comentarios_pkey PRIMARY KEY (id),
+	CONSTRAINT proyectos_hitos_comentarios_hito_id_fkey FOREIGN KEY (hito_id) REFERENCES public.proyectos_hitos(id) ON DELETE CASCADE,
+	CONSTRAINT proyectos_hitos_comentarios_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.proyectos_hitos_comentarios(id) ON DELETE SET NULL,
+	CONSTRAINT proyectos_hitos_comentarios_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_proyectos_hitos_comentarios_hito_id_creado_en ON public.proyectos_hitos_comentarios USING btree (hito_id, creado_en);
+CREATE INDEX idx_proyectos_hitos_comentarios_hito_id_status ON public.proyectos_hitos_comentarios USING btree (hito_id, status);
+CREATE INDEX idx_proyectos_hitos_comentarios_parent_id ON public.proyectos_hitos_comentarios USING btree (parent_id);
+
+-- Table Triggers
+
+create trigger trg_proyectos_hitos_comentarios_update before
+update
+    on
+    public.proyectos_hitos_comentarios for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.proyectos_hitos_comentarios OWNER TO postgres;
+GRANT ALL ON TABLE public.proyectos_hitos_comentarios TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.proyectos_hitos_comentarios TO sira_prod_user;
+GRANT ALL ON TABLE public.proyectos_hitos_comentarios TO sira_stg_user;
+
+
+-- public.proyectos_hitos_responsables definition
+
+-- Drop table
+
+-- DROP TABLE public.proyectos_hitos_responsables;
+
+CREATE TABLE public.proyectos_hitos_responsables (
+	hito_id int4 NOT NULL,
+	usuario_id int4 NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT proyectos_hitos_responsables_pkey PRIMARY KEY (hito_id, usuario_id),
+	CONSTRAINT proyectos_hitos_responsables_hito_id_fkey FOREIGN KEY (hito_id) REFERENCES public.proyectos_hitos(id) ON DELETE CASCADE,
+	CONSTRAINT proyectos_hitos_responsables_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_proyectos_hitos_responsables_usuario_id ON public.proyectos_hitos_responsables USING btree (usuario_id);
+
+-- Permissions
+
+ALTER TABLE public.proyectos_hitos_responsables OWNER TO postgres;
+GRANT ALL ON TABLE public.proyectos_hitos_responsables TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.proyectos_hitos_responsables TO sira_prod_user;
+GRANT ALL ON TABLE public.proyectos_hitos_responsables TO sira_stg_user;
+
+
+-- public.requisiciones definition
+
+-- Drop table
+
+-- DROP TABLE public.requisiciones;
+
+CREATE TABLE public.requisiciones (
+	id serial4 NOT NULL,
+	numero_requisicion varchar(50) NOT NULL,
+	usuario_id int4 NOT NULL,
+	departamento_id int4 NOT NULL,
+	sitio_id int4 NOT NULL,
+	proyecto_id int4 NOT NULL,
+	fecha_creacion timestamptz DEFAULT now() NOT NULL,
+	fecha_requerida date NOT NULL,
+	lugar_entrega varchar(200) NOT NULL,
+	status public.requisicion_status DEFAULT 'ABIERTA'::requisicion_status NOT NULL,
+	rfq_code varchar(50) NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	comentario varchar(2000) NULL,
+	drive_folder_id varchar(255) NULL,
+	CONSTRAINT requisiciones_numero_requisicion_key UNIQUE (numero_requisicion),
+	CONSTRAINT requisiciones_pkey PRIMARY KEY (id),
+	CONSTRAINT requisiciones_rfq_code_key UNIQUE (rfq_code),
+	CONSTRAINT requisiciones_departamento_id_fkey FOREIGN KEY (departamento_id) REFERENCES public.departamentos(id),
+	CONSTRAINT requisiciones_proyecto_id_fkey FOREIGN KEY (proyecto_id) REFERENCES public.proyectos(id),
+	CONSTRAINT requisiciones_sitio_id_fkey FOREIGN KEY (sitio_id) REFERENCES public.sitios(id),
+	CONSTRAINT requisiciones_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
+);
+CREATE INDEX idx_req_departamento_id ON public.requisiciones USING btree (departamento_id);
+CREATE INDEX idx_req_sitio_id ON public.requisiciones USING btree (sitio_id);
+CREATE INDEX idx_req_status ON public.requisiciones USING btree (status);
+CREATE INDEX idx_req_usuario_id ON public.requisiciones USING btree (usuario_id);
+
+-- Table Triggers
+
+create trigger trg_generar_numero_requisicion before
+insert
+    on
+    public.requisiciones for each row execute function f_generar_numero_requisicion();
+create trigger trg_requisiciones_update before
+update
+    on
+    public.requisiciones for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.requisiciones OWNER TO postgres;
+GRANT ALL ON TABLE public.requisiciones TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones TO sira_prod_user;
+
+
+-- public.requisiciones_adjuntos definition
+
+-- Drop table
+
+-- DROP TABLE public.requisiciones_adjuntos;
+
+CREATE TABLE public.requisiciones_adjuntos (
+	id serial4 NOT NULL,
+	requisicion_id int4 NOT NULL,
+	nombre_archivo varchar(255) NOT NULL,
+	ruta_archivo text NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT requisiciones_adjuntos_pkey PRIMARY KEY (id),
+	CONSTRAINT requisiciones_adjuntos_requisicion_id_fkey FOREIGN KEY (requisicion_id) REFERENCES public.requisiciones(id) ON DELETE CASCADE
+);
+
+-- Permissions
+
+ALTER TABLE public.requisiciones_adjuntos OWNER TO postgres;
+GRANT ALL ON TABLE public.requisiciones_adjuntos TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones_adjuntos TO sira_prod_user;
+
+
+-- public.requisiciones_borradores definition
+
+-- Drop table
+
+-- DROP TABLE public.requisiciones_borradores;
+
+CREATE TABLE public.requisiciones_borradores (
+	id serial4 NOT NULL,
+	usuario_id int4 NOT NULL,
+	"data" jsonb NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT requisiciones_borradores_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_borrador_usuario UNIQUE (usuario_id),
+	CONSTRAINT requisiciones_borradores_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_borradores_usuario ON public.requisiciones_borradores USING btree (usuario_id);
+
+-- Permissions
+
+ALTER TABLE public.requisiciones_borradores OWNER TO postgres;
+GRANT ALL ON TABLE public.requisiciones_borradores TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones_borradores TO sira_prod_user;
+
+
+-- public.requisiciones_detalle definition
+
+-- Drop table
+
+-- DROP TABLE public.requisiciones_detalle;
+
+CREATE TABLE public.requisiciones_detalle (
+	id serial4 NOT NULL,
+	requisicion_id int4 NOT NULL,
+	material_id int4 NOT NULL,
+	cantidad numeric(7, 2) NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	comentario varchar(2000) NULL,
+	status_compra varchar(20) DEFAULT 'PENDIENTE'::character varying NOT NULL,
+	cantidad_procesada numeric(12, 2) DEFAULT 0 NOT NULL, -- Suma de las cantidades de este material que ya han sido incluidas en una OC.
+	rfq_sort_index int4 DEFAULT 0 NOT NULL,
+	agregado_por_usuario_id int4 NULL, -- ID del usuario de compras que agregó este material adicional desde G_RFQ. NULL para materiales de la requisición original.
+	CONSTRAINT chk_req_det_cant CHECK ((cantidad > (0)::numeric)),
+	CONSTRAINT requisiciones_detalle_pkey PRIMARY KEY (id),
+	CONSTRAINT uq_req_detalle_mat UNIQUE (requisicion_id, material_id),
+	CONSTRAINT requisiciones_detalle_agregado_por_usuario_id_fkey FOREIGN KEY (agregado_por_usuario_id) REFERENCES public.usuarios(id) ON DELETE SET NULL,
+	CONSTRAINT requisiciones_detalle_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.catalogo_materiales(id),
+	CONSTRAINT requisiciones_detalle_requisicion_id_fkey FOREIGN KEY (requisicion_id) REFERENCES public.requisiciones(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_detalle_material_id ON public.requisiciones_detalle USING btree (material_id);
+CREATE INDEX idx_detalle_req_id ON public.requisiciones_detalle USING btree (requisicion_id);
+CREATE INDEX idx_requisiciones_detalle_rfq_sort ON public.requisiciones_detalle USING btree (requisicion_id, rfq_sort_index);
+
+-- Column comments
+
+COMMENT ON COLUMN public.requisiciones_detalle.cantidad_procesada IS 'Suma de las cantidades de este material que ya han sido incluidas en una OC.';
+COMMENT ON COLUMN public.requisiciones_detalle.agregado_por_usuario_id IS 'ID del usuario de compras que agregó este material adicional desde G_RFQ. NULL para materiales de la requisición original.';
+
+-- Table Triggers
+
+create trigger trg_requisiciones_detalle_update before
+update
+    on
+    public.requisiciones_detalle for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.requisiciones_detalle OWNER TO postgres;
+GRANT ALL ON TABLE public.requisiciones_detalle TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones_detalle TO sira_prod_user;
+
+
+-- public.requisiciones_opciones definition
+
+-- Drop table
+
+-- DROP TABLE public.requisiciones_opciones;
+
+CREATE TABLE public.requisiciones_opciones (
+	id serial4 NOT NULL,
+	requisicion_id int4 NOT NULL,
+	requisicion_detalle_id int4 NOT NULL,
+	proveedor_id int4 NOT NULL,
+	precio_unitario numeric(14, 4) NOT NULL,
+	moneda bpchar(3) NOT NULL,
+	plazo_entrega varchar(100) NULL,
+	condiciones_pago varchar(100) NULL,
+	comentario text NULL,
+	seleccionado bool DEFAULT false NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	cantidad_cotizada numeric(12, 2) DEFAULT 0 NOT NULL, -- La cantidad específica que se cotiza con este proveedor, para permitir compras divididas.
+	es_precio_neto bool DEFAULT false NOT NULL, -- TRUE si el precio unitario ya incluye IVA, FALSE si es más IVA.
+	es_importacion bool DEFAULT false NOT NULL, -- TRUE si el material debe ser importado.
+	es_entrega_inmediata bool DEFAULT true NOT NULL, -- TRUE si el proveedor ofrece entrega inmediata.
+	tiempo_entrega varchar(100) NULL, -- Descripción del tiempo de entrega si no es inmediata (ej. "5 días hábiles").
+	tiempo_entrega_valor int4 NULL, -- Valor numérico del tiempo de entrega (ej. 5).
+	tiempo_entrega_unidad varchar(20) NULL, -- Unidad del tiempo de entrega (ej. 'dias', 'semanas').
+	subtotal numeric(14, 4) NULL, -- Subtotal calculado para esta opción de compra.
+	iva numeric(14, 4) NULL, -- Monto de IVA calculado.
+	ret_isr numeric(14, 4) NULL, -- Monto de retención de ISR calculado.
+	total numeric(14, 4) NULL, -- Total final (calculado o forzado).
+	config_calculo jsonb NULL, -- Objeto JSON que almacena la configuración usada para el cálculo (tasas, switches).
+	es_total_forzado bool DEFAULT false NULL, -- TRUE si el campo "total" fue introducido manualmente por el usuario.
+	CONSTRAINT requisiciones_opciones_pkey PRIMARY KEY (id),
+	CONSTRAINT fk_reqop_moneda FOREIGN KEY (moneda) REFERENCES public.catalogo_monedas(codigo),
+	CONSTRAINT requisiciones_opciones_proveedor_id_fkey FOREIGN KEY (proveedor_id) REFERENCES public.proveedores(id),
+	CONSTRAINT requisiciones_opciones_requisicion_detalle_id_fkey FOREIGN KEY (requisicion_detalle_id) REFERENCES public.requisiciones_detalle(id) ON DELETE CASCADE,
+	CONSTRAINT requisiciones_opciones_requisicion_id_fkey FOREIGN KEY (requisicion_id) REFERENCES public.requisiciones(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_opts_detalle_id ON public.requisiciones_opciones USING btree (requisicion_detalle_id);
+CREATE INDEX idx_opts_proveedor_id ON public.requisiciones_opciones USING btree (proveedor_id);
+CREATE INDEX idx_opts_req_id ON public.requisiciones_opciones USING btree (requisicion_id);
+
+-- Column comments
+
+COMMENT ON COLUMN public.requisiciones_opciones.cantidad_cotizada IS 'La cantidad específica que se cotiza con este proveedor, para permitir compras divididas.';
+COMMENT ON COLUMN public.requisiciones_opciones.es_precio_neto IS 'TRUE si el precio unitario ya incluye IVA, FALSE si es más IVA.';
+COMMENT ON COLUMN public.requisiciones_opciones.es_importacion IS 'TRUE si el material debe ser importado.';
+COMMENT ON COLUMN public.requisiciones_opciones.es_entrega_inmediata IS 'TRUE si el proveedor ofrece entrega inmediata.';
+COMMENT ON COLUMN public.requisiciones_opciones.tiempo_entrega IS 'Descripción del tiempo de entrega si no es inmediata (ej. "5 días hábiles").';
+COMMENT ON COLUMN public.requisiciones_opciones.tiempo_entrega_valor IS 'Valor numérico del tiempo de entrega (ej. 5).';
+COMMENT ON COLUMN public.requisiciones_opciones.tiempo_entrega_unidad IS 'Unidad del tiempo de entrega (ej. ''dias'', ''semanas'').';
+COMMENT ON COLUMN public.requisiciones_opciones.subtotal IS 'Subtotal calculado para esta opción de compra.';
+COMMENT ON COLUMN public.requisiciones_opciones.iva IS 'Monto de IVA calculado.';
+COMMENT ON COLUMN public.requisiciones_opciones.ret_isr IS 'Monto de retención de ISR calculado.';
+COMMENT ON COLUMN public.requisiciones_opciones.total IS 'Total final (calculado o forzado).';
+COMMENT ON COLUMN public.requisiciones_opciones.config_calculo IS 'Objeto JSON que almacena la configuración usada para el cálculo (tasas, switches).';
+COMMENT ON COLUMN public.requisiciones_opciones.es_total_forzado IS 'TRUE si el campo "total" fue introducido manualmente por el usuario.';
+
+-- Table Triggers
+
+create trigger trg_req_autocierre_from_opciones after
+insert
+    or
+delete
+    or
+update
+    on
+    public.requisiciones_opciones for each row execute function trg_requisicion_cierre_desde_opciones();
+
+-- Permissions
+
+ALTER TABLE public.requisiciones_opciones OWNER TO postgres;
+GRANT ALL ON TABLE public.requisiciones_opciones TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.requisiciones_opciones TO sira_prod_user;
+
+
+-- public.rfq_borradores definition
+
+-- Drop table
+
+-- DROP TABLE public.rfq_borradores;
+
+CREATE TABLE public.rfq_borradores (
+	requisicion_id int4 NOT NULL,
+	"data" jsonb NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_por_usuario_id int4 NULL,
+	CONSTRAINT rfq_borradores_pkey PRIMARY KEY (requisicion_id),
+	CONSTRAINT rfq_borradores_actualizado_por_usuario_id_fkey FOREIGN KEY (actualizado_por_usuario_id) REFERENCES public.usuarios(id) ON DELETE SET NULL,
+	CONSTRAINT rfq_borradores_requisicion_id_fkey FOREIGN KEY (requisicion_id) REFERENCES public.requisiciones(id) ON DELETE CASCADE
+);
+
+-- Table Triggers
+
+create trigger trg_rfq_borradores_update before
+update
+    on
+    public.rfq_borradores for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.rfq_borradores OWNER TO postgres;
+GRANT ALL ON TABLE public.rfq_borradores TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.rfq_borradores TO sira_prod_user;
+
+
+-- public.rfq_proveedor_adjuntos definition
+
+-- Drop table
+
+-- DROP TABLE public.rfq_proveedor_adjuntos;
+
+CREATE TABLE public.rfq_proveedor_adjuntos (
+	id serial4 NOT NULL,
+	requisicion_id int4 NOT NULL,
+	proveedor_id int4 NOT NULL,
+	nombre_archivo varchar(255) NOT NULL,
+	ruta_archivo text NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT rfq_proveedor_adjuntos_pkey PRIMARY KEY (id),
+	CONSTRAINT fk_proveedor FOREIGN KEY (proveedor_id) REFERENCES public.proveedores(id) ON DELETE CASCADE,
+	CONSTRAINT fk_requisicion FOREIGN KEY (requisicion_id) REFERENCES public.requisiciones(id) ON DELETE CASCADE
+);
+COMMENT ON TABLE public.rfq_proveedor_adjuntos IS 'Almacena los archivos de cotización (PDFs, etc.) que un proveedor envía para un RFQ específico.';
+
+-- Permissions
+
+ALTER TABLE public.rfq_proveedor_adjuntos OWNER TO postgres;
+GRANT ALL ON TABLE public.rfq_proveedor_adjuntos TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.rfq_proveedor_adjuntos TO sira_prod_user;
+
+
+-- public.salidas_almacen definition
+
+-- Drop table
+
+-- DROP TABLE public.salidas_almacen;
+
+CREATE TABLE public.salidas_almacen (
+	id serial4 NOT NULL,
+	fecha timestamptz DEFAULT now() NOT NULL,
+	tipo_retiro varchar(20) NOT NULL,
+	usuario_id int4 NOT NULL,
+	solicitante_empleado_id int4 NOT NULL,
+	sitio_origen_id int4 NULL,
+	proyecto_origen_id int4 NULL,
+	sitio_destino_id int4 NULL,
+	proyecto_destino_id int4 NULL,
+	observaciones text NULL,
+	estado varchar(20) DEFAULT 'ACTIVA'::character varying NOT NULL,
+	anulado_en timestamptz NULL,
+	anulado_por int4 NULL,
+	motivo_anulacion text NULL,
+	CONSTRAINT salidas_almacen_estado_chk CHECK (((estado)::text = ANY ((ARRAY['ACTIVA'::character varying, 'ANULADA'::character varying])::text[]))),
+	CONSTRAINT salidas_almacen_pkey PRIMARY KEY (id),
+	CONSTRAINT salidas_almacen_tipo_retiro_chk CHECK (((tipo_retiro)::text = ANY ((ARRAY['ASIGNADO'::character varying, 'STOCK'::character varying])::text[]))),
+	CONSTRAINT salidas_almacen_anulado_por_fkey FOREIGN KEY (anulado_por) REFERENCES public.usuarios(id) ON DELETE SET NULL,
+	CONSTRAINT salidas_almacen_proyecto_destino_id_fkey FOREIGN KEY (proyecto_destino_id) REFERENCES public.proyectos(id) ON DELETE SET NULL,
+	CONSTRAINT salidas_almacen_proyecto_origen_id_fkey FOREIGN KEY (proyecto_origen_id) REFERENCES public.proyectos(id) ON DELETE SET NULL,
+	CONSTRAINT salidas_almacen_sitio_destino_id_fkey FOREIGN KEY (sitio_destino_id) REFERENCES public.sitios(id) ON DELETE SET NULL,
+	CONSTRAINT salidas_almacen_sitio_origen_id_fkey FOREIGN KEY (sitio_origen_id) REFERENCES public.sitios(id) ON DELETE SET NULL,
+	CONSTRAINT salidas_almacen_solicitante_empleado_id_fkey FOREIGN KEY (solicitante_empleado_id) REFERENCES public.empleados(id) ON DELETE RESTRICT,
+	CONSTRAINT salidas_almacen_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE RESTRICT
+);
+CREATE INDEX salidas_almacen_fecha_index ON public.salidas_almacen USING btree (fecha);
+CREATE INDEX salidas_almacen_solicitante_empleado_id_index ON public.salidas_almacen USING btree (solicitante_empleado_id);
+CREATE INDEX salidas_almacen_tipo_retiro_index ON public.salidas_almacen USING btree (tipo_retiro);
+CREATE INDEX salidas_almacen_usuario_id_index ON public.salidas_almacen USING btree (usuario_id);
+
+-- Permissions
+
+ALTER TABLE public.salidas_almacen OWNER TO postgres;
+GRANT ALL ON TABLE public.salidas_almacen TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.salidas_almacen TO sira_prod_user;
+
+
+-- public.unidades definition
+
+-- Drop table
+
+-- DROP TABLE public.unidades;
+
+CREATE TABLE public.unidades (
+	id serial4 NOT NULL,
+	marca varchar(100) NOT NULL,
+	unidad varchar(100) NOT NULL,
+	serie varchar(100) NOT NULL,
+	placas varchar(20) NOT NULL,
+	modelo int4 NOT NULL,
+	no_eco int4 NOT NULL,
+	km int4 NULL,
+	responsable_id int4 DEFAULT 7 NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	km_proximo_servicio int4 NULL,
+	rendimiento_teorico numeric(5, 2) NULL,
+	tipo_combustible varchar(50) NULL,
+	tipo_bateria varchar(50) NULL,
+	medidas_llantas varchar(50) NULL,
+	activo bool DEFAULT true NOT NULL,
+	CONSTRAINT chk_km_positivo CHECK ((km >= 0)),
+	CONSTRAINT unidades_no_eco_key UNIQUE (no_eco),
+	CONSTRAINT unidades_pkey PRIMARY KEY (id),
+	CONSTRAINT unidades_serie_key UNIQUE (serie),
+	CONSTRAINT fk_unidades_responsable FOREIGN KEY (responsable_id) REFERENCES public.usuarios(id)
+);
+CREATE INDEX idx_unidades_no_eco ON public.unidades USING btree (no_eco);
+CREATE INDEX idx_unidades_serie ON public.unidades USING btree (serie);
+
+-- Table Triggers
+
+create trigger tg_sync_unidad_delete after
+delete
+    on
+    public.unidades for each row execute function f_sync_unidad_a_proyecto();
+create trigger tg_sync_unidad_insert_update after
+insert
+    or
+update
+    on
+    public.unidades for each row execute function f_sync_unidad_a_proyecto();
+create trigger trg_unidades_update before
+update
+    on
+    public.unidades for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.unidades OWNER TO postgres;
+GRANT ALL ON TABLE public.unidades TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.unidades TO sira_prod_user;
+
+
+-- public.budget definition
+
+-- Drop table
+
+-- DROP TABLE public.budget;
+
+CREATE TABLE public.budget (
+	id serial4 NOT NULL,
+	proyecto_id int4 NOT NULL,
+	responsable_id int4 NOT NULL,
+	monto_asignado numeric(14, 4) NOT NULL,
+	monto_utilizado numeric(14, 4) NOT NULL,
+	currency varchar(10) NOT NULL,
+	recurrencia varchar(29) NOT NULL,
+	periodo_inicio date NULL,
+	periodo_fin date NULL,
+	creado_en timestamptz DEFAULT now() NULL,
+	actualizado_en timestamptz DEFAULT now() NULL,
+	CONSTRAINT budget_pkey PRIMARY KEY (id),
+	CONSTRAINT chk_budget_asig CHECK ((monto_asignado >= (0)::numeric)),
+	CONSTRAINT chk_budget_used CHECK ((monto_utilizado >= (0)::numeric)),
+	CONSTRAINT budget_proyecto_id_fkey FOREIGN KEY (proyecto_id) REFERENCES public.proyectos(id),
+	CONSTRAINT budget_responsable_id_fkey FOREIGN KEY (responsable_id) REFERENCES public.usuarios(id)
+);
+CREATE INDEX idx_budget_proyecto ON public.budget USING btree (proyecto_id);
+
+-- Table Triggers
+
+create trigger trg_budget_update before
+update
+    on
+    public.budget for each row execute function update_timestamp();
+
+-- Permissions
+
+ALTER TABLE public.budget OWNER TO postgres;
+GRANT ALL ON TABLE public.budget TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.budget TO sira_prod_user;
+
+
+-- public.inventario_asignado definition
+
+-- Drop table
+
+-- DROP TABLE public.inventario_asignado;
+
+CREATE TABLE public.inventario_asignado (
+	id serial4 NOT NULL,
+	inventario_id int4 NOT NULL,
+	requisicion_id int4 NULL,
+	proyecto_id int4 NOT NULL,
+	sitio_id int4 NOT NULL,
+	cantidad numeric(12, 2) NOT NULL,
+	valor_unitario numeric(14, 4) NOT NULL,
+	asignado_en timestamptz DEFAULT now() NULL,
+	moneda bpchar(3) NULL, -- Moneda del valor_unitario de esta asignación.
+	CONSTRAINT inventario_asignado_cantidad_check CHECK ((cantidad >= (0)::numeric)),
+	CONSTRAINT inventario_asignado_pkey PRIMARY KEY (id),
+	CONSTRAINT inventario_asignado_inventario_id_fkey FOREIGN KEY (inventario_id) REFERENCES public.inventario_actual(id) ON DELETE CASCADE,
+	CONSTRAINT inventario_asignado_moneda_fkey FOREIGN KEY (moneda) REFERENCES public.catalogo_monedas(codigo) ON DELETE SET NULL,
+	CONSTRAINT inventario_asignado_proyecto_id_fkey FOREIGN KEY (proyecto_id) REFERENCES public.proyectos(id),
+	CONSTRAINT inventario_asignado_requisicion_id_fkey FOREIGN KEY (requisicion_id) REFERENCES public.requisiciones(id),
+	CONSTRAINT inventario_asignado_sitio_id_fkey FOREIGN KEY (sitio_id) REFERENCES public.sitios(id)
+);
+
+-- Column comments
+
+COMMENT ON COLUMN public.inventario_asignado.moneda IS 'Moneda del valor_unitario de esta asignación.';
+
+-- Permissions
+
+ALTER TABLE public.inventario_asignado OWNER TO postgres;
+GRANT ALL ON TABLE public.inventario_asignado TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.inventario_asignado TO sira_prod_user;
+
+
+-- public.ordenes_compra definition
+
+-- Drop table
+
+-- DROP TABLE public.ordenes_compra;
+
+CREATE TABLE public.ordenes_compra (
+	id serial4 NOT NULL,
+	numero_oc varchar(20) NOT NULL,
+	usuario_id int4 NOT NULL,
+	rfq_id int4 NOT NULL,
+	sitio_id int4 NOT NULL,
+	proyecto_id int4 NOT NULL,
+	fecha_creacion timestamptz DEFAULT now() NOT NULL,
+	lugar_entrega varchar(200) NOT NULL,
+	comentario text NULL,
+	status public.orden_compra_status DEFAULT 'POR_AUTORIZAR'::orden_compra_status NOT NULL,
+	sub_total numeric(14, 4) NOT NULL,
+	iva numeric(14, 4) NOT NULL,
+	total numeric(14, 4) NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	impo bool DEFAULT false NULL,
+	proveedor_id int4 NULL, -- ID del proveedor al que se le emite esta Orden de Compra.
+	metodo_pago varchar(50) NULL,
+	fecha_vencimiento_pago date NULL,
+	hold_regresar_en date NULL,
+	comprobante_pago_link text NULL,
+	monto_pagado numeric(14, 4) NULL,
+	pendiente_liquidar bool DEFAULT false NOT NULL, -- TRUE si la OC está pendiente de liquidar (por anticipos o crédito); FALSE si está liquidada.
+	notificacion_proveedor_metodo_id int4 NULL,
+	recoleccion_parcial bool DEFAULT false NOT NULL,
+	metodo_recoleccion_id int4 NULL,
+	paqueteria_id int4 NULL,
+	numero_guia varchar(100) NULL,
+	comentario_recoleccion text NULL,
+	paqueteria_pago varchar(50) NULL,
+	entrega_responsable varchar(30) NULL, -- Quién entrega: EQUIPO_RECOLECCION | PROVEEDOR
+	entrega_parcial bool DEFAULT false NOT NULL, -- TRUE si se ha registrado al menos una recepción parcial y la OC aún no está completa.
+	con_incidencia bool DEFAULT false NOT NULL, -- TRUE si se ha reportado al menos una incidencia durante la recepción.
+	estatus_pago public.estatus_pago_enum DEFAULT 'PENDIENTE'::estatus_pago_enum NOT NULL,
+	ret_isr numeric(14, 4) DEFAULT 0 NOT NULL,
+	iva_rate numeric(8, 4) DEFAULT 0.16 NOT NULL,
+	isr_rate numeric(8, 4) DEFAULT 0 NOT NULL,
+	es_urgente bool DEFAULT false NOT NULL, -- Indicates if the Purchase Order requires immediate attention by Finance.
+	comentarios_finanzas text NULL, -- Specific instructions for the Finance department (e.g., payment method).
+	CONSTRAINT ordenes_compra_numero_oc_key UNIQUE (numero_oc),
+	CONSTRAINT ordenes_compra_pkey PRIMARY KEY (id),
+	CONSTRAINT fk_oc_proveedor FOREIGN KEY (proveedor_id) REFERENCES public.proveedores(id) ON DELETE SET NULL,
+	CONSTRAINT ordenes_compra_metodo_recoleccion_id_fkey FOREIGN KEY (metodo_recoleccion_id) REFERENCES public.catalogo_metodos_recoleccion(id) ON DELETE SET NULL,
+	CONSTRAINT ordenes_compra_notificacion_proveedor_metodo_id_fkey FOREIGN KEY (notificacion_proveedor_metodo_id) REFERENCES public.catalogo_metodos_notificacion(id),
+	CONSTRAINT ordenes_compra_paqueteria_id_fkey FOREIGN KEY (paqueteria_id) REFERENCES public.catalogo_paqueterias(id) ON DELETE SET NULL,
+	CONSTRAINT ordenes_compra_proyecto_id_fkey FOREIGN KEY (proyecto_id) REFERENCES public.proyectos(id),
+	CONSTRAINT ordenes_compra_rfq_id_fkey FOREIGN KEY (rfq_id) REFERENCES public.requisiciones(id),
+	CONSTRAINT ordenes_compra_sitio_id_fkey FOREIGN KEY (sitio_id) REFERENCES public.sitios(id),
+	CONSTRAINT ordenes_compra_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
+);
+CREATE INDEX idx_oc_proyecto ON public.ordenes_compra USING btree (proyecto_id);
+CREATE INDEX idx_oc_rfq ON public.ordenes_compra USING btree (rfq_id);
+CREATE INDEX idx_oc_sitio ON public.ordenes_compra USING btree (sitio_id);
+CREATE INDEX idx_oc_status ON public.ordenes_compra USING btree (status);
+CREATE INDEX idx_oc_usuario ON public.ordenes_compra USING btree (usuario_id);
+CREATE INDEX ordenes_compra_con_incidencia_index ON public.ordenes_compra USING btree (con_incidencia);
+CREATE INDEX ordenes_compra_entrega_parcial_index ON public.ordenes_compra USING btree (entrega_parcial);
+CREATE INDEX ordenes_compra_metodo_recoleccion_id_index ON public.ordenes_compra USING btree (metodo_recoleccion_id);
+CREATE INDEX ordenes_compra_notificacion_proveedor_metodo_id_index ON public.ordenes_compra USING btree (notificacion_proveedor_metodo_id);
+CREATE INDEX ordenes_compra_paqueteria_id_index ON public.ordenes_compra USING btree (paqueteria_id);
+
+-- Column comments
+
+COMMENT ON COLUMN public.ordenes_compra.proveedor_id IS 'ID del proveedor al que se le emite esta Orden de Compra.';
+COMMENT ON COLUMN public.ordenes_compra.pendiente_liquidar IS 'TRUE si la OC está pendiente de liquidar (por anticipos o crédito); FALSE si está liquidada.';
+COMMENT ON COLUMN public.ordenes_compra.entrega_responsable IS 'Quién entrega: EQUIPO_RECOLECCION | PROVEEDOR';
+COMMENT ON COLUMN public.ordenes_compra.entrega_parcial IS 'TRUE si se ha registrado al menos una recepción parcial y la OC aún no está completa.';
+COMMENT ON COLUMN public.ordenes_compra.con_incidencia IS 'TRUE si se ha reportado al menos una incidencia durante la recepción.';
+COMMENT ON COLUMN public.ordenes_compra.es_urgente IS 'Indicates if the Purchase Order requires immediate attention by Finance.';
+COMMENT ON COLUMN public.ordenes_compra.comentarios_finanzas IS 'Specific instructions for the Finance department (e.g., payment method).';
+
+-- Table Triggers
+
+create trigger trg_ordenes_compra_update before
+update
+    on
+    public.ordenes_compra for each row execute function update_timestamp();
+create trigger trg_req_autocierre_from_oc after
+update
+    of status on
+    public.ordenes_compra for each row
+    when ((new.rfq_id is not null)) execute function trg_requisicion_cierre_desde_oc();
+
+-- Permissions
+
+ALTER TABLE public.ordenes_compra OWNER TO postgres;
+GRANT ALL ON TABLE public.ordenes_compra TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra TO sira_prod_user;
+
+
+-- public.ordenes_compra_detalle definition
+
+-- Drop table
+
+-- DROP TABLE public.ordenes_compra_detalle;
+
+CREATE TABLE public.ordenes_compra_detalle (
+	id serial4 NOT NULL,
+	orden_compra_id int4 NOT NULL,
+	requisicion_detalle_id int4 NOT NULL,
+	comparativa_precio_id int4 NOT NULL,
+	material_id int4 NOT NULL,
+	cantidad numeric(7, 2) NOT NULL,
+	precio_unitario numeric(14, 4) NOT NULL,
+	moneda bpchar(3) NOT NULL,
+	plazo_entrega varchar(100) NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	actualizado_en timestamptz DEFAULT now() NOT NULL,
+	cantidad_recibida numeric(12, 2) DEFAULT 0 NOT NULL, -- Cantidad de este ítem que ya ha sido físicamente recibida.
+	CONSTRAINT chk_ocd_cant CHECK ((cantidad > (0)::numeric)),
+	CONSTRAINT chk_ocd_precio CHECK ((precio_unitario >= (0)::numeric)),
+	CONSTRAINT ordenes_compra_detalle_pkey PRIMARY KEY (id),
+	CONSTRAINT fk_ocd_moneda FOREIGN KEY (moneda) REFERENCES public.catalogo_monedas(codigo),
+	CONSTRAINT ordenes_compra_detalle_comparativa_precio_id_fkey FOREIGN KEY (comparativa_precio_id) REFERENCES public.requisiciones_opciones(id),
+	CONSTRAINT ordenes_compra_detalle_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.catalogo_materiales(id),
+	CONSTRAINT ordenes_compra_detalle_orden_compra_id_fkey FOREIGN KEY (orden_compra_id) REFERENCES public.ordenes_compra(id) ON DELETE CASCADE,
+	CONSTRAINT ordenes_compra_detalle_requisicion_detalle_id_fkey FOREIGN KEY (requisicion_detalle_id) REFERENCES public.requisiciones_detalle(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_ocd_comp_precio_id ON public.ordenes_compra_detalle USING btree (comparativa_precio_id);
+CREATE INDEX idx_ocd_material_id ON public.ordenes_compra_detalle USING btree (material_id);
+CREATE INDEX idx_ocd_oc_id ON public.ordenes_compra_detalle USING btree (orden_compra_id);
+CREATE INDEX idx_ocd_req_detalle_id ON public.ordenes_compra_detalle USING btree (requisicion_detalle_id);
+
+-- Column comments
+
+COMMENT ON COLUMN public.ordenes_compra_detalle.cantidad_recibida IS 'Cantidad de este ítem que ya ha sido físicamente recibida.';
+
+-- Table Triggers
+
+create trigger trg_ordenes_compra_detalle_update before
+update
+    on
+    public.ordenes_compra_detalle for each row execute function update_timestamp();
+create trigger trg_verificar_cierre_oc after
+update
+    of cantidad_recibida on
+    public.ordenes_compra_detalle for each row execute function f_verificar_cierre_oc_completa();
+create trigger trg_req_autocierre_from_ocd_recibido after
+update
+    of cantidad_recibida on
+    public.ordenes_compra_detalle for each row execute function trg_requisicion_cierre_desde_ocd();
+create trigger trg_req_autocierre_from_ocd_insdel after
+insert
+    or
+delete
+    on
+    public.ordenes_compra_detalle for each row execute function trg_requisicion_cierre_desde_ocd();
+
+-- Permissions
+
+ALTER TABLE public.ordenes_compra_detalle OWNER TO postgres;
+GRANT ALL ON TABLE public.ordenes_compra_detalle TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra_detalle TO sira_prod_user;
+
+
+-- public.ordenes_compra_historial definition
+
+-- Drop table
+
+-- DROP TABLE public.ordenes_compra_historial;
+
+CREATE TABLE public.ordenes_compra_historial (
+	id serial4 NOT NULL,
+	orden_compra_id int4 NOT NULL,
+	usuario_id int4 NULL,
+	accion_realizada varchar(255) NOT NULL,
+	detalles jsonb NULL,
+	fecha_registro timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT ordenes_compra_historial_pkey PRIMARY KEY (id),
+	CONSTRAINT fk_orden_compra FOREIGN KEY (orden_compra_id) REFERENCES public.ordenes_compra(id) ON DELETE CASCADE,
+	CONSTRAINT fk_usuario FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_historial_orden_compra_id ON public.ordenes_compra_historial USING btree (orden_compra_id);
+
+-- Permissions
+
+ALTER TABLE public.ordenes_compra_historial OWNER TO postgres;
+GRANT ALL ON TABLE public.ordenes_compra_historial TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.ordenes_compra_historial TO sira_prod_user;
+
+
+-- public.pagos_oc definition
+
+-- Drop table
+
+-- DROP TABLE public.pagos_oc;
+
+CREATE TABLE public.pagos_oc (
+	id serial4 NOT NULL,
+	orden_compra_id int4 NOT NULL,
+	fecha_pago timestamptz DEFAULT now() NOT NULL,
+	monto numeric(14, 4) NOT NULL, -- Monto pagado en esta transacción.
+	tipo_pago varchar(10) NOT NULL, -- Indica si el pago fue por el total ("TOTAL") o es un anticipo ("ANTICIPO").
+	usuario_id int4 NOT NULL,
+	comprobante_link text NULL, -- URL al comprobante en Google Drive.
+	comentario text NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	fuente_pago_id int4 NOT NULL,
+	reversa_de_pago_id int4 NULL,
+	fecha_compromiso_pago date NULL,
+	CONSTRAINT pagos_oc_pkey PRIMARY KEY (id),
+	CONSTRAINT pagos_oc_tipo_pago_check CHECK (((tipo_pago)::text = ANY (ARRAY['TOTAL'::text, 'ANTICIPO'::text, 'REVERSA'::text]))),
+	CONSTRAINT pagos_oc_fuente_pago_id_fkey FOREIGN KEY (fuente_pago_id) REFERENCES public.catalogo_fuentes_pago(id) ON DELETE RESTRICT,
+	CONSTRAINT pagos_oc_orden_compra_id_fkey FOREIGN KEY (orden_compra_id) REFERENCES public.ordenes_compra(id) ON DELETE CASCADE,
+	CONSTRAINT pagos_oc_reversa_de_pago_id_fkey FOREIGN KEY (reversa_de_pago_id) REFERENCES public.pagos_oc(id) ON DELETE RESTRICT,
+	CONSTRAINT pagos_oc_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE RESTRICT
+);
+CREATE INDEX idx_pagos_oc_fuente_pago_id ON public.pagos_oc USING btree (fuente_pago_id);
+CREATE INDEX idx_pagos_oc_ocid ON public.pagos_oc USING btree (orden_compra_id);
+CREATE INDEX idx_pagos_oc_orden ON public.pagos_oc USING btree (orden_compra_id);
+CREATE INDEX idx_pagos_oc_usuario ON public.pagos_oc USING btree (usuario_id);
+COMMENT ON TABLE public.pagos_oc IS 'Registra todos los pagos (total y anticipos) asociados a una OC, con comprobante, tipo y usuario.';
+
+-- Column comments
+
+COMMENT ON COLUMN public.pagos_oc.monto IS 'Monto pagado en esta transacción.';
+COMMENT ON COLUMN public.pagos_oc.tipo_pago IS 'Indica si el pago fue por el total ("TOTAL") o es un anticipo ("ANTICIPO").';
+COMMENT ON COLUMN public.pagos_oc.comprobante_link IS 'URL al comprobante en Google Drive.';
+
+-- Table Triggers
+
+create trigger trg_recalc_monto_pagado after
+insert
+    or
+delete
+    or
+update
+    on
+    public.pagos_oc for each row execute function f_recalcular_monto_pagado_oc();
+create trigger trg_update_liquidacion_oc after
+insert
+    or
+update
+    on
+    public.pagos_oc for each row execute function f_actualizar_liquidacion_oc();
+create trigger trg_actualizar_liquidacion_oc after
+insert
+    or
+delete
+    or
+update
+    on
+    public.pagos_oc for each row execute function f_actualizar_liquidacion_oc();
+
+-- Permissions
+
+ALTER TABLE public.pagos_oc OWNER TO postgres;
+GRANT ALL ON TABLE public.pagos_oc TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.pagos_oc TO sira_prod_user;
+
+
+-- public.recepciones_oc definition
+
+-- Drop table
+
+-- DROP TABLE public.recepciones_oc;
+
+CREATE TABLE public.recepciones_oc (
+	id serial4 NOT NULL,
+	orden_compra_id int4 NOT NULL,
+	requisicion_detalle_id int4 NOT NULL,
+	material_id int4 NOT NULL,
+	cantidad numeric(12, 2) NOT NULL,
+	valor_unitario numeric(14, 4) NOT NULL,
+	recibido_por int4 NULL,
+	fecha_recepcion timestamptz DEFAULT now() NULL,
+	observaciones text NULL,
+	CONSTRAINT recepciones_oc_cantidad_check CHECK ((cantidad > (0)::numeric)),
+	CONSTRAINT recepciones_oc_pkey PRIMARY KEY (id),
+	CONSTRAINT recepciones_oc_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.catalogo_materiales(id),
+	CONSTRAINT recepciones_oc_orden_compra_id_fkey FOREIGN KEY (orden_compra_id) REFERENCES public.ordenes_compra(id) ON DELETE CASCADE,
+	CONSTRAINT recepciones_oc_recibido_por_fkey FOREIGN KEY (recibido_por) REFERENCES public.usuarios(id),
+	CONSTRAINT recepciones_oc_requisicion_detalle_id_fkey FOREIGN KEY (requisicion_detalle_id) REFERENCES public.requisiciones_detalle(id)
+);
+
+-- Permissions
+
+ALTER TABLE public.recepciones_oc OWNER TO postgres;
+GRANT ALL ON TABLE public.recepciones_oc TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.recepciones_oc TO sira_prod_user;
+
+
+-- public.salidas_almacen_items definition
+
+-- Drop table
+
+-- DROP TABLE public.salidas_almacen_items;
+
+CREATE TABLE public.salidas_almacen_items (
+	id serial4 NOT NULL,
+	salida_almacen_id int4 NOT NULL,
+	material_id int4 NOT NULL,
+	ubicacion_id int4 NULL,
+	cantidad numeric(12, 4) NOT NULL,
+	asignacion_origen_id int4 NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT salidas_almacen_items_pkey PRIMARY KEY (id),
+	CONSTRAINT salidas_almacen_items_asignacion_origen_id_fkey FOREIGN KEY (asignacion_origen_id) REFERENCES public.inventario_asignado(id) ON DELETE SET NULL,
+	CONSTRAINT salidas_almacen_items_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.catalogo_materiales(id) ON DELETE RESTRICT,
+	CONSTRAINT salidas_almacen_items_salida_almacen_id_fkey FOREIGN KEY (salida_almacen_id) REFERENCES public.salidas_almacen(id) ON DELETE CASCADE,
+	CONSTRAINT salidas_almacen_items_ubicacion_id_fkey FOREIGN KEY (ubicacion_id) REFERENCES public.ubicaciones_almacen(id) ON DELETE SET NULL
+);
+CREATE INDEX salidas_almacen_items_asignacion_origen_id_index ON public.salidas_almacen_items USING btree (asignacion_origen_id);
+CREATE INDEX salidas_almacen_items_material_id_index ON public.salidas_almacen_items USING btree (material_id);
+CREATE INDEX salidas_almacen_items_salida_almacen_id_index ON public.salidas_almacen_items USING btree (salida_almacen_id);
+
+-- Permissions
+
+ALTER TABLE public.salidas_almacen_items OWNER TO postgres;
+GRANT ALL ON TABLE public.salidas_almacen_items TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.salidas_almacen_items TO sira_prod_user;
+
+
+-- public.unidades_historial definition
+
+-- Drop table
+
+-- DROP TABLE public.unidades_historial;
+
+CREATE TABLE public.unidades_historial (
+	id serial4 NOT NULL,
+	unidad_id int4 NOT NULL,
+	fecha timestamptz DEFAULT now() NOT NULL,
+	kilometraje int4 NOT NULL,
+	evento_tipo_id int4 NOT NULL,
+	descripcion text NULL,
+	costo_total numeric(14, 4) NULL,
+	numeros_serie text NULL,
+	usuario_id int4 NULL,
+	requisicion_id int4 NULL,
+	orden_compra_id int4 NULL,
+	es_alerta bool DEFAULT false NOT NULL, -- Si true, este registro es una incidencia activa que aparece como alerta en el card de la unidad
+	alerta_cerrada bool DEFAULT false NOT NULL, -- Si true, la alerta fue revisada y cerrada por compras o el responsable
+	alerta_cerrada_por int4 NULL, -- Usuario que cerró la alerta
+	alerta_cerrada_en timestamptz NULL, -- Timestamp en que se cerró la alerta
+	CONSTRAINT unidades_historial_pkey PRIMARY KEY (id),
+	CONSTRAINT fk_historial_evento_tipo FOREIGN KEY (evento_tipo_id) REFERENCES public.unidades_evento_tipos(id),
+	CONSTRAINT fk_historial_oc FOREIGN KEY (orden_compra_id) REFERENCES public.ordenes_compra(id),
+	CONSTRAINT fk_historial_requisicion FOREIGN KEY (requisicion_id) REFERENCES public.requisiciones(id),
+	CONSTRAINT fk_historial_unidad FOREIGN KEY (unidad_id) REFERENCES public.unidades(id),
+	CONSTRAINT fk_historial_usuario FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id),
+	CONSTRAINT unidades_historial_alerta_cerrada_por_fkey FOREIGN KEY (alerta_cerrada_por) REFERENCES public.usuarios(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_historial_alertas_abiertas ON public.unidades_historial USING btree (unidad_id) WHERE ((es_alerta = true) AND (alerta_cerrada = false));
+CREATE INDEX unidades_historial_orden_compra_id_index ON public.unidades_historial USING btree (orden_compra_id);
+CREATE INDEX unidades_historial_unidad_id_index ON public.unidades_historial USING btree (unidad_id);
+
+-- Column comments
+
+COMMENT ON COLUMN public.unidades_historial.es_alerta IS 'Si true, este registro es una incidencia activa que aparece como alerta en el card de la unidad';
+COMMENT ON COLUMN public.unidades_historial.alerta_cerrada IS 'Si true, la alerta fue revisada y cerrada por compras o el responsable';
+COMMENT ON COLUMN public.unidades_historial.alerta_cerrada_por IS 'Usuario que cerró la alerta';
+COMMENT ON COLUMN public.unidades_historial.alerta_cerrada_en IS 'Timestamp en que se cerró la alerta';
+
+-- Permissions
+
+ALTER TABLE public.unidades_historial OWNER TO postgres;
+GRANT ALL ON TABLE public.unidades_historial TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.unidades_historial TO sira_prod_user;
+
+
+-- public.archivos_recoleccion_oc definition
+
+-- Drop table
+
+-- DROP TABLE public.archivos_recoleccion_oc;
+
+CREATE TABLE public.archivos_recoleccion_oc (
+	id serial4 NOT NULL,
+	orden_compra_id int4 NOT NULL,
+	archivo_link text NOT NULL, -- Link al archivo en Google Drive
+	tipo varchar(50) NULL, -- Tipo de archivo para categorización
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT archivos_recoleccion_oc_pkey PRIMARY KEY (id),
+	CONSTRAINT archivos_recoleccion_oc_orden_compra_id_fkey FOREIGN KEY (orden_compra_id) REFERENCES public.ordenes_compra(id) ON DELETE CASCADE
+);
+CREATE INDEX archivos_recoleccion_oc_orden_compra_id_index ON public.archivos_recoleccion_oc USING btree (orden_compra_id);
+
+-- Column comments
+
+COMMENT ON COLUMN public.archivos_recoleccion_oc.archivo_link IS 'Link al archivo en Google Drive';
+COMMENT ON COLUMN public.archivos_recoleccion_oc.tipo IS 'Tipo de archivo para categorización';
+
+-- Permissions
+
+ALTER TABLE public.archivos_recoleccion_oc OWNER TO postgres;
+GRANT ALL ON TABLE public.archivos_recoleccion_oc TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.archivos_recoleccion_oc TO sira_prod_user;
+
+
+-- public.historial_kpi_tiempos_entrega definition
+
+-- Drop table
+
+-- DROP TABLE public.historial_kpi_tiempos_entrega;
+
+CREATE TABLE public.historial_kpi_tiempos_entrega (
+	id serial4 NOT NULL,
+	orden_compra_id int4 NOT NULL,
+	fecha_entrada_proceso timestamptz NOT NULL, -- Momento en que la OC pasó a EN_PROCESO
+	fecha_entregada timestamptz DEFAULT now() NOT NULL, -- Momento en que la OC pasó a ENTREGADA
+	dias_transcurridos numeric NOT NULL, -- Diferencia en días entre entrada a proceso y entrega
+	metodo_recoleccion_id int4 NULL,
+	entrega_responsable varchar(30) NULL,
+	CONSTRAINT historial_kpi_tiempos_entrega_pkey PRIMARY KEY (id),
+	CONSTRAINT historial_kpi_tiempos_entrega_metodo_recoleccion_id_fkey FOREIGN KEY (metodo_recoleccion_id) REFERENCES public.catalogo_metodos_recoleccion(id) ON DELETE SET NULL,
+	CONSTRAINT historial_kpi_tiempos_entrega_orden_compra_id_fkey FOREIGN KEY (orden_compra_id) REFERENCES public.ordenes_compra(id) ON DELETE CASCADE
+);
+CREATE INDEX historial_kpi_tiempos_entrega_fecha_entregada_index ON public.historial_kpi_tiempos_entrega USING btree (fecha_entregada);
+CREATE INDEX historial_kpi_tiempos_entrega_metodo_recoleccion_id_index ON public.historial_kpi_tiempos_entrega USING btree (metodo_recoleccion_id);
+CREATE INDEX historial_kpi_tiempos_entrega_orden_compra_id_index ON public.historial_kpi_tiempos_entrega USING btree (orden_compra_id);
+
+-- Column comments
+
+COMMENT ON COLUMN public.historial_kpi_tiempos_entrega.fecha_entrada_proceso IS 'Momento en que la OC pasó a EN_PROCESO';
+COMMENT ON COLUMN public.historial_kpi_tiempos_entrega.fecha_entregada IS 'Momento en que la OC pasó a ENTREGADA';
+COMMENT ON COLUMN public.historial_kpi_tiempos_entrega.dias_transcurridos IS 'Diferencia en días entre entrada a proceso y entrega';
+
+-- Permissions
+
+ALTER TABLE public.historial_kpi_tiempos_entrega OWNER TO postgres;
+GRANT ALL ON TABLE public.historial_kpi_tiempos_entrega TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.historial_kpi_tiempos_entrega TO sira_prod_user;
+
+
+-- public.incidencias_recepcion_oc definition
+
+-- Drop table
+
+-- DROP TABLE public.incidencias_recepcion_oc;
+
+CREATE TABLE public.incidencias_recepcion_oc (
+	id serial4 NOT NULL,
+	orden_compra_id int4 NOT NULL,
+	incidencia_id int4 NOT NULL,
+	cantidad_afectada numeric(12, 2) NULL, -- Cantidad del material afectado (opcional, si aplica a un ítem)
+	descripcion_problema text NOT NULL, -- Descripción detallada del problema por el usuario
+	fecha_registro timestamptz DEFAULT now() NOT NULL,
+	usuario_id int4 NULL,
+	material_id int4 NULL,
+	CONSTRAINT incidencias_recepcion_oc_pkey PRIMARY KEY (id),
+	CONSTRAINT incidencias_recepcion_oc_incidencia_id_fkey FOREIGN KEY (incidencia_id) REFERENCES public.catalogo_incidencias_recepcion(id) ON DELETE RESTRICT,
+	CONSTRAINT incidencias_recepcion_oc_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.catalogo_materiales(id) ON DELETE SET NULL,
+	CONSTRAINT incidencias_recepcion_oc_orden_compra_id_fkey FOREIGN KEY (orden_compra_id) REFERENCES public.ordenes_compra(id) ON DELETE CASCADE,
+	CONSTRAINT incidencias_recepcion_oc_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE SET NULL
+);
+CREATE INDEX incidencias_recepcion_oc_incidencia_id_index ON public.incidencias_recepcion_oc USING btree (incidencia_id);
+CREATE INDEX incidencias_recepcion_oc_material_id_index ON public.incidencias_recepcion_oc USING btree (material_id);
+CREATE INDEX incidencias_recepcion_oc_orden_compra_id_index ON public.incidencias_recepcion_oc USING btree (orden_compra_id);
+
+-- Column comments
+
+COMMENT ON COLUMN public.incidencias_recepcion_oc.cantidad_afectada IS 'Cantidad del material afectado (opcional, si aplica a un ítem)';
+COMMENT ON COLUMN public.incidencias_recepcion_oc.descripcion_problema IS 'Descripción detallada del problema por el usuario';
+
+-- Permissions
+
+ALTER TABLE public.incidencias_recepcion_oc OWNER TO postgres;
+GRANT ALL ON TABLE public.incidencias_recepcion_oc TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.incidencias_recepcion_oc TO sira_prod_user;
+
+
+-- public.movimientos_inventario definition
+
+-- Drop table
+
+-- DROP TABLE public.movimientos_inventario;
+
+CREATE TABLE public.movimientos_inventario (
+	id serial4 NOT NULL,
+	fecha timestamptz DEFAULT now() NOT NULL,
+	material_id int4 NOT NULL,
+	tipo_movimiento public.tipo_movimiento_inventario NOT NULL,
+	cantidad numeric(12, 2) NOT NULL,
+	usuario_id int4 NOT NULL,
+	ubicacion_id int4 NOT NULL,
+	proyecto_origen_id int4 NULL,
+	proyecto_destino_id int4 NULL,
+	orden_compra_id int4 NULL,
+	requisicion_id int4 NULL,
+	observaciones text NULL,
+	valor_unitario numeric(14, 4) DEFAULT 0 NULL, -- Costo/Valor unitario del material en este movimiento.
+	valor_total numeric(14, 4) DEFAULT 0 NULL, -- Valor total del movimiento (cantidad * valor_unitario).
+	moneda bpchar(3) NULL, -- Moneda del valor_unitario en este movimiento.
+	estado varchar(12) DEFAULT 'ACTIVO'::character varying NOT NULL,
+	anulado_en timestamptz NULL,
+	anulado_por int4 NULL,
+	motivo_anulacion text NULL,
+	reversa_de_movimiento_id int4 NULL,
+	asignacion_origen_id int4 NULL,
+	salida_almacen_id int4 NULL,
+	CONSTRAINT chk_cantidad_positiva CHECK ((cantidad > (0)::numeric)),
+	CONSTRAINT movimientos_inventario_estado_chk CHECK (((estado)::text = ANY ((ARRAY['ACTIVO'::character varying, 'ANULADO'::character varying])::text[]))),
+	CONSTRAINT movimientos_inventario_pkey PRIMARY KEY (id),
+	CONSTRAINT fk_movimientos_material FOREIGN KEY (material_id) REFERENCES public.catalogo_materiales(id),
+	CONSTRAINT fk_movimientos_orden_compra FOREIGN KEY (orden_compra_id) REFERENCES public.ordenes_compra(id),
+	CONSTRAINT fk_movimientos_proyecto_destino FOREIGN KEY (proyecto_destino_id) REFERENCES public.proyectos(id),
+	CONSTRAINT fk_movimientos_proyecto_origen FOREIGN KEY (proyecto_origen_id) REFERENCES public.proyectos(id),
+	CONSTRAINT fk_movimientos_requisicion FOREIGN KEY (requisicion_id) REFERENCES public.requisiciones(id),
+	CONSTRAINT fk_movimientos_ubicacion FOREIGN KEY (ubicacion_id) REFERENCES public.ubicaciones_almacen(id),
+	CONSTRAINT fk_movimientos_usuario FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id),
+	CONSTRAINT mov_inv_anulado_por_fkey FOREIGN KEY (anulado_por) REFERENCES public.usuarios(id) ON DELETE SET NULL,
+	CONSTRAINT mov_inv_asignacion_origen_fkey FOREIGN KEY (asignacion_origen_id) REFERENCES public.inventario_asignado(id) ON DELETE SET NULL,
+	CONSTRAINT mov_inv_reversa_de_fkey FOREIGN KEY (reversa_de_movimiento_id) REFERENCES public.movimientos_inventario(id) ON DELETE SET NULL,
+	CONSTRAINT movimientos_inventario_moneda_fkey FOREIGN KEY (moneda) REFERENCES public.catalogo_monedas(codigo) ON DELETE SET NULL,
+	CONSTRAINT movimientos_inventario_salida_almacen_id_fkey FOREIGN KEY (salida_almacen_id) REFERENCES public.salidas_almacen(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_mov_inv_asignacion_origen_id ON public.movimientos_inventario USING btree (asignacion_origen_id);
+CREATE INDEX idx_mov_inv_material_fecha ON public.movimientos_inventario USING btree (material_id, fecha DESC);
+CREATE INDEX idx_mov_inv_oc ON public.movimientos_inventario USING btree (orden_compra_id);
+CREATE INDEX idx_mov_inv_proy_destino ON public.movimientos_inventario USING btree (proyecto_destino_id);
+CREATE INDEX idx_mov_inv_proy_destino_fecha ON public.movimientos_inventario USING btree (proyecto_destino_id, fecha DESC);
+CREATE INDEX idx_mov_inv_proy_origen ON public.movimientos_inventario USING btree (proyecto_origen_id);
+CREATE INDEX idx_mov_inv_req ON public.movimientos_inventario USING btree (requisicion_id);
+CREATE INDEX idx_mov_inv_tipo_fecha ON public.movimientos_inventario USING btree (tipo_movimiento, fecha DESC);
+CREATE INDEX idx_mov_inv_ubicacion ON public.movimientos_inventario USING btree (ubicacion_id);
+CREATE INDEX idx_mov_inv_usuario ON public.movimientos_inventario USING btree (usuario_id);
+CREATE INDEX idx_movimientos_fecha ON public.movimientos_inventario USING btree (fecha);
+CREATE INDEX idx_movimientos_material_id ON public.movimientos_inventario USING btree (material_id);
+CREATE INDEX idx_movimientos_tipo ON public.movimientos_inventario USING btree (tipo_movimiento);
+CREATE INDEX movimientos_inventario_salida_almacen_id_index ON public.movimientos_inventario USING btree (salida_almacen_id);
+
+-- Column comments
+
+COMMENT ON COLUMN public.movimientos_inventario.valor_unitario IS 'Costo/Valor unitario del material en este movimiento.';
+COMMENT ON COLUMN public.movimientos_inventario.valor_total IS 'Valor total del movimiento (cantidad * valor_unitario).';
+COMMENT ON COLUMN public.movimientos_inventario.moneda IS 'Moneda del valor_unitario en este movimiento.';
+
+-- Table Triggers
+
+create trigger trg_calcular_valor_total_movimiento before
+insert
+    or
+update
+    on
+    public.movimientos_inventario for each row execute function f_calcular_valor_total_movimiento();
+
+-- Permissions
+
+ALTER TABLE public.movimientos_inventario OWNER TO postgres;
+GRANT ALL ON TABLE public.movimientos_inventario TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.movimientos_inventario TO sira_prod_user;
+
+
+-- public.vw_asignaciones_por_sitio source
+
+CREATE OR REPLACE VIEW public.vw_asignaciones_por_sitio
+AS SELECT cm.id AS material_id,
+    cm.nombre AS material,
+    sa.id AS sitio_id,
+    sa.nombre AS sitio,
+    p.id AS proyecto_id,
+    p.nombre AS proyecto,
+    sum(ia.cantidad) AS cantidad_asignada
+   FROM inventario_asignado ia
+     JOIN inventario_actual inv ON inv.id = ia.inventario_id
+     JOIN catalogo_materiales cm ON cm.id = inv.material_id
+     JOIN sitios sa ON sa.id = ia.sitio_id
+     JOIN proyectos p ON p.id = ia.proyecto_id
+  GROUP BY cm.id, cm.nombre, sa.id, sa.nombre, p.id, p.nombre
+  ORDER BY cm.nombre, sa.nombre;
+
+-- Permissions
+
+ALTER TABLE public.vw_asignaciones_por_sitio OWNER TO postgres;
+GRANT ALL ON TABLE public.vw_asignaciones_por_sitio TO postgres;
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.vw_asignaciones_por_sitio TO sira_prod_user;
+
+
+
+-- DROP FUNCTION public.actualizar_fecha_modificacion();
+
+CREATE OR REPLACE FUNCTION public.actualizar_fecha_modificacion()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+    BEGIN
+      NEW.actualizado_en = CURRENT_TIMESTAMP;
+      RETURN NEW;
+    END;
+    $function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.actualizar_fecha_modificacion() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.actualizar_fecha_modificacion() TO public;
+GRANT ALL ON FUNCTION public.actualizar_fecha_modificacion() TO postgres;
+GRANT ALL ON FUNCTION public.actualizar_fecha_modificacion() TO sira_prod_user;
+
+-- DROP FUNCTION public.f_actualizar_liquidacion_oc();
+
+CREATE OR REPLACE FUNCTION public.f_actualizar_liquidacion_oc()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+    DECLARE
+      total_oc numeric(14,4);
+      suma_pagos numeric(14,4);
+      estado_oc public.orden_compra_status;
+    BEGIN
+      SELECT total, status
+        INTO total_oc, estado_oc
+      FROM public.ordenes_compra
+      WHERE id = NEW.orden_compra_id;
+
+      SELECT COALESCE(SUM(monto),0)
+        INTO suma_pagos
+      FROM public.pagos_oc
+      WHERE orden_compra_id = NEW.orden_compra_id;
+
+      UPDATE public.ordenes_compra
+      SET
+        monto_pagado = suma_pagos,
+        estatus_pago = CASE
+          WHEN suma_pagos <= 0 THEN 'PENDIENTE'::public.estatus_pago_enum
+          WHEN suma_pagos < total_oc THEN 'PARCIAL'::public.estatus_pago_enum
+          ELSE 'PAGADO'::public.estatus_pago_enum
+        END,
+        -- ✅ CxP = saldo > 0 (independiente del status operativo)
+        -- Solo excluimos estados que NO deben considerarse cuentas por pagar
+        pendiente_liquidar = CASE
+          WHEN (suma_pagos < total_oc)
+           AND estado_oc NOT IN ('POR_AUTORIZAR','RECHAZADA','CANCELADA','HOLD','CONFIRMAR_SPEI')
+          THEN true
+          ELSE false
+        END,
+        actualizado_en = now()
+      WHERE id = NEW.orden_compra_id;
+
+      RETURN NEW;
+    END;
+    $function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.f_actualizar_liquidacion_oc() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.f_actualizar_liquidacion_oc() TO public;
+GRANT ALL ON FUNCTION public.f_actualizar_liquidacion_oc() TO postgres;
+GRANT ALL ON FUNCTION public.f_actualizar_liquidacion_oc() TO sira_prod_user;
+
+-- DROP FUNCTION public.f_calcular_valor_total_movimiento();
+
+CREATE OR REPLACE FUNCTION public.f_calcular_valor_total_movimiento()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+    BEGIN
+        -- Solo calcula si valor_unitario y cantidad están presentes
+        IF NEW.cantidad IS NOT NULL AND NEW.valor_unitario IS NOT NULL THEN
+            NEW.valor_total := NEW.cantidad * NEW.valor_unitario;
+        ELSE
+            NEW.valor_total := 0; -- O NULL si prefieres
+        END IF;
+        RETURN NEW;
+    END;
+    $function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.f_calcular_valor_total_movimiento() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.f_calcular_valor_total_movimiento() TO public;
+GRANT ALL ON FUNCTION public.f_calcular_valor_total_movimiento() TO postgres;
+GRANT ALL ON FUNCTION public.f_calcular_valor_total_movimiento() TO sira_prod_user;
+
+-- DROP FUNCTION public.f_generar_numero_requisicion();
+
+CREATE OR REPLACE FUNCTION public.f_generar_numero_requisicion()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+    codigo_depto VARCHAR(10);
+    consecutivo INTEGER;
+    nuevo_numero VARCHAR(20);
+BEGIN
+    IF NEW.numero_requisicion IS NULL OR TRIM(NEW.numero_requisicion) = '' THEN
+        -- Obtener código de departamento
+        SELECT codigo INTO codigo_depto
+        FROM departamentos
+        WHERE id = NEW.departamento_id;
+
+        -- Calcular el siguiente consecutivo por departamento
+        SELECT
+            COALESCE(
+                MAX(
+                    CAST(
+                        REGEXP_REPLACE(numero_requisicion, codigo_depto || '_', '', 'g')
+                        AS INTEGER
+                    )
+                ), 0
+            ) + 1
+            INTO consecutivo
+        FROM requisiciones
+        WHERE departamento_id = NEW.departamento_id
+          AND numero_requisicion ~ ('^' || codigo_depto || '_[0-9]+$');
+
+        -- Armar el nuevo número con ceros a la izquierda (4 dígitos)
+        nuevo_numero := codigo_depto || '_' || LPAD(consecutivo::text, 4, '0');
+        NEW.numero_requisicion := nuevo_numero;
+    END IF;
+    RETURN NEW;
+END;
+$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.f_generar_numero_requisicion() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.f_generar_numero_requisicion() TO public;
+GRANT ALL ON FUNCTION public.f_generar_numero_requisicion() TO postgres;
+GRANT ALL ON FUNCTION public.f_generar_numero_requisicion() TO sira_prod_user;
+
+-- DROP FUNCTION public.f_recalcular_monto_pagado_oc();
+
+CREATE OR REPLACE FUNCTION public.f_recalcular_monto_pagado_oc()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  ocid int := COALESCE(NEW.orden_compra_id, OLD.orden_compra_id);
+  total_pagado numeric(14,4);
+BEGIN
+  SELECT COALESCE(SUM(monto),0) INTO total_pagado
+  FROM public.pagos_oc WHERE orden_compra_id = ocid;
+
+  UPDATE public.ordenes_compra
+  SET monto_pagado = total_pagado
+  WHERE id = ocid;
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.f_recalcular_monto_pagado_oc() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.f_recalcular_monto_pagado_oc() TO public;
+GRANT ALL ON FUNCTION public.f_recalcular_monto_pagado_oc() TO postgres;
+GRANT ALL ON FUNCTION public.f_recalcular_monto_pagado_oc() TO sira_prod_user;
+
+-- DROP FUNCTION public.f_sync_unidad_a_proyecto();
+
+CREATE OR REPLACE FUNCTION public.f_sync_unidad_a_proyecto()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+    DECLARE
+      v_sitio_id INT;
+      v_cliente_id INT;
+      v_proyecto_nombre VARCHAR(100);
+      v_unidad_responsable_id INT;
+      v_unidad_activo BOOLEAN;
+      v_proyecto_id INT; -- <<< Variable extra para el chequeo
+    BEGIN
+      -- 1. Obtener el ID del sitio 'UNIDADES' y su cliente asociado
+      SELECT s.id, s.cliente INTO v_sitio_id, v_cliente_id
+      FROM public.sitios s
+      JOIN public.clientes c ON s.cliente = c.id
+      WHERE c.razon_social = 'IG BIOGAS' AND s.nombre = 'UNIDADES';
+
+      IF v_sitio_id IS NULL THEN
+        RAISE WARNING 'Sitio "UNIDADES" no encontrado. El trigger f_sync_unidad_a_proyecto no hizo nada.';
+        RETURN NULL;
+      END IF;
+
+      -- 2. Determinar la acción (INSERT, UPDATE, DELETE)
+      IF (TG_OP = 'DELETE') THEN
+        v_proyecto_nombre := OLD.unidad;
+        
+        -- Desactivamos el proyecto espejo
+        UPDATE public.proyectos
+        SET activo = false, actualizado_en = now()
+        WHERE nombre = v_proyecto_nombre AND sitio_id = v_sitio_id;
+        
+        RETURN OLD;
+
+      ELSIF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
+        v_proyecto_nombre := NEW.unidad;
+        v_unidad_responsable_id := NEW.responsable_id;
+        v_unidad_activo := NEW.activo;
+
+        -- 3. LÓGICA UPSERT CORREGIDA (SIN ON CONFLICT)
+        -- Primero, buscamos si el proyecto espejo ya existe
+        SELECT id INTO v_proyecto_id 
+        FROM public.proyectos
+        WHERE nombre = v_proyecto_nombre AND sitio_id = v_sitio_id;
+
+        IF v_proyecto_id IS NULL THEN
+          -- NO EXISTE: Lo creamos
+          INSERT INTO public.proyectos (
+            nombre, descripcion, responsable_id, sitio_id, cliente_id, activo
+          )
+          VALUES (
+            v_proyecto_nombre,
+            'Bitácora de mantenimiento para la unidad ' || v_proyecto_nombre,
+            v_unidad_responsable_id,
+            v_sitio_id,
+            v_cliente_id,
+            v_unidad_activo
+          );
+        ELSE
+          -- SÍ EXISTE: Lo actualizamos
+          UPDATE public.proyectos
+          SET 
+            activo = v_unidad_activo,
+            responsable_id = v_unidad_responsable_id,
+            descripcion = 'Bitácora de mantenimiento para la unidad ' || v_proyecto_nombre, -- Asegura que la desc esté al día
+            actualizado_en = now()
+          WHERE 
+            id = v_proyecto_id;
+        END IF;
+        
+        RETURN NEW;
+      END IF;
+      
+      RETURN NULL; -- Fallback
+    END;
+    $function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.f_sync_unidad_a_proyecto() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.f_sync_unidad_a_proyecto() TO public;
+GRANT ALL ON FUNCTION public.f_sync_unidad_a_proyecto() TO postgres;
+GRANT ALL ON FUNCTION public.f_sync_unidad_a_proyecto() TO sira_prod_user;
+
+-- DROP FUNCTION public.f_verificar_cierre_oc_completa();
+
+CREATE OR REPLACE FUNCTION public.f_verificar_cierre_oc_completa()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+    DECLARE
+        v_orden_compra_id INT;
+        v_total_items INT;
+        v_items_completos INT;
+        v_fecha_entrada_proceso TIMESTAMPTZ;
+        v_metodo_recoleccion INT;
+        v_entrega_responsable VARCHAR(30);
+    BEGIN
+        -- Determinar el orden_compra_id afectado por el cambio en ordenes_compra_detalle
+        IF TG_OP = 'UPDATE' THEN
+            v_orden_compra_id := NEW.orden_compra_id;
+        ELSIF TG_OP = 'INSERT' THEN
+             -- Podríamos necesitarlo si se insertan detalles después, aunque no es el flujo principal
+             v_orden_compra_id := NEW.orden_compra_id;
+        ELSE
+            -- No hacemos nada en DELETE
+            RETURN NULL;
+        END IF;
+
+        -- Contar total de items y items completos para esa OC
+        SELECT
+            COUNT(*),
+            COUNT(*) FILTER (WHERE cantidad_recibida >= cantidad)
+        INTO
+            v_total_items,
+            v_items_completos
+        FROM ordenes_compra_detalle
+        WHERE orden_compra_id = v_orden_compra_id;
+
+        -- Si todos los items están completos
+        IF v_total_items > 0 AND v_total_items = v_items_completos THEN
+            -- Actualizar la OC a ENTREGADA y resetear bandera parcial
+            UPDATE ordenes_compra
+            SET status = 'ENTREGADA',
+                entrega_parcial = FALSE,
+                actualizado_en = NOW()
+            WHERE id = v_orden_compra_id AND status != 'ENTREGADA'; -- Evitar updates innecesarios
+
+            -- Registrar en la tabla de KPIs si la actualización tuvo éxito
+            IF FOUND THEN
+                -- Obtener datos necesarios para el KPI
+                SELECT MIN(h.fecha_registro), oc.metodo_recoleccion_id, oc.entrega_responsable
+                INTO v_fecha_entrada_proceso, v_metodo_recoleccion, v_entrega_responsable
+                FROM ordenes_compra_historial h
+                JOIN ordenes_compra oc ON h.orden_compra_id = oc.id
+                WHERE h.orden_compra_id = v_orden_compra_id
+                  AND h.accion_realizada = 'PROCESO_RECOLECCION'
+                GROUP BY oc.metodo_recoleccion_id, oc.entrega_responsable;
+
+                IF v_fecha_entrada_proceso IS NOT NULL THEN
+                    INSERT INTO historial_kpi_tiempos_entrega (
+                        orden_compra_id,
+                        fecha_entrada_proceso,
+                        fecha_entregada,
+                        dias_transcurridos,
+                        metodo_recoleccion_id,
+                        entrega_responsable
+                    ) VALUES (
+                        v_orden_compra_id,
+                        v_fecha_entrada_proceso,
+                        NOW(),
+                        -- Calcular diferencia en días (aproximado)
+                        EXTRACT(EPOCH FROM (NOW() - v_fecha_entrada_proceso)) / (60*60*24),
+                        v_metodo_recoleccion,
+                        v_entrega_responsable
+                    );
+                END IF;
+
+                -- Registrar en historial de OC
+                 INSERT INTO ordenes_compra_historial (orden_compra_id, usuario_id, accion_realizada, detalles)
+                 VALUES (v_orden_compra_id, NULL, 'CIERRE_AUTOMATICO_ENTREGADA', jsonb_build_object('mensaje', 'Todos los items recibidos.'));
+
+            END IF;
+        END IF;
+
+        RETURN NULL; -- El resultado no importa para triggers AFTER
+    END;
+    $function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.f_verificar_cierre_oc_completa() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.f_verificar_cierre_oc_completa() TO public;
+GRANT ALL ON FUNCTION public.f_verificar_cierre_oc_completa() TO postgres;
+GRANT ALL ON FUNCTION public.f_verificar_cierre_oc_completa() TO sira_prod_user;
+
+-- DROP FUNCTION public.f_verificar_cierre_requisicion(int4);
+
+CREATE OR REPLACE FUNCTION public.f_verificar_cierre_requisicion(p_requisicion_id integer)
+ RETURNS boolean
+ LANGUAGE plpgsql
+AS $function$
+    DECLARE
+      v_status public.requisicion_status;
+      v_has_any_oc boolean;
+      v_has_pending_oc_gen boolean;
+      v_has_open_oc boolean;
+      v_has_any_line_missing boolean;
+      v_did_close boolean := false;
+    BEGIN
+      -- Bloqueo de la requisición para evitar carreras
+      SELECT r.status
+        INTO v_status
+      FROM public.requisiciones r
+      WHERE r.id = p_requisicion_id
+      FOR UPDATE;
+
+      IF NOT FOUND THEN
+        RETURN false;
+      END IF;
+
+      -- No cerrar si ya está ENTREGADA o CANCELADA
+      IF v_status IN ('ENTREGADA', 'CANCELADA') THEN
+        RETURN false;
+      END IF;
+
+      -- Regla: si no hay OCs asociadas, NO cerrar
+      SELECT EXISTS (
+        SELECT 1
+        FROM public.ordenes_compra oc
+        WHERE oc.rfq_id = p_requisicion_id
+      )
+      INTO v_has_any_oc;
+
+      IF NOT v_has_any_oc THEN
+        RETURN false;
+      END IF;
+
+      -- (1) No debe haber opciones seleccionadas con cantidad_cotizada > 0 sin detalle de OC
+      SELECT EXISTS (
+        SELECT 1
+        FROM public.requisiciones_opciones ro
+        WHERE ro.requisicion_id = p_requisicion_id
+          AND ro.seleccionado = true
+          AND COALESCE(ro.cantidad_cotizada, 0) > 0
+          AND NOT EXISTS (
+            SELECT 1
+            FROM public.ordenes_compra_detalle ocd
+            WHERE ocd.comparativa_precio_id = ro.id
+          )
+      )
+      INTO v_has_pending_oc_gen;
+
+      IF v_has_pending_oc_gen THEN
+        RETURN false;
+      END IF;
+
+      -- (3) Todas las OCs deben estar resueltas: ENTREGADA / RECHAZADA / CANCELADA
+      SELECT EXISTS (
+        SELECT 1
+        FROM public.ordenes_compra oc
+        WHERE oc.rfq_id = p_requisicion_id
+          AND oc.status NOT IN ('ENTREGADA', 'RECHAZADA', 'CANCELADA')
+      )
+      INTO v_has_open_oc;
+
+      IF v_has_open_oc THEN
+        RETURN false;
+      END IF;
+
+      -- (2) Para todas las líneas: sum(cantidad_recibida) >= cantidad solicitada
+      -- Si existe alguna línea con recibido < solicitado, NO cerrar.
+      SELECT EXISTS (
+        SELECT 1
+        FROM public.requisiciones_detalle rd
+        LEFT JOIN (
+          SELECT
+            ocd.requisicion_detalle_id,
+            SUM(ocd.cantidad_recibida) AS recibido_total
+          FROM public.ordenes_compra_detalle ocd
+          JOIN public.ordenes_compra oc ON oc.id = ocd.orden_compra_id
+          WHERE oc.rfq_id = p_requisicion_id
+          GROUP BY ocd.requisicion_detalle_id
+        ) x ON x.requisicion_detalle_id = rd.id
+        WHERE rd.requisicion_id = p_requisicion_id
+          AND COALESCE(x.recibido_total, 0) < rd.cantidad
+      )
+      INTO v_has_any_line_missing;
+
+      IF v_has_any_line_missing THEN
+        RETURN false;
+      END IF;
+
+      -- Si llegó aquí, cumple TODO -> cerrar
+      UPDATE public.requisiciones
+      SET status = 'ENTREGADA',
+          actualizado_en = NOW()
+      WHERE id = p_requisicion_id
+        AND status <> 'ENTREGADA';
+
+      v_did_close := (FOUND);
+
+      RETURN v_did_close;
+    END;
+    $function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.f_verificar_cierre_requisicion(int4) OWNER TO postgres;
+GRANT ALL ON FUNCTION public.f_verificar_cierre_requisicion(int4) TO public;
+GRANT ALL ON FUNCTION public.f_verificar_cierre_requisicion(int4) TO postgres;
+GRANT ALL ON FUNCTION public.f_verificar_cierre_requisicion(int4) TO sira_prod_user;
+
+-- DROP FUNCTION public.fn_dau_update_timestamp();
+
+CREATE OR REPLACE FUNCTION public.fn_dau_update_timestamp()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$BEGIN NEW.actualizado_en = now(); RETURN NEW; END;$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.fn_dau_update_timestamp() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.fn_dau_update_timestamp() TO public;
+GRANT ALL ON FUNCTION public.fn_dau_update_timestamp() TO postgres;
+GRANT ALL ON FUNCTION public.fn_dau_update_timestamp() TO sira_prod_user;
+
+-- DROP FUNCTION public.sync_cliente_en_proyecto();
+
+CREATE OR REPLACE FUNCTION public.sync_cliente_en_proyecto()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  -- Obtenemos el cliente asociado al sitio
+  SELECT cliente
+    INTO NEW.cliente_id
+  FROM public.sitios
+  WHERE id = NEW.sitio_id;
+
+  -- Si no existe el sitio, lanzamos error
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Sitio inválido: %', NEW.sitio_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.sync_cliente_en_proyecto() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.sync_cliente_en_proyecto() TO public;
+GRANT ALL ON FUNCTION public.sync_cliente_en_proyecto() TO postgres;
+GRANT ALL ON FUNCTION public.sync_cliente_en_proyecto() TO sira_prod_user;
+
+-- DROP FUNCTION public.trg_requisicion_cierre_desde_oc();
+
+CREATE OR REPLACE FUNCTION public.trg_requisicion_cierre_desde_oc()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+    BEGIN
+      -- NEW.rfq_id = requisicion_id
+      PERFORM public.f_verificar_cierre_requisicion(NEW.rfq_id);
+      RETURN NEW;
+    END;
+    $function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.trg_requisicion_cierre_desde_oc() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_oc() TO public;
+GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_oc() TO postgres;
+GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_oc() TO sira_prod_user;
+
+-- DROP FUNCTION public.trg_requisicion_cierre_desde_ocd();
+
+CREATE OR REPLACE FUNCTION public.trg_requisicion_cierre_desde_ocd()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+    DECLARE
+      v_req_id int;
+    BEGIN
+      -- Resolver requisicion_id desde requisiciones_detalle
+      SELECT rd.requisicion_id
+        INTO v_req_id
+      FROM public.requisiciones_detalle rd
+      WHERE rd.id = COALESCE(NEW.requisicion_detalle_id, OLD.requisicion_detalle_id);
+
+      IF v_req_id IS NOT NULL THEN
+        PERFORM public.f_verificar_cierre_requisicion(v_req_id);
+      END IF;
+
+      RETURN COALESCE(NEW, OLD);
+    END;
+    $function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.trg_requisicion_cierre_desde_ocd() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_ocd() TO public;
+GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_ocd() TO postgres;
+GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_ocd() TO sira_prod_user;
+
+-- DROP FUNCTION public.trg_requisicion_cierre_desde_opciones();
+
+CREATE OR REPLACE FUNCTION public.trg_requisicion_cierre_desde_opciones()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+    DECLARE
+      v_req_id int;
+    BEGIN
+      v_req_id := COALESCE(NEW.requisicion_id, OLD.requisicion_id);
+
+      IF v_req_id IS NOT NULL THEN
+        PERFORM public.f_verificar_cierre_requisicion(v_req_id);
+      END IF;
+
+      RETURN COALESCE(NEW, OLD);
+    END;
+    $function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.trg_requisicion_cierre_desde_opciones() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_opciones() TO public;
+GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_opciones() TO postgres;
+GRANT ALL ON FUNCTION public.trg_requisicion_cierre_desde_opciones() TO sira_prod_user;
+
+-- DROP FUNCTION public.unaccent(regdictionary, text);
+
+CREATE OR REPLACE FUNCTION public.unaccent(regdictionary, text)
+ RETURNS text
+ LANGUAGE c
+ STABLE PARALLEL SAFE STRICT
+AS '$libdir/unaccent', $function$unaccent_dict$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.unaccent(regdictionary, text) OWNER TO postgres;
+GRANT ALL ON FUNCTION public.unaccent(regdictionary, text) TO public;
+GRANT ALL ON FUNCTION public.unaccent(regdictionary, text) TO postgres;
+GRANT ALL ON FUNCTION public.unaccent(regdictionary, text) TO sira_prod_user;
+
+-- DROP FUNCTION public.unaccent(text);
+
+CREATE OR REPLACE FUNCTION public.unaccent(text)
+ RETURNS text
+ LANGUAGE c
+ STABLE PARALLEL SAFE STRICT
+AS '$libdir/unaccent', $function$unaccent_dict$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.unaccent(text) OWNER TO postgres;
+GRANT ALL ON FUNCTION public.unaccent(text) TO public;
+GRANT ALL ON FUNCTION public.unaccent(text) TO postgres;
+GRANT ALL ON FUNCTION public.unaccent(text) TO sira_prod_user;
+
+-- DROP FUNCTION public.unaccent_init(internal);
+
+CREATE OR REPLACE FUNCTION public.unaccent_init(internal)
+ RETURNS internal
+ LANGUAGE c
+ PARALLEL SAFE
+AS '$libdir/unaccent', $function$unaccent_init$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.unaccent_init(internal) OWNER TO postgres;
+GRANT ALL ON FUNCTION public.unaccent_init(internal) TO public;
+GRANT ALL ON FUNCTION public.unaccent_init(internal) TO postgres;
+GRANT ALL ON FUNCTION public.unaccent_init(internal) TO sira_prod_user;
+
+-- DROP FUNCTION public.unaccent_lexize(internal, internal, internal, internal);
+
+CREATE OR REPLACE FUNCTION public.unaccent_lexize(internal, internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ PARALLEL SAFE
+AS '$libdir/unaccent', $function$unaccent_lexize$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.unaccent_lexize(internal, internal, internal, internal) OWNER TO postgres;
+GRANT ALL ON FUNCTION public.unaccent_lexize(internal, internal, internal, internal) TO public;
+GRANT ALL ON FUNCTION public.unaccent_lexize(internal, internal, internal, internal) TO postgres;
+GRANT ALL ON FUNCTION public.unaccent_lexize(internal, internal, internal, internal) TO sira_prod_user;
+
+-- DROP FUNCTION public.update_timestamp();
+
+CREATE OR REPLACE FUNCTION public.update_timestamp()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  NEW.actualizado_en = now();
+  RETURN NEW;
+END;
+$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.update_timestamp() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.update_timestamp() TO public;
+GRANT ALL ON FUNCTION public.update_timestamp() TO postgres;
+GRANT ALL ON FUNCTION public.update_timestamp() TO sira_prod_user;
+
+-- DROP FUNCTION public.uuid_generate_v1();
+
+CREATE OR REPLACE FUNCTION public.uuid_generate_v1()
+ RETURNS uuid
+ LANGUAGE c
+ PARALLEL SAFE STRICT
+AS '$libdir/uuid-ossp', $function$uuid_generate_v1$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.uuid_generate_v1() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v1() TO public;
+GRANT ALL ON FUNCTION public.uuid_generate_v1() TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v1() TO sira_prod_user;
+
+-- DROP FUNCTION public.uuid_generate_v1mc();
+
+CREATE OR REPLACE FUNCTION public.uuid_generate_v1mc()
+ RETURNS uuid
+ LANGUAGE c
+ PARALLEL SAFE STRICT
+AS '$libdir/uuid-ossp', $function$uuid_generate_v1mc$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.uuid_generate_v1mc() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v1mc() TO public;
+GRANT ALL ON FUNCTION public.uuid_generate_v1mc() TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v1mc() TO sira_prod_user;
+
+-- DROP FUNCTION public.uuid_generate_v3(uuid, text);
+
+CREATE OR REPLACE FUNCTION public.uuid_generate_v3(namespace uuid, name text)
+ RETURNS uuid
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/uuid-ossp', $function$uuid_generate_v3$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.uuid_generate_v3(uuid, text) OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v3(uuid, text) TO public;
+GRANT ALL ON FUNCTION public.uuid_generate_v3(uuid, text) TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v3(uuid, text) TO sira_prod_user;
+
+-- DROP FUNCTION public.uuid_generate_v4();
+
+CREATE OR REPLACE FUNCTION public.uuid_generate_v4()
+ RETURNS uuid
+ LANGUAGE c
+ PARALLEL SAFE STRICT
+AS '$libdir/uuid-ossp', $function$uuid_generate_v4$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.uuid_generate_v4() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v4() TO public;
+GRANT ALL ON FUNCTION public.uuid_generate_v4() TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v4() TO sira_prod_user;
+
+-- DROP FUNCTION public.uuid_generate_v5(uuid, text);
+
+CREATE OR REPLACE FUNCTION public.uuid_generate_v5(namespace uuid, name text)
+ RETURNS uuid
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/uuid-ossp', $function$uuid_generate_v5$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.uuid_generate_v5(uuid, text) OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v5(uuid, text) TO public;
+GRANT ALL ON FUNCTION public.uuid_generate_v5(uuid, text) TO postgres;
+GRANT ALL ON FUNCTION public.uuid_generate_v5(uuid, text) TO sira_prod_user;
+
+-- DROP FUNCTION public.uuid_nil();
+
+CREATE OR REPLACE FUNCTION public.uuid_nil()
+ RETURNS uuid
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/uuid-ossp', $function$uuid_nil$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.uuid_nil() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_nil() TO public;
+GRANT ALL ON FUNCTION public.uuid_nil() TO postgres;
+GRANT ALL ON FUNCTION public.uuid_nil() TO sira_prod_user;
+
+-- DROP FUNCTION public.uuid_ns_dns();
+
+CREATE OR REPLACE FUNCTION public.uuid_ns_dns()
+ RETURNS uuid
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/uuid-ossp', $function$uuid_ns_dns$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.uuid_ns_dns() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_ns_dns() TO public;
+GRANT ALL ON FUNCTION public.uuid_ns_dns() TO postgres;
+GRANT ALL ON FUNCTION public.uuid_ns_dns() TO sira_prod_user;
+
+-- DROP FUNCTION public.uuid_ns_oid();
+
+CREATE OR REPLACE FUNCTION public.uuid_ns_oid()
+ RETURNS uuid
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/uuid-ossp', $function$uuid_ns_oid$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.uuid_ns_oid() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_ns_oid() TO public;
+GRANT ALL ON FUNCTION public.uuid_ns_oid() TO postgres;
+GRANT ALL ON FUNCTION public.uuid_ns_oid() TO sira_prod_user;
+
+-- DROP FUNCTION public.uuid_ns_url();
+
+CREATE OR REPLACE FUNCTION public.uuid_ns_url()
+ RETURNS uuid
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/uuid-ossp', $function$uuid_ns_url$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.uuid_ns_url() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_ns_url() TO public;
+GRANT ALL ON FUNCTION public.uuid_ns_url() TO postgres;
+GRANT ALL ON FUNCTION public.uuid_ns_url() TO sira_prod_user;
+
+-- DROP FUNCTION public.uuid_ns_x500();
+
+CREATE OR REPLACE FUNCTION public.uuid_ns_x500()
+ RETURNS uuid
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/uuid-ossp', $function$uuid_ns_x500$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION public.uuid_ns_x500() OWNER TO postgres;
+GRANT ALL ON FUNCTION public.uuid_ns_x500() TO public;
+GRANT ALL ON FUNCTION public.uuid_ns_x500() TO postgres;
+GRANT ALL ON FUNCTION public.uuid_ns_x500() TO sira_prod_user;
+
+
+-- Permissions
+
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT INSERT, DELETE, SELECT, UPDATE ON TABLES TO sira_prod_user;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO sira_prod_user;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO sira_prod_user;

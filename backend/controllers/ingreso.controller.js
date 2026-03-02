@@ -468,18 +468,23 @@ const registrarIngreso = async (req, res) => {
           : (monedaDetalle && monedaDetalle.length === 3 ? monedaDetalle : null);
 
       // 4) Inventario + Kardex
-      // Primero verificamos si es un SERVICIO para NO meterlo al inventario
-      const unidadSimbolo = item.unidad_simbolo || ''; // Nos aseguramos de recibir esto del front o consultarlo
-
-      // Si no viene del front, lo consultamos (más seguro)
+      // Consultamos símbolo de unidad y cantidad_uso para conversión de unidades
       const unidadQuery = `
-        SELECT cu.simbolo 
+        SELECT cu.simbolo,
+               COALESCE(cm.cantidad_uso, 1) AS cantidad_uso
         FROM public.catalogo_materiales cm
         JOIN public.catalogo_unidades cu ON cm.unidad_de_compra = cu.id
         WHERE cm.id = $1
       `;
       const unidadRes = await client.query(unidadQuery, [material_id]);
       const simboloReal = unidadRes.rows[0]?.simbolo || '';
+
+      // Conversión unidad de compra → unidad de uso
+      // Si cantidad_uso > 1 (ej. 208 litros/tambor), multiplicamos la cantidad a guardar en inventario
+      const cantidadUso = parseFloat(unidadRes.rows[0]?.cantidad_uso || 1);
+      const cantidadInventario = cantidadNum * cantidadUso;
+      // Precio por unidad de USO (para valoración correcta en inventario)
+      const precioInventario = cantidadUso > 1 ? (precioFinal / cantidadUso) : precioFinal;
 
       const isServicio = ['SERV', 'SERVICIO'].includes(simboloReal.toUpperCase());
 
@@ -511,8 +516,8 @@ const registrarIngreso = async (req, res) => {
           await client.query(stockUpdateQuery, [
             material_id,
             ubicacionIdFinal,
-            cantidadNum,
-            precioFinal,
+            cantidadInventario,
+            precioInventario,
             monedaFinal,
           ]);
 
@@ -527,21 +532,21 @@ const registrarIngreso = async (req, res) => {
             `,
             [
               material_id,
-              cantidadNum,
+              cantidadInventario,
               usuarioId,
               ubicacionIdFinal,
               ocInfo.proyecto_id,
               orden_compra_id,
-              precioFinal,
+              precioInventario,
               monedaFinal,
-              `Ingreso por OC (DISPONIBLE/ALMACÉN CENTRAL=${ocInfo.almacenCentralId}) - DetalleOC:${detalle_id}`,
+              `Ingreso por OC (DISPONIBLE/ALMACÉN CENTRAL=${ocInfo.almacenCentralId}) - DetalleOC:${detalle_id}${cantidadUso > 1 ? ` [conv: ${cantidadNum}×${cantidadUso}=${cantidadInventario}]` : ''}`,
             ]
           );
 
           ingresoDetalles.push({
             detalle_id,
             material_id,
-            cantidad: cantidadNum,
+            cantidad: cantidadInventario,
             entraADisponible: true,
             ubicacion_id: ubicacionIdFinal,
           });
@@ -563,8 +568,8 @@ const registrarIngreso = async (req, res) => {
           const invActualRes = await client.query(assignedUpdateQuery, [
             material_id,
             ubicacionIdFinal,
-            cantidadNum,
-            precioFinal,
+            cantidadInventario,
+            precioInventario,
             monedaFinal,
           ]);
 
@@ -599,8 +604,8 @@ const registrarIngreso = async (req, res) => {
             requisicion_principal_id,
             ocInfo.proyecto_id,
             ocInfo.sitio_id,
-            cantidadNum,
-            precioFinal,
+            cantidadInventario,
+            precioInventario,
             monedaFinal,
           ]);
 
@@ -615,22 +620,22 @@ const registrarIngreso = async (req, res) => {
             `,
             [
               material_id,
-              cantidadNum,
+              cantidadInventario,
               usuarioId,
               ubicacionIdFinal,
               ocInfo.proyecto_id,
               orden_compra_id,
               requisicion_principal_id,
-              precioFinal,
+              precioInventario,
               monedaFinal,
-              `Ingreso por OC (DIRECTO A APARTADO) - destino sitio=${ocInfo.sitio_id} proyecto=${ocInfo.proyecto_id} - DetalleOC:${detalle_id}`,
+              `Ingreso por OC (DIRECTO A APARTADO) - destino sitio=${ocInfo.sitio_id} proyecto=${ocInfo.proyecto_id} - DetalleOC:${detalle_id}${cantidadUso > 1 ? ` [conv: ${cantidadNum}×${cantidadUso}=${cantidadInventario}]` : ''}`,
             ]
           );
 
           ingresoDetalles.push({
             detalle_id,
             material_id,
-            cantidad: cantidadNum,
+            cantidad: cantidadInventario,
             entraADisponible: false,
             ubicacion_id: ubicacionIdFinal,
             sitio_destino: ocInfo.sitio_id,

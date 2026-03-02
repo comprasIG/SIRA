@@ -9,6 +9,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import CancelIcon from '@mui/icons-material/Cancel';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz'; // Substitute
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import HistoryIcon from '@mui/icons-material/History';
 
 
 export default function OCList({ ocs, loading, onAction }) {
@@ -78,6 +79,11 @@ export default function OCList({ ocs, loading, onAction }) {
                                     <Tooltip title="Ver Información">
                                         <IconButton size="small" onClick={() => onAction('info', oc)}>
                                             <InfoIcon fontSize="small" color="info" />
+                                        </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Kardex / Trazabilidad">
+                                        <IconButton size="small" onClick={() => onAction('kardex', oc)}>
+                                            <HistoryIcon fontSize="small" />
                                         </IconButton>
                                     </Tooltip>
                                     <Tooltip title="Sustituir">

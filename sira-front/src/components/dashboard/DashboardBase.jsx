@@ -5,6 +5,8 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import BadgeIcon from '@mui/icons-material/Badge';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import KpiRow from './KpiRow';
 import DashboardFilters from './DashboardFilters';
 import RfqTable from './RfqTable';
@@ -13,6 +15,8 @@ import { useDashboard } from '../../hooks/useDashboard';
 import ProyectosTab from './ProyectosTab';
 import PermisosRHTab from './PermisosRHTab';
 import HitosTab from './HitosTab';
+import GasolinaTab from './GasolinaTab';
+import IncrementablesTab from './IncrementablesTab';
 import AnalyticsModal from './AnalyticsModal';
 
 /* ── Instagram-style gradient spin animation ── */
@@ -104,17 +108,20 @@ export default function DashboardBase({ mode }) {
   const [activeTab, setActiveTab] = useState(0);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const showProyectos = config.showProyectosTab !== false;
-  const showHitos = config.showHitosTab !== false && showProyectos;
+  const showHitos     = config.showHitosTab !== false && showProyectos;
+  const showGasolina       = config.showGasolinaTab === true;
+  const showIncrementables = config.showIncrementablesTab === true;
   const isSSD = mode === 'SSD';
 
-  // Tab index mapping when hitos tab is visible:
-  //   0 = TO DO, 1 = Requisiciones, 2 = Proyectos, 3 = Permisos RH
-  // When hitos tab is hidden (showHitos=false, showProyectos=true):
-  //   0 = Requisiciones, 1 = Proyectos, 2 = Permisos RH
-  // When showProyectos=false: no tabs, only Requisiciones
-  const tabRequisiciones = showHitos ? 1 : 0;
-  const tabProyectos     = showHitos ? 2 : 1;
-  const tabPermisos      = showHitos ? 3 : 2;
+  // Tab index mapping:
+  //   Con Hitos:  0=TODO, 1=Req, 2=Proy, 3=PermisosRH, [4=Gasolina], [5=Incrementables]
+  //   Sin Hitos:  0=Req,  1=Proy, 2=PermisosRH,        [3=Gasolina], [4=Incrementables]
+  //   Sin Proyectos: solo Requisiciones
+  const tabRequisiciones   = showHitos ? 1 : 0;
+  const tabProyectos       = showHitos ? 2 : 1;
+  const tabPermisos        = showHitos ? 3 : 2;
+  const tabGasolina        = showHitos ? 4 : 3;
+  const tabIncrementables  = showHitos ? (showGasolina ? 5 : 4) : (showGasolina ? 4 : 3);
 
   const {
     loading,
@@ -206,6 +213,12 @@ export default function DashboardBase({ mode }) {
             <Tab icon={<AssignmentIcon />} iconPosition="start" label="Requisiciones" sx={tabSx} />
             <Tab icon={<AccountTreeIcon />} iconPosition="start" label="Proyectos" sx={tabSx} />
             <Tab icon={<BadgeIcon />} iconPosition="start" label="Permisos RH" sx={tabSx} />
+            {showGasolina && (
+              <Tab icon={<LocalGasStationIcon />} iconPosition="start" label="Gasolina" sx={tabSx} />
+            )}
+            {showIncrementables && (
+              <Tab icon={<ReceiptLongIcon />} iconPosition="start" label="Incrementables" sx={tabSx} />
+            )}
           </Tabs>
         </Paper>
       )}
@@ -254,6 +267,12 @@ export default function DashboardBase({ mode }) {
 
       {/* ─── Tab Permisos RH ─── */}
       {showProyectos && activeTab === tabPermisos && <PermisosRHTab />}
+
+      {/* ─── Tab Gasolina ─── */}
+      {showGasolina && showProyectos && activeTab === tabGasolina && <GasolinaTab />}
+
+      {/* ─── Tab Incrementables ─── */}
+      {showIncrementables && showProyectos && activeTab === tabIncrementables && <IncrementablesTab />}
     </Box>
   );
 }
