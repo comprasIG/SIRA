@@ -1,3 +1,4 @@
+import Viaticos-&GastosPage from "./pages/Viaticos-&GastosPage";
 import GasolinaPage from "./pages/GasolinaPage";
 import CatálogoDeEnsamblesPage from "./pages/CatálogoDeEnsamblesPage";
 import PermisosPage from "./pages/PermisosPage";
@@ -98,6 +99,7 @@ export default function App() {
           <Route path="/Permisos-RH" element={<RutaProtegida permiso="PERM-RH"><MainLayout><PermisosPage /></MainLayout></RutaProtegida>} />
                     <Route path="/catalogo-ensambles" element={<RutaProtegida permiso="CATALOGO_ENSAMBLES"><MainLayout><CatálogoDeEnsamblesPage /></MainLayout></RutaProtegida>}/>
                     <Route path="/pay_gas" element={<RutaProtegida permiso="pay_gas"><MainLayout><GasolinaPage /></MainLayout></RutaProtegida>}/>
+                    <Route path="/viaticos" element={<RutaProtegida permiso="FlightTakeoffIcon"><MainLayout><Viaticos-&GastosPage /></MainLayout></RutaProtegida>}/>
           {/* --- AÑADIR NUEVAS RUTAS AUTOMÁTICAMENTE AQUÍ --- */}
 
           {/* Redirección y página no encontrada */}
