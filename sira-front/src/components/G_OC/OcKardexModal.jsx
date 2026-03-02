@@ -69,7 +69,7 @@ export default function OcKardexModal({ open, oc, onClose }) {
         setLoading(true);
         setError(null);
         api.get(`/api/ocs/${oc.id}/kardex`)
-            .then(res => setRows(res.data))
+            .then(res => setRows(res))
             .catch(() => setError('Error al cargar el kardex.'))
             .finally(() => setLoading(false));
     }, [open, oc?.id]);
