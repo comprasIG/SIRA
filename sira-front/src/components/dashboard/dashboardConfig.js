@@ -24,12 +24,12 @@ const dashboardConfig = {
     showDepartmentFilter: true,
     showProyectosTab: true,
     showHitosTab: true,
-    showGasolinaTab: true,
+    showGasolinaTab: false,
     showIncrementablesTab: true,
   },
 
   // Todos los dashboards departamentales comparten el mismo endpoint
-  FIN:  { title: 'Dashboard de Finanzas',         endpoint: DEPARTAMENTO_ENDPOINT, showDepartmentFilter: false, showProyectosTab: true,  showHitosTab: true,  showGasolinaTab: true  },
+  FIN:  { title: 'Dashboard de Finanzas',         endpoint: DEPARTAMENTO_ENDPOINT, showDepartmentFilter: false, showProyectosTab: true,  showHitosTab: true,  showGasolinaTab: false },
   ALM:  { title: 'Dashboard de Almacén',          endpoint: DEPARTAMENTO_ENDPOINT, showDepartmentFilter: false, showProyectosTab: true,  showHitosTab: true  },
   ING:  { title: 'Dashboard de Ingreso',          endpoint: DEPARTAMENTO_ENDPOINT, showDepartmentFilter: false, showProyectosTab: true,  showHitosTab: true  },
   MKT:  { title: 'Dashboard de Marketing',        endpoint: DEPARTAMENTO_ENDPOINT, showDepartmentFilter: false, showProyectosTab: true,  showHitosTab: true  },

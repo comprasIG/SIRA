@@ -25,7 +25,7 @@ import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import HowToRegIcon from '@mui/icons-material/HowToReg';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import ThreeDRotationIcon from '@mui/icons-material/ThreeDRotation';
-
+import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
 // Nuevos Iconos importados aquí si es necesario
 import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder'; //Icono Para Nuevo Proyecto
 import LocationOnIcon from '@mui/icons-material/LocationOn'; //Icono Para Sitios
@@ -71,7 +71,8 @@ const iconMap = {
   ContactPageIcon: <ContactPageIcon sx={{ fontSize: 20 }} />,// Icono Para contacto de proveedores
   BeachAccessIcon: <BeachAccessIcon sx={{ fontSize: 20 }} />, // Icono Para Vacaciones
   WorkHistoryIcon: <WorkHistoryIcon sx={{ fontSize: 20 }} />, // Icono Para permisos RH
-  ThreeDRotationIcon: <ThreeDRotationIcon sx={{ fontSize: 20 }} /> // Icono Para 3D
+  ThreeDRotationIcon: <ThreeDRotationIcon sx={{ fontSize: 20 }} />, // Icono Para 3D
+  LocalGasStationIcon: <LocalGasStationIcon sx={{ fontSize: 20 }} /> // Icono Para Gasolina
 };
 
 export default function Sidebar({ isOpen, toggleSidebar }) {
