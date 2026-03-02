@@ -126,7 +126,7 @@ export default function ProyectosTable({ proyectos, statusOptions, onStatusChang
                             (proyectos || []).map((p) => (
                                 <TableRow key={p.id} sx={rowHoverSx}>
                                     {/* Proyecto: avatar + nombre + 3 acciones — todo inline */}
-                                    <TableCell sx={{ width: 265, maxWidth: 265, overflow: 'hidden' }}>
+                                    <TableCell sx={{ width: 450, maxWidth: 450, overflow: 'hidden' }}>
                                         <Box
                                             sx={{
                                                 display: 'flex',
@@ -167,120 +167,123 @@ export default function ProyectosTable({ proyectos, statusOptions, onStatusChang
                                                     <Typography
                                                         variant="body2"
                                                         fontWeight={600}
-                                                        noWrap
                                                         sx={{
                                                             flex: '0 1 auto',
                                                             minWidth: 0,
                                                             overflow: 'hidden',
                                                             textOverflow: 'ellipsis',
+                                                            display: '-webkit-box',
+                                                            WebkitLineClamp: 2,
+                                                            WebkitBoxOrient: 'vertical',
                                                             cursor: 'default',
                                                             fontSize: '0.82rem',
+                                                            lineHeight: 1.2,
                                                         }}
                                                     >
                                                         {p.nombre}
                                                     </Typography>
                                                 </Tooltip>
 
-                                            {/* Tres acciones — ocultas por defecto, revelar en hover */}
-                                            <Stack
-                                                className="proj-actions"
-                                                direction="row"
-                                                spacing={0.4}
-                                                alignItems="center"
-                                                sx={{
-                                                    flexShrink: 0,
-                                                    opacity: 0,
-                                                    transform: 'translateX(4px)',
-                                                    transition: 'opacity 0.2s cubic-bezier(0.4,0,0.2,1), transform 0.2s cubic-bezier(0.4,0,0.2,1)',
-                                                }}
-                                            >
-                                                {/* Threads */}
-                                                <Tooltip title="Ver threads" placement="top">
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setThreadsProyecto({ id: p.id, nombre: p.nombre });
-                                                        }}
-                                                        sx={{
-                                                            p: 0.5,
-                                                            borderRadius: 1.5,
-                                                            color: '#8b5cf6',
-                                                            bgcolor: alpha('#8b5cf6', 0.08),
-                                                            border: '1px solid',
-                                                            borderColor: alpha('#8b5cf6', 0.2),
-                                                            transition: 'all 0.18s ease',
-                                                            '&:hover': {
-                                                                bgcolor: '#8b5cf6',
-                                                                borderColor: '#8b5cf6',
-                                                                color: '#fff',
-                                                                boxShadow: '0 2px 8px rgba(139,92,246,0.4)',
-                                                                transform: 'translateY(-1px)',
-                                                            },
-                                                        }}
-                                                    >
-                                                        <ForumIcon sx={{ fontSize: 13 }} />
-                                                    </IconButton>
-                                                </Tooltip>
+                                                {/* Tres acciones — ocultas por defecto, revelar en hover */}
+                                                <Stack
+                                                    className="proj-actions"
+                                                    direction="row"
+                                                    spacing={0.4}
+                                                    alignItems="center"
+                                                    sx={{
+                                                        flexShrink: 0,
+                                                        opacity: 0,
+                                                        transform: 'translateX(4px)',
+                                                        transition: 'opacity 0.2s cubic-bezier(0.4,0,0.2,1), transform 0.2s cubic-bezier(0.4,0,0.2,1)',
+                                                    }}
+                                                >
+                                                    {/* Threads */}
+                                                    <Tooltip title="Ver threads" placement="top">
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setThreadsProyecto({ id: p.id, nombre: p.nombre });
+                                                            }}
+                                                            sx={{
+                                                                p: 0.5,
+                                                                borderRadius: 1.5,
+                                                                color: '#8b5cf6',
+                                                                bgcolor: alpha('#8b5cf6', 0.08),
+                                                                border: '1px solid',
+                                                                borderColor: alpha('#8b5cf6', 0.2),
+                                                                transition: 'all 0.18s ease',
+                                                                '&:hover': {
+                                                                    bgcolor: '#8b5cf6',
+                                                                    borderColor: '#8b5cf6',
+                                                                    color: '#fff',
+                                                                    boxShadow: '0 2px 8px rgba(139,92,246,0.4)',
+                                                                    transform: 'translateY(-1px)',
+                                                                },
+                                                            }}
+                                                        >
+                                                            <ForumIcon sx={{ fontSize: 13 }} />
+                                                        </IconButton>
+                                                    </Tooltip>
 
-                                                {/* Hitos */}
-                                                <Tooltip title="Ver hitos" placement="top">
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setHitosProyecto({ id: p.id, nombre: p.nombre });
-                                                        }}
-                                                        sx={{
-                                                            p: 0.5,
-                                                            borderRadius: 1.5,
-                                                            color: '#f59e0b',
-                                                            bgcolor: alpha('#f59e0b', 0.08),
-                                                            border: '1px solid',
-                                                            borderColor: alpha('#f59e0b', 0.2),
-                                                            transition: 'all 0.18s ease',
-                                                            '&:hover': {
-                                                                bgcolor: '#f59e0b',
-                                                                borderColor: '#f59e0b',
-                                                                color: '#fff',
-                                                                boxShadow: '0 2px 8px rgba(245,158,11,0.4)',
-                                                                transform: 'translateY(-1px)',
-                                                            },
-                                                        }}
-                                                    >
-                                                        <FlagIcon sx={{ fontSize: 13 }} />
-                                                    </IconButton>
-                                                </Tooltip>
+                                                    {/* Hitos */}
+                                                    <Tooltip title="Ver hitos" placement="top">
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setHitosProyecto({ id: p.id, nombre: p.nombre });
+                                                            }}
+                                                            sx={{
+                                                                p: 0.5,
+                                                                borderRadius: 1.5,
+                                                                color: '#f59e0b',
+                                                                bgcolor: alpha('#f59e0b', 0.08),
+                                                                border: '1px solid',
+                                                                borderColor: alpha('#f59e0b', 0.2),
+                                                                transition: 'all 0.18s ease',
+                                                                '&:hover': {
+                                                                    bgcolor: '#f59e0b',
+                                                                    borderColor: '#f59e0b',
+                                                                    color: '#fff',
+                                                                    boxShadow: '0 2px 8px rgba(245,158,11,0.4)',
+                                                                    transform: 'translateY(-1px)',
+                                                                },
+                                                            }}
+                                                        >
+                                                            <FlagIcon sx={{ fontSize: 13 }} />
+                                                        </IconButton>
+                                                    </Tooltip>
 
-                                                {/* Agregar hito */}
-                                                <Tooltip title="Agregar hito" placement="top">
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setAgregarHitoProyecto({ id: p.id, nombre: p.nombre });
-                                                        }}
-                                                        sx={{
-                                                            p: 0.5,
-                                                            borderRadius: 1.5,
-                                                            color: '#10b981',
-                                                            bgcolor: alpha('#10b981', 0.08),
-                                                            border: '1px solid',
-                                                            borderColor: alpha('#10b981', 0.2),
-                                                            transition: 'all 0.18s ease',
-                                                            '&:hover': {
-                                                                bgcolor: '#10b981',
-                                                                borderColor: '#10b981',
-                                                                color: '#fff',
-                                                                boxShadow: '0 2px 8px rgba(16,185,129,0.4)',
-                                                                transform: 'translateY(-1px)',
-                                                            },
-                                                        }}
-                                                    >
-                                                        <AddCircleIcon sx={{ fontSize: 13 }} />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </Stack>
+                                                    {/* Agregar hito */}
+                                                    <Tooltip title="Agregar hito" placement="top">
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setAgregarHitoProyecto({ id: p.id, nombre: p.nombre });
+                                                            }}
+                                                            sx={{
+                                                                p: 0.5,
+                                                                borderRadius: 1.5,
+                                                                color: '#10b981',
+                                                                bgcolor: alpha('#10b981', 0.08),
+                                                                border: '1px solid',
+                                                                borderColor: alpha('#10b981', 0.2),
+                                                                transition: 'all 0.18s ease',
+                                                                '&:hover': {
+                                                                    bgcolor: '#10b981',
+                                                                    borderColor: '#10b981',
+                                                                    color: '#fff',
+                                                                    boxShadow: '0 2px 8px rgba(16,185,129,0.4)',
+                                                                    transform: 'translateY(-1px)',
+                                                                },
+                                                            }}
+                                                        >
+                                                            <AddCircleIcon sx={{ fontSize: 13 }} />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                </Stack>
                                             </Box>{/* fin nombre+iconos */}
                                         </Box>
                                     </TableCell>
@@ -291,8 +294,24 @@ export default function ProyectosTable({ proyectos, statusOptions, onStatusChang
                                     </TableCell>
 
                                     {/* Cliente */}
-                                    <TableCell>
-                                        <Typography variant="body2" sx={{ fontSize: '0.82rem' }}>{p.cliente_nombre || '—'}</Typography>
+                                    <TableCell sx={{ width: 150, maxWidth: 150 }}>
+                                        <Tooltip title={p.cliente_nombre || ''} placement="top" enterDelay={600}>
+                                            <Typography
+                                                variant="body2"
+                                                sx={{
+                                                    fontSize: '0.82rem',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    display: '-webkit-box',
+                                                    WebkitLineClamp: 2,
+                                                    WebkitBoxOrient: 'vertical',
+                                                    cursor: 'default',
+                                                    lineHeight: 1.2,
+                                                }}
+                                            >
+                                                {p.cliente_nombre || '—'}
+                                            </Typography>
+                                        </Tooltip>
                                     </TableCell>
 
                                     {/* Responsable */}

@@ -32,12 +32,39 @@ import FlagIcon from '@mui/icons-material/Flag';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import DescriptionIcon from '@mui/icons-material/Description';
 import EditIcon from '@mui/icons-material/Edit';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import NuevoProyectoForm from '../-p-m-o/proyectos/NuevoProyectoForm';
 import OCInfoModal from './OCInfoModal';
 import RFQInfoModal from './RFQInfoModal';
+import api from '../../api/api';
 import { useOcPreview } from '../../hooks/useOcPreview';
 import { useRfqPreview } from '../../hooks/useRfqPreview';
 import { RFQ_STATUS_COLOR, OC_STATUS_COLOR } from '../dashboard/statusColors';
+import { toast } from 'react-toastify';
+
+function extractBlobResponse(resp) {
+    if (!resp) return { blob: null, headers: {} };
+    if (resp.data instanceof Blob) return { blob: resp.data, headers: resp.headers || {} };
+    if (resp instanceof Blob) return { blob: resp, headers: {} };
+    if (resp.data && resp.data instanceof ArrayBuffer) {
+        return { blob: new Blob([resp.data]), headers: resp.headers || {} };
+    }
+    return { blob: null, headers: resp.headers || {} };
+}
+
+function parseFilenameFromContentDisposition(cd) {
+    if (!cd) return null;
+    const utf8 = cd.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+    if (utf8?.[1]) {
+        try {
+            return decodeURIComponent(utf8[1]);
+        } catch {
+            return utf8[1];
+        }
+    }
+    const std = cd.match(/filename="(.+?)"/i);
+    return std?.[1] ?? null;
+}
 
 const formatCurrency = (value, currency = 'MXN') => {
     if (value == null || Number.isNaN(Number(value))) return '-';
@@ -89,6 +116,7 @@ export default function ProyectoInfoModal({
     const theme = useTheme();
     const [tabValue, setTabValue] = useState(0);
     const [editOpen, setEditOpen] = useState(false);
+    const [downloadingPdf, setDownloadingPdf] = useState(false);
 
     const ocPreview  = useOcPreview();
     const rfqPreview = useRfqPreview();
@@ -173,7 +201,43 @@ export default function ProyectoInfoModal({
     const status = p.status || 'SIN STATUS';
     const descripcion = p.descripcion || 'Sin descripción.';
 
-    // Prepare initial values for the form
+    // Download updated project PDF from backend.
+    const handleDownloadPdf = async () => {
+        const proyectoId = Number(p?.id);
+        if (!Number.isInteger(proyectoId) || proyectoId <= 0) {
+            toast.error('No se pudo identificar el proyecto.');
+            return;
+        }
+
+        setDownloadingPdf(true);
+        try {
+            toast.info('Generando PDF del proyecto...');
+            const resp = await api.get(`/api/proyectos/${proyectoId}/pdf`, { responseType: 'blob' });
+            const { blob, headers } = extractBlobResponse(resp);
+            if (!blob) throw new Error('La respuesta del PDF no es valida.');
+
+            const cd = (headers && (headers['content-disposition'] || headers['Content-Disposition'])) ||
+                (typeof headers?.get === 'function' ? headers.get('content-disposition') : null);
+            const fileName = parseFilenameFromContentDisposition(cd) || `PROY-${proyectoId}.pdf`;
+
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.setAttribute('download', fileName);
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+            toast.success('PDF actualizado descargado.');
+        } catch (err) {
+            console.error('Error al descargar PDF del proyecto:', err);
+            toast.error(err?.error || err?.message || 'No se pudo descargar el PDF del proyecto.');
+        } finally {
+            setDownloadingPdf(false);
+        }
+    };
+
+    // Prepare initial values for the edit form
     const initialValues = useMemo(() => {
         if (!p) return null;
         return {
@@ -475,7 +539,15 @@ export default function ProyectoInfoModal({
                         </>
                     )}
                 </DialogContent>
-                <DialogActions sx={{ px: 4, py: 3 }}>
+                <DialogActions sx={{ px: 4, py: 3, gap: 1 }}>
+                    <Button
+                        onClick={handleDownloadPdf}
+                        variant="outlined"
+                        startIcon={downloadingPdf ? <CircularProgress size={18} color="inherit" /> : <PictureAsPdfIcon />}
+                        disabled={downloadingPdf || loading || !p?.id}
+                    >
+                        {downloadingPdf ? 'Generando...' : 'Descargar PDF'}
+                    </Button>
                     <Button onClick={onClose} variant="contained">Cerrar</Button>
                 </DialogActions>
             </Dialog>
