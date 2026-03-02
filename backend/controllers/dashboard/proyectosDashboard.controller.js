@@ -230,22 +230,34 @@ const getProyectoDetalle = async (req, res) => {
       ORDER BY ph.target_date ASC NULLS LAST, ph.id ASC
     `;
 
-    // 3. Expenses by OC query
-    // Group by OC ID and currency to handle multi-currency OCs if any
+    // 3. Expenses by OC query — includes RFQ info and approval date
+    // Grouped by OC+moneda to handle multi-currency OCs
     const gastosQuery = `
       SELECT
         oc.id,
         oc.numero_oc,
         oc.status,
-        oc.fecha_creacion,
         ocd.moneda,
+        r.id              AS rfq_id,
+        r.numero_requisicion,
+        r.status          AS rfq_status,
+        (
+          SELECT h.fecha_registro
+          FROM ordenes_compra_historial h
+          WHERE h.orden_compra_id = oc.id
+            AND h.accion_realizada IN ('APROBACIÓN A CRÉDITO', 'PRE-AUTORIZACIÓN SPEI')
+          ORDER BY h.fecha_registro ASC
+          LIMIT 1
+        )                 AS fecha_aprobacion,
         SUM(ocd.cantidad * ocd.precio_unitario) AS total
       FROM ordenes_compra oc
       JOIN ordenes_compra_detalle ocd ON oc.id = ocd.orden_compra_id
+      LEFT JOIN requisiciones r ON oc.rfq_id = r.id
       WHERE oc.proyecto_id = $1
         AND oc.status IN ('APROBADA', 'EN_PROCESO', 'ENTREGADA')
-      GROUP BY oc.id, oc.numero_oc, oc.status, oc.fecha_creacion, ocd.moneda
-      ORDER BY oc.fecha_creacion DESC
+      GROUP BY oc.id, oc.numero_oc, oc.status, ocd.moneda,
+               r.id, r.numero_requisicion, r.status
+      ORDER BY r.numero_requisicion NULLS LAST, oc.id
     `;
 
     const [projectResult, hitosResult, gastosResult] = await Promise.all([
@@ -260,12 +272,15 @@ const getProyectoDetalle = async (req, res) => {
 
     const rawProject = projectResult.rows[0];
 
-    // Format expenses: array of objects
+    // Format expenses: flat rows (grouped by OC+moneda) — frontend groups by RFQ
     const gastos = gastosResult.rows.map(row => ({
       id: row.id,
       numero_oc: row.numero_oc,
+      rfq_id: row.rfq_id || null,
+      numero_requisicion: row.numero_requisicion || null,
+      rfq_status: row.rfq_status || null,
       status: row.status,
-      fecha: row.fecha_creacion,
+      fecha_aprobacion: row.fecha_aprobacion || null,
       moneda: row.moneda,
       total: parseFloat(row.total) || 0,
     }));

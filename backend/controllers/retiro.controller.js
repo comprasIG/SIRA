@@ -63,13 +63,15 @@ const getDatosFiltrosRetiro = async (req, res) => {
       SELECT
         cm.id,
         cm.nombre,
-        cu.simbolo AS unidad_simbolo,
+        cm.cantidad_uso,
+        COALESCE(cu_uso.simbolo, cu.simbolo) AS unidad_simbolo,
         SUM(ia.stock_actual) AS stock_total
       FROM catalogo_materiales cm
       JOIN inventario_actual ia ON cm.id = ia.material_id
       JOIN catalogo_unidades cu ON cm.unidad_de_compra = cu.id
+      LEFT JOIN catalogo_unidades cu_uso ON cm.unidad_uso_id = cu_uso.id
       WHERE ia.stock_actual > 0
-      GROUP BY cm.id, cm.nombre, cu.simbolo
+      GROUP BY cm.id, cm.nombre, cm.cantidad_uso, cu.simbolo, cu_uso.simbolo
       ORDER BY cm.nombre ASC;
     `;
 
@@ -159,16 +161,22 @@ const getStockMaterial = async (req, res) => {
   try {
     const query = `
       SELECT
-        SUM(stock_actual) AS stock_total,
+        SUM(ia.stock_actual) AS stock_total,
+        cm.cantidad_uso,
+        COALESCE(cu_uso.simbolo, cu.simbolo) AS unidad_simbolo,
         jsonb_agg(
           jsonb_build_object(
-            'ubicacion_id', ubicacion_id,
-            'stock', stock_actual
+            'ubicacion_id', ia.ubicacion_id,
+            'stock', ia.stock_actual
           )
-        ) FILTER (WHERE stock_actual > 0) AS ubicaciones_con_stock
-      FROM inventario_actual
-      WHERE material_id = $1
-        AND stock_actual > 0;
+        ) FILTER (WHERE ia.stock_actual > 0) AS ubicaciones_con_stock
+      FROM inventario_actual ia
+      JOIN catalogo_materiales cm ON ia.material_id = cm.id
+      JOIN catalogo_unidades cu ON cm.unidad_de_compra = cu.id
+      LEFT JOIN catalogo_unidades cu_uso ON cm.unidad_uso_id = cu_uso.id
+      WHERE ia.material_id = $1
+        AND ia.stock_actual > 0
+      GROUP BY cm.id, cm.cantidad_uso, cu.simbolo, cu_uso.simbolo;
     `;
 
     const { rows } = await pool.query(query, [materialId]);

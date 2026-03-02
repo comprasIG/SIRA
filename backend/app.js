@@ -121,6 +121,9 @@ app.use('/api/finanzas', pagosOCRoutes);
 const fuentesPagoRoutes = require('./routes/finanzas/fuentesPago.routes');
 app.use('/api/finanzas', fuentesPagoRoutes);
 
+const gasolinaRoutes = require('./routes/finanzas/gasolina.routes');
+app.use('/api/finanzas', gasolinaRoutes);
+
 const recoleccionRoutes = require('./routes/recoleccion.routes');
 app.use('/api/recoleccion', recoleccionRoutes);
 

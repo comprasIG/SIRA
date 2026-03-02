@@ -62,9 +62,14 @@ router.get('/:id', async (req, res) => {
         m.id,
         m.nombre,
         m.sku,
-        u.simbolo AS unidad 
+        m.cantidad_uso,
+        m.unidad_uso_id,
+        COALESCE(cu_uso.simbolo, u.simbolo) AS unidad,
+        cu_uso.simbolo AS unidad_uso_simbolo,
+        cu_uso.unidad  AS unidad_uso_nombre
       FROM public.catalogo_materiales AS m
       JOIN public.catalogo_unidades AS u ON m.unidad_de_compra = u.id
+      LEFT JOIN public.catalogo_unidades AS cu_uso ON m.unidad_uso_id = cu_uso.id
       WHERE m.id = $1
     `;
     const materialResult = await pool.query(materialSql, [id]);

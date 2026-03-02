@@ -435,6 +435,17 @@ const uploadFile = async (multerFile) => {
   return uploadMulterFileToPath(multerFile, folderPath);
 };
 
+/**
+ * Sube el comprobante de un pago de gasolina a Drive.
+ * Ruta: <AMBIENTE>/GASOLINA/Comprobantes de Pago/
+ * @param {import('multer').File} multerFile
+ * @param {string} fileName  - nombre del archivo (ya sanitizado por el controller)
+ */
+const uploadGasolinaReceipt = async (multerFile, fileName) => {
+  const folderPath = ['GASOLINA', 'Comprobantes de Pago'];
+  return uploadMulterFileToPath(multerFile, folderPath, fileName);
+};
+
 // ============================================================
 // --- UTILIDADES GENERALES (DESCARGA / BORRADO) ---
 // ============================================================
@@ -484,6 +495,7 @@ module.exports = {
   uploadOcEvidenceFile,
   uploadOcPaymentReceipt,
   getOcFolderWebLink,
+  uploadGasolinaReceipt,
   uploadFile,
 
   // Utilidades

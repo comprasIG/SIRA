@@ -4,16 +4,21 @@ const agregarProducto = async (req, res) => {
   const {
     tipo, categoria, detalle, sku,
     unidad_de_compra, ultimo_precio,
-    activo
+    activo, cantidad_uso, unidad_uso_id
   } = req.body;
 
   try {
     const result = await pool.query(
-      `INSERT INTO catalogo_materiales 
-       (tipo, categoria, detalle, sku, unidad_de_compra, ultimo_precio, activo) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7) 
+      `INSERT INTO catalogo_materiales
+       (tipo, categoria, detalle, sku, unidad_de_compra, ultimo_precio, activo,
+        cantidad_uso, unidad_uso_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [tipo, categoria, detalle, sku, unidad_de_compra, ultimo_precio, activo]
+      [
+        tipo, categoria, detalle, sku, unidad_de_compra, ultimo_precio, activo,
+        cantidad_uso ? parseFloat(cantidad_uso) : null,
+        unidad_uso_id ? parseInt(unidad_uso_id, 10) : null,
+      ]
     );
 
     res.status(201).json(result.rows[0]);
@@ -31,11 +36,14 @@ const obtenerProductos = async (req, res) => {
 
     // Construcción base de la query
     let sql = `
-      SELECT 
-        cm.*, 
-        inv.ultimo_precio_entrada, 
+      SELECT
+        cm.*,
+        cu_uso.simbolo AS unidad_uso_simbolo,
+        cu_uso.unidad  AS unidad_uso_nombre,
+        inv.ultimo_precio_entrada,
         inv.moneda
       FROM catalogo_materiales cm
+      LEFT JOIN catalogo_unidades cu_uso ON cm.unidad_uso_id = cu_uso.id
       LEFT JOIN inventario_actual inv ON cm.id = inv.material_id
     `;
 
@@ -77,13 +85,20 @@ const eliminarProducto = async (req, res) => {
 
 const actualizarProducto = async (req, res) => {
   const { id } = req.params;
-  const { tipo, categoria, detalle, sku, unidad_de_compra, ultimo_precio, activo } = req.body;
+  const { tipo, categoria, detalle, sku, unidad_de_compra, ultimo_precio, activo,
+          cantidad_uso, unidad_uso_id } = req.body;
   await pool.query(
-    `UPDATE catalogo_materiales SET 
-     tipo = $1, categoria = $2, detalle = $3, sku = $4, 
-     unidad_de_compra = $5, ultimo_precio = $6, activo = $7 
-     WHERE id = $8`,
-    [tipo, categoria, detalle, sku, unidad_de_compra, ultimo_precio, activo, id]
+    `UPDATE catalogo_materiales SET
+     tipo = $1, categoria = $2, detalle = $3, sku = $4,
+     unidad_de_compra = $5, ultimo_precio = $6, activo = $7,
+     cantidad_uso = $8, unidad_uso_id = $9
+     WHERE id = $10`,
+    [
+      tipo, categoria, detalle, sku, unidad_de_compra, ultimo_precio, activo,
+      cantidad_uso ? parseFloat(cantidad_uso) : null,
+      unidad_uso_id ? parseInt(unidad_uso_id, 10) : null,
+      id,
+    ]
   );
   res.sendStatus(200);
 };

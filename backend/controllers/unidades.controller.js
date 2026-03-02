@@ -456,6 +456,8 @@ const agregarRegistroManualHistorial = async (req, res) => {
   const {
     unidad_id, evento_tipo_id, kilometraje,
     descripcion, costo_total, numeros_serie, es_alerta,
+    // Campos adicionales para carga de combustible (opcionales)
+    sitio_destino_id, proyecto_destino_id,
   } = req.body;
 
   const kmNum = parseInt(kilometraje, 10);
@@ -474,14 +476,15 @@ const agregarRegistroManualHistorial = async (req, res) => {
       throw new Error(`El kilometraje (${kmNum}) no puede ser menor al último registrado (${kmActual} km).`);
     }
 
-    // Verificar que el tipo de evento NO genere requisición
+    // Verificar que el tipo de evento NO genere requisición y obtener su código
     const tipoQuery = await client.query(
-      `SELECT genera_requisicion, nombre FROM unidades_evento_tipos WHERE id = $1`,
+      `SELECT genera_requisicion, nombre, codigo FROM unidades_evento_tipos WHERE id = $1`,
       [evento_tipo_id]
     );
     if (tipoQuery.rows[0]?.genera_requisicion) {
       throw new Error(`El tipo de evento "${tipoQuery.rows[0].nombre}" genera una requisición. Usa "Solicitar Servicio".`);
     }
+    const tipoCodigo = tipoQuery.rows[0]?.codigo || '';
 
     const esAlertaBool = es_alerta === true || es_alerta === 'true';
 
@@ -499,6 +502,24 @@ const agregarRegistroManualHistorial = async (req, res) => {
         esAlertaBool,
       ]
     );
+
+    // Si es una carga de COMBUSTIBLE, también registrar en fin_gasolina_cargas
+    // para que entre al flujo de pago del departamento de Finanzas.
+    if (tipoCodigo === 'COMBUSTIBLE' && costo_total && parseFloat(costo_total) > 0) {
+      await client.query(
+        `INSERT INTO public.fin_gasolina_cargas
+           (unidad_id, kilometraje, costo_total_mxn, sitio_destino_id, proyecto_destino_id, usuario_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          unidad_id,
+          kmNum,
+          parseFloat(costo_total),
+          sitio_destino_id || null,
+          proyecto_destino_id || null,
+          usuarioId,
+        ]
+      );
+    }
 
     await client.query('UPDATE unidades SET km = $1 WHERE id = $2', [kmNum, unidad_id]);
 
