@@ -211,8 +211,9 @@ export default function PAY_OCForm() {
       return {
         id: row.id ?? row.detalle_id,
         description: row.material_nombre || row.descripcion || '-',
+        sku: row.sku || '',
         quantity,
-        unit: row.unidad || row.unidad_medida || row.unidad_simbolo || '',
+        unit: row.unidad_simbolo || row.unidad || row.unidad_medida || '',
         received,
         pending,
         price,
@@ -222,6 +223,24 @@ export default function PAY_OCForm() {
       };
     });
   }, [previewData, previewOc]);
+
+  const previewFinancials = useMemo(() => {
+    const enc = previewData?.encabezado || {};
+    const merged = previewOcMerged || {};
+    const moneda = enc.moneda || merged.moneda || 'MXN';
+    return {
+      moneda,
+      subTotal: enc.sub_total ?? merged.sub_total,
+      iva: enc.iva ?? merged.iva,
+      retIsr: enc.ret_isr ?? merged.ret_isr,
+      total: enc.total ?? merged.total,
+      ivaRate: enc.iva_rate ?? merged.iva_rate,
+      isrRate: enc.isr_rate ?? merged.isr_rate,
+      impo: enc.impo ?? merged.impo,
+      comentariosFinanzas: enc.comentarios_finanzas ?? merged.comentarios_finanzas,
+      comentario: enc.comentario ?? merged.comentario,
+    };
+  }, [previewData, previewOcMerged]);
 
   if (loading) {
     return (
@@ -412,6 +431,7 @@ export default function PAY_OCForm() {
           oc={previewOcMerged}
           items={previewItems}
           metadata={previewMetadata}
+          financials={previewFinancials}
           loading={previewLoading}
         />
       )}

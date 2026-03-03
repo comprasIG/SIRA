@@ -33,6 +33,7 @@ export default function G_OCForm() {
     previewOc,
     previewItems,
     previewMetadata,
+    previewFinancials,
     loading: previewLoading,
     openPreview,
     closePreview
@@ -138,6 +139,7 @@ export default function G_OCForm() {
           oc={previewOc}
           items={previewItems}
           metadata={previewMetadata}
+          financials={previewFinancials}
           loading={previewLoading}
         />
       )}

@@ -36,7 +36,7 @@ import RequisicionEditModal from './RequisicionEditModal';
  */
 export default function RfqTable({ rfqs, mode, rfqStatusOptions = [], onStatusChanged }) {
   const {
-    previewOpen, previewOc, previewItems, previewMetadata, loading: previewLoading,
+    previewOpen, previewOc, previewItems, previewMetadata, previewFinancials, loading: previewLoading,
     openPreview, closePreview
   } = useOcPreview();
 
@@ -235,6 +235,7 @@ export default function RfqTable({ rfqs, mode, rfqStatusOptions = [], onStatusCh
           oc={previewOc}
           items={previewItems}
           metadata={previewMetadata}
+          financials={previewFinancials}
           loading={previewLoading}
         />
       )}

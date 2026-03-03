@@ -72,7 +72,6 @@ export const useOcPreview = () => {
         return detalle.map((row) => {
             const quantity = parseOrNull(row.cantidad ?? row.cantidad_pedida);
             const received = parseOrNull(row.cantidad_recibida ?? row.cantidad_facturada);
-            // Calculo de pendiente
             const pending = row.cantidad_pendiente != null
                 ? parseOrNull(row.cantidad_pendiente)
                 : (quantity != null && received != null ? Math.max(0, quantity - received) : null);
@@ -83,8 +82,9 @@ export const useOcPreview = () => {
             return {
                 id: row.id ?? row.detalle_id,
                 description: row.material_nombre || row.descripcion || '-',
+                sku: row.sku || '',
                 quantity,
-                unit: row.unidad || row.unidad_medida || row.unidad_simbolo || '',
+                unit: row.unidad_simbolo || row.unidad || row.unidad_medida || '',
                 received,
                 pending,
                 price,
@@ -95,11 +95,41 @@ export const useOcPreview = () => {
         });
     }, [previewData, previewOc]);
 
+    // Resumen financiero del encabezado de la OC
+    const previewFinancials = useMemo(() => {
+        const enc = previewData?.encabezado || {};
+        const merged = previewOcMerged || {};
+        const moneda = enc.moneda || merged.moneda || 'MXN';
+        const subTotal = enc.sub_total ?? merged.sub_total;
+        const iva = enc.iva ?? merged.iva;
+        const retIsr = enc.ret_isr ?? merged.ret_isr;
+        const total = enc.total ?? merged.total;
+        const ivaRate = enc.iva_rate ?? merged.iva_rate;
+        const isrRate = enc.isr_rate ?? merged.isr_rate;
+        const impo = enc.impo ?? merged.impo;
+        const comentariosFinanzas = enc.comentarios_finanzas ?? merged.comentarios_finanzas;
+        const comentario = enc.comentario ?? merged.comentario;
+
+        return {
+            moneda,
+            subTotal,
+            iva,
+            retIsr,
+            total,
+            ivaRate,
+            isrRate,
+            impo,
+            comentariosFinanzas,
+            comentario,
+        };
+    }, [previewData, previewOcMerged]);
+
     return {
         previewOpen,
-        previewOc: previewOcMerged, // Devolvemos el merged para que tenga toda la info
+        previewOc: previewOcMerged,
         previewItems,
         previewMetadata,
+        previewFinancials,
         loading,
         openPreview,
         closePreview,

@@ -659,10 +659,20 @@ const getOcPreview = async (req, res) => {
       SELECT
         oc.id,
         oc.numero_oc,
+        oc.sub_total,
+        oc.iva,
+        oc.ret_isr,
         oc.total,
+        oc.iva_rate,
+        oc.isr_rate,
+        oc.impo,
         oc.status,
         oc.metodo_pago,
         oc.fecha_creacion,
+        oc.comentarios_finanzas,
+        oc.comentario,
+        oc.es_urgente,
+        (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) AS moneda,
         p.razon_social AS proveedor_nombre,
         pr.nombre       AS proyecto_nombre,
         s.nombre        AS sitio_nombre,
@@ -691,12 +701,16 @@ const getOcPreview = async (req, res) => {
         d.material_id,
         d.cantidad,
         d.cantidad_recibida,
+        GREATEST(0, d.cantidad - COALESCE(d.cantidad_recibida, 0)) AS cantidad_pendiente,
         d.precio_unitario,
         d.moneda,
         (d.cantidad * d.precio_unitario) AS total_linea,
-        cm.nombre AS material_nombre
+        cm.nombre  AS material_nombre,
+        cm.sku     AS sku,
+        cu.simbolo AS unidad_simbolo
       FROM ordenes_compra_detalle d
       LEFT JOIN catalogo_materiales cm ON cm.id = d.material_id
+      LEFT JOIN catalogo_unidades   cu ON cu.id = cm.unidad_de_compra
       WHERE d.orden_compra_id = $1
       ORDER BY d.id ASC
     `, [ordenCompraId]);

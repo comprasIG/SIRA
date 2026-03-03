@@ -404,6 +404,10 @@ function drawSignature(doc) {
   doc.restore();
 }
 
+function round4pdf(n) {
+  return Math.round((Number(n) + Number.EPSILON) * 10000) / 10000;
+}
+
 function drawTotals(doc, oc) {
   const currency = safeText(oc?.moneda, 'MXN');
   const subTotal = Number(oc?.sub_total ?? 0);
@@ -413,6 +417,11 @@ function drawTotals(doc, oc) {
 
   const ivaRate = Number(oc?.iva_rate ?? 0);
   const isrRate = Number(oc?.isr_rate ?? 0);
+
+  // Detect forced total / discount adjustment
+  const calculatedTotal = round4pdf(subTotal + iva - retIsr);
+  const ajuste = round4pdf(total - calculatedTotal);
+  const hasAjuste = Math.abs(ajuste) > 0.005;
 
   const boxW = 250;
   const x = PAGE_WIDTH - MARGIN_RIGHT - boxW;
@@ -436,6 +445,15 @@ function drawTotals(doc, oc) {
     const pct = isrRate > 0 ? ` (${Math.round(isrRate * 10000) / 100}%)` : '';
     doc.text(`Ret. ISR${pct}:`, x, y, { width: 130, align: 'right' });
     doc.text(`-${toMoney(retIsr)}`, x + 130, y, { width: 120, align: 'right' });
+    y += 16;
+  }
+
+  if (hasAjuste) {
+    const ajusteLabel = ajuste < 0 ? 'Descuento/Ajuste:' : 'Ajuste:';
+    doc.fillColor('#C62828');
+    doc.text(ajusteLabel, x, y, { width: 130, align: 'right' });
+    doc.text(toMoney(ajuste), x + 130, y, { width: 120, align: 'right' });
+    doc.fillColor('#111111');
     y += 16;
   }
 
