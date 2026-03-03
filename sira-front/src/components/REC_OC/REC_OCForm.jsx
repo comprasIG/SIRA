@@ -55,7 +55,7 @@ export default function REC_OCForm() {
 
   // --- Hook de preview ---
   const {
-    previewOpen, previewOc: previewData, previewItems, previewMetadata, loading: previewLoading,
+    previewOpen, previewOc: previewData, previewItems, previewMetadata, previewFinancials, loading: previewLoading,
     openPreview, closePreview
   } = useOcPreview();
   // ---------------------------------------------------
@@ -183,6 +183,7 @@ export default function REC_OCForm() {
           oc={previewData}
           items={previewItems}
           metadata={previewMetadata}
+          financials={previewFinancials}
           loading={previewLoading}
         />
       )}

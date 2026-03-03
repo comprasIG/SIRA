@@ -25,8 +25,7 @@ import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import HowToRegIcon from '@mui/icons-material/HowToReg';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import ThreeDRotationIcon from '@mui/icons-material/ThreeDRotation';
-
-// Nuevos Iconos importados aquí si es necesario
+import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
 import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder'; //Icono Para Nuevo Proyecto
 import LocationOnIcon from '@mui/icons-material/LocationOn'; //Icono Para Sitios
 import CarCrashIcon from '@mui/icons-material/CarCrash'; // Icono Para Unidades de Transporte
@@ -37,7 +36,7 @@ import LocalShippingIcon from '@mui/icons-material/LocalShipping'; // Icono Para
 import ContactPageIcon from '@mui/icons-material/ContactPage'; // Icono Para contacto de proveedores
 import BeachAccessIcon from '@mui/icons-material/BeachAccess'; // Icono Para Vacaciones
 import WorkHistoryIcon from '@mui/icons-material/WorkHistory'; // Icono Para permisos RH
-
+import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff'; // Icono Para Viaticos & Gastos
 // Mapa de íconos: Convierte el string de la BD al componente de React.
 // Aqui es donde se hace el mapeo de los iconos para manejarlos desde la base de datos
 // Para cambiarlo en la base de datos, en la columna 'icono', coloca el nombre ejemplo: 'DashboardIcon'
@@ -59,9 +58,8 @@ const iconMap = {
   HelpOutline: <HelpOutline sx={{ fontSize: 20, color: '#fdd835' }} />,
   DirectionsCarIcon: <DirectionsCarIcon sx={{ fontSize: 20 }} />,
   HowToRegIcon: <HowToRegIcon sx={{ fontSize: 20 }} />,
-  AssignmentIndIcon: <AssignmentIndIcon sx={{ fontSize: 20 }} />
-  // Nuevos iconos mapeados aquí si es necesario
-  , CreateNewFolderIcon: <CreateNewFolderIcon sx={{ fontSize: 20 }} />, // Icono Para Nuevo Proyecto
+  AssignmentIndIcon: <AssignmentIndIcon sx={{ fontSize: 20 }} />,
+  CreateNewFolderIcon: <CreateNewFolderIcon sx={{ fontSize: 20 }} />, // Icono Para Nuevo Proyecto
   LocationOnIcon: <LocationOnIcon sx={{ fontSize: 20 }} />, // Icono Para Sitios
   CarCrashIcon: <CarCrashIcon sx={{ fontSize: 20 }} />, // Icono Para Unidades de Transporte
   FingerprintIcon: <FingerprintIcon sx={{ fontSize: 20 }} />, // Icono Para Control de Acceso
@@ -71,7 +69,9 @@ const iconMap = {
   ContactPageIcon: <ContactPageIcon sx={{ fontSize: 20 }} />,// Icono Para contacto de proveedores
   BeachAccessIcon: <BeachAccessIcon sx={{ fontSize: 20 }} />, // Icono Para Vacaciones
   WorkHistoryIcon: <WorkHistoryIcon sx={{ fontSize: 20 }} />, // Icono Para permisos RH
-  ThreeDRotationIcon: <ThreeDRotationIcon sx={{ fontSize: 20 }} /> // Icono Para 3D
+  ThreeDRotationIcon: <ThreeDRotationIcon sx={{ fontSize: 20 }} />, // Icono Para 3D
+  LocalGasStationIcon: <LocalGasStationIcon sx={{ fontSize: 20 }} />, // Icono Para Gasolina
+  FlightTakeoffIcon: <FlightTakeoffIcon sx={{ fontSize: 20 }} /> // Icono Para Viaticos & Gastos
 };
 
 export default function Sidebar({ isOpen, toggleSidebar }) {

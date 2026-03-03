@@ -45,6 +45,7 @@ router.post('/historial/manual', ctrl.agregarRegistroManualHistorial);
 // ── Detalle e historial por unidad ───────────────────────────────────────────
 // GET /api/unidades/:id/detalle
 router.get('/:id/detalle', ctrl.getUnidadDetalle);
+router.put('/:id/detalle', ctrl.actualizarUnidadDetalle);
 
 // GET /api/unidades/:id/historial   → soporta ?eventoTipoId=
 router.get('/:id/historial', ctrl.getHistorialUnidad);

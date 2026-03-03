@@ -17,6 +17,26 @@ async function resolverAccesoTotal(client, usuarioSira) {
   return rows.length > 0 && rows[0].puede_ver_todo === true;
 }
 
+const TIPOS_COMBUSTIBLE_VALIDOS = {
+  DIESEL: 'Diesel',
+  GASOLINA: 'Gasolina',
+  ELECTRICO: 'Electrico',
+  HIBRIDO: 'Hibrido',
+};
+
+function normalizarTipoCombustible(valor) {
+  if (valor == null || valor === '') return null;
+  if (typeof valor !== 'string') return null;
+
+  const clave = valor
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+
+  return TIPOS_COMBUSTIBLE_VALIDOS[clave] || null;
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/unidades
 // Lista de unidades filtrada por departamento del usuario (o todo si tiene acceso).
@@ -141,6 +161,159 @@ const getUnidadDetalle = async (req, res) => {
   } catch (error) {
     console.error(`Error al obtener detalle de unidad ${id}:`, error);
     res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// PUT /api/unidades/:id/detalle
+// Actualiza campos editables del modal "Informacion de la Unidad".
+// ---------------------------------------------------------------------------
+const actualizarUnidadDetalle = async (req, res) => {
+  const { id } = req.params;
+  const usuarioSira = req.usuarioSira;
+  const body = req.body || {};
+  const hasOwn = (campo) => Object.prototype.hasOwnProperty.call(body, campo);
+
+  const client = await pool.connect();
+  try {
+    const unidadRes = await client.query(
+      `SELECT
+         u.id,
+         u.tipo_combustible,
+         u.tipo_bateria,
+         u.medidas_llantas,
+         u.rendimiento_teorico,
+         u.km_proximo_servicio,
+         resp.departamento_id AS responsable_departamento_id
+       FROM public.unidades u
+       LEFT JOIN public.usuarios resp ON u.responsable_id = resp.id
+       WHERE u.id = $1`,
+      [id]
+    );
+
+    if (unidadRes.rowCount === 0) {
+      return res.status(404).json({ error: 'Unidad no encontrada.' });
+    }
+
+    const unidadActual = unidadRes.rows[0];
+    const puedeVerTodo = await resolverAccesoTotal(client, usuarioSira);
+
+    if (!puedeVerTodo) {
+      const deptoResponsable = unidadActual.responsable_departamento_id;
+      if (!deptoResponsable || Number(deptoResponsable) !== Number(usuarioSira.departamento_id)) {
+        return res.status(403).json({ error: 'No tienes permiso para editar esta unidad.' });
+      }
+    }
+
+    let tipoCombustibleFinal = unidadActual.tipo_combustible;
+    if (hasOwn('tipo_combustible')) {
+      const normalizado = normalizarTipoCombustible(body.tipo_combustible);
+      if (body.tipo_combustible && !normalizado) {
+        return res.status(400).json({
+          error: 'Tipo de combustible invalido. Valores permitidos: Diesel, Gasolina, Electrico, Hibrido.',
+        });
+      }
+      tipoCombustibleFinal = normalizado;
+    }
+
+    let tipoBateriaFinal = unidadActual.tipo_bateria;
+    if (hasOwn('tipo_bateria')) {
+      if (body.tipo_bateria == null || body.tipo_bateria === '') {
+        tipoBateriaFinal = null;
+      } else if (typeof body.tipo_bateria !== 'string') {
+        return res.status(400).json({ error: 'Tipo de bateria invalido.' });
+      } else {
+        tipoBateriaFinal = body.tipo_bateria.trim();
+        if (tipoBateriaFinal.length > 100) {
+          return res.status(400).json({ error: 'Tipo de bateria excede 100 caracteres.' });
+        }
+      }
+    }
+
+    let medidasLlantasFinal = unidadActual.medidas_llantas;
+    if (hasOwn('medidas_llantas')) {
+      if (body.medidas_llantas == null || body.medidas_llantas === '') {
+        medidasLlantasFinal = null;
+      } else if (typeof body.medidas_llantas !== 'string') {
+        return res.status(400).json({ error: 'Medidas de llantas invalidas.' });
+      } else {
+        medidasLlantasFinal = body.medidas_llantas.trim();
+        if (medidasLlantasFinal.length > 100) {
+          return res.status(400).json({ error: 'Medidas de llantas exceden 100 caracteres.' });
+        }
+      }
+    }
+
+    let rendimientoTeoricoFinal = unidadActual.rendimiento_teorico;
+    if (hasOwn('rendimiento_teorico')) {
+      if (body.rendimiento_teorico == null || body.rendimiento_teorico === '') {
+        rendimientoTeoricoFinal = null;
+      } else {
+        const rendimiento = Number(body.rendimiento_teorico);
+        if (!Number.isFinite(rendimiento) || rendimiento < 0) {
+          return res.status(400).json({ error: 'Rendimiento teorico invalido.' });
+        }
+        rendimientoTeoricoFinal = rendimiento;
+      }
+    }
+
+    let kmProximoServicioFinal = unidadActual.km_proximo_servicio;
+    if (hasOwn('km_proximo_servicio')) {
+      if (body.km_proximo_servicio == null || body.km_proximo_servicio === '') {
+        kmProximoServicioFinal = null;
+      } else {
+        const kmProximo = Number(body.km_proximo_servicio);
+        if (!Number.isInteger(kmProximo) || kmProximo < 0) {
+          return res.status(400).json({ error: 'KM proximo servicio invalido.' });
+        }
+        kmProximoServicioFinal = kmProximo;
+      }
+    }
+
+    await client.query(
+      `UPDATE public.unidades
+       SET tipo_combustible    = $1,
+           tipo_bateria        = $2,
+           medidas_llantas     = $3,
+           rendimiento_teorico = $4,
+           km_proximo_servicio = $5,
+           actualizado_en      = NOW()
+       WHERE id = $6`,
+      [
+        tipoCombustibleFinal,
+        tipoBateriaFinal,
+        medidasLlantasFinal,
+        rendimientoTeoricoFinal,
+        kmProximoServicioFinal,
+        id,
+      ]
+    );
+
+    const { rows } = await client.query(
+      `SELECT
+         u.id, u.unidad, u.marca, u.modelo, u.no_eco, u.placas,
+         u.serie, u.km, u.km_proximo_servicio, u.rendimiento_teorico,
+         u.tipo_combustible, u.tipo_bateria, u.medidas_llantas, u.activo,
+         u.creado_en, u.actualizado_en,
+         usr.id   AS responsable_id,
+         usr.nombre AS responsable_nombre,
+         usr.correo AS responsable_correo,
+         d.id     AS departamento_id,
+         d.nombre AS departamento_nombre,
+         d.codigo AS departamento_codigo
+       FROM public.unidades u
+       LEFT JOIN public.usuarios usr ON u.responsable_id = usr.id
+       LEFT JOIN public.departamentos d ON usr.departamento_id = d.id
+       WHERE u.id = $1`,
+      [id]
+    );
+
+    res.json(rows[0]);
+  } catch (error) {
+    console.error(`Error al actualizar detalle de unidad ${id}:`, error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  } finally {
+    client.release();
   }
 };
 
@@ -654,6 +827,7 @@ const eliminarEventoTipo = async (req, res) => {
 module.exports = {
   getUnidades,
   getUnidadDetalle,
+  actualizarUnidadDetalle,
   getHistorialUnidad,
   getAlertasAbiertas,
   cerrarAlerta,

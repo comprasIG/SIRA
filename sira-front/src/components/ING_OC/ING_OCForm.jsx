@@ -32,7 +32,7 @@ export default function ING_OCForm() {
 
     // --- Hook de Preview (sustituye infoDialog manual) ---
     const {
-        previewOpen, previewOc: infoOc, previewItems: infoItems, previewMetadata: infoMetadata, loading: infoLoading,
+        previewOpen, previewOc: infoOc, previewItems: infoItems, previewMetadata: infoMetadata, previewFinancials: infoFinancials, loading: infoLoading,
         openPreview, closePreview
     } = useOcPreview();
 
@@ -270,6 +270,7 @@ export default function ING_OCForm() {
                     oc={infoOc}
                     items={infoItems}
                     metadata={infoMetadata}
+                    financials={infoFinancials}
                     loading={infoLoading}
                 />
             )}

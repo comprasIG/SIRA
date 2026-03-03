@@ -53,6 +53,7 @@ export default function OCInfoModal({
   items = [],
   loading = false,
   metadata = [],
+  financials = null,
   extraContent = null,
 }) {
   const theme = useTheme();
@@ -109,6 +110,7 @@ export default function OCInfoModal({
     [items],
   );
   const hasUnit = useMemo(() => items.some((item) => item.unit), [items]);
+  const hasSku = useMemo(() => items.some((item) => item.sku), [items]);
   const hasPrice = useMemo(() => items.some((item) => item.price != null), [items]);
   const hasTotal = useMemo(() => items.some((item) => item.total != null), [items]);
 
@@ -209,47 +211,113 @@ export default function OCInfoModal({
                 </Paper>
               </Grid>
               <Grid item xs={12} md={8}>
-                <Paper
-                  variant="outlined"
-                  sx={{
-                    p: 2.5,
-                    borderRadius: 3,
-                  }}
-                >
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Resumen económico
-                  </Typography>
-                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    {Object.entries(totalsPorMoneda).map(([currency, amount]) => (
-                      <Chip
-                        key={currency}
-                        color="primary"
-                        variant="outlined"
-                        label={`${currency}: ${formatCurrency(amount, currency)}`}
-                        sx={{ fontWeight: 600 }}
-                      />
-                    ))}
-                    {!Object.keys(totalsPorMoneda).length && (
-                      <Typography variant="body2" color="text.secondary">
-                        Sin montos registrados en los renglones.
-                      </Typography>
-                    )}
-                  </Stack>
-                  {cleanedMetadata.length > 0 && (
-                    <Stack spacing={1.5} sx={{ mt: 2 }}>
-                      {cleanedMetadata.map((entry) => (
-                        <Stack key={entry.label} direction="row" spacing={1.5} alignItems="baseline">
-                          <Typography variant="caption" color="text.secondary" sx={{ minWidth: 120 }}>
-                            {entry.label}
-                          </Typography>
-                          <Typography variant="body2" fontWeight={500} color="text.primary">
-                            {entry.value}
+                <Stack spacing={2}>
+                  <Paper
+                    variant="outlined"
+                    sx={{ p: 2.5, borderRadius: 3 }}
+                  >
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Resumen financiero
+                    </Typography>
+                    {financials ? (
+                      <Stack spacing={0.5}>
+                        {financials.impo && (
+                          <Chip size="small" label="Importación" color="info" variant="outlined" sx={{ alignSelf: 'flex-start', mb: 0.5 }} />
+                        )}
+                        <Stack direction="row" justifyContent="space-between">
+                          <Typography variant="body2" color="text.secondary">Subtotal</Typography>
+                          <Typography variant="body2" fontWeight={500}>
+                            {financials.subTotal != null ? formatCurrency(financials.subTotal, financials.moneda) : '-'}
                           </Typography>
                         </Stack>
-                      ))}
-                    </Stack>
+                        {financials.iva != null && Number(financials.iva) > 0 && (
+                          <Stack direction="row" justifyContent="space-between">
+                            <Typography variant="body2" color="text.secondary">
+                              IVA{financials.ivaRate > 0 ? ` (${Math.round(financials.ivaRate * 100)}%)` : ''}
+                            </Typography>
+                            <Typography variant="body2" fontWeight={500}>
+                              {formatCurrency(financials.iva, financials.moneda)}
+                            </Typography>
+                          </Stack>
+                        )}
+                        {financials.retIsr != null && Number(financials.retIsr) > 0 && (
+                          <Stack direction="row" justifyContent="space-between">
+                            <Typography variant="body2" color="text.secondary">
+                              Ret. ISR{financials.isrRate > 0 ? ` (${(financials.isrRate * 100).toFixed(1)}%)` : ''}
+                            </Typography>
+                            <Typography variant="body2" fontWeight={500} color="error.main">
+                              -{formatCurrency(financials.retIsr, financials.moneda)}
+                            </Typography>
+                          </Stack>
+                        )}
+                        <Divider sx={{ my: 0.5 }} />
+                        <Stack direction="row" justifyContent="space-between">
+                          <Typography variant="body2" fontWeight={700}>Total</Typography>
+                          <Typography variant="body2" fontWeight={700} color="primary.main">
+                            {financials.total != null
+                              ? `${formatCurrency(financials.total, financials.moneda)} ${financials.moneda}`
+                              : '-'}
+                          </Typography>
+                        </Stack>
+                      </Stack>
+                    ) : (
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        {Object.entries(totalsPorMoneda).map(([currency, amount]) => (
+                          <Chip
+                            key={currency}
+                            color="primary"
+                            variant="outlined"
+                            label={`${currency}: ${formatCurrency(amount, currency)}`}
+                            sx={{ fontWeight: 600 }}
+                          />
+                        ))}
+                        {!Object.keys(totalsPorMoneda).length && (
+                          <Typography variant="body2" color="text.secondary">
+                            Sin montos registrados en los renglones.
+                          </Typography>
+                        )}
+                      </Stack>
+                    )}
+                    {cleanedMetadata.length > 0 && (
+                      <Stack spacing={1.5} sx={{ mt: 2 }}>
+                        {cleanedMetadata.map((entry) => (
+                          <Stack key={entry.label} direction="row" spacing={1.5} alignItems="baseline">
+                            <Typography variant="caption" color="text.secondary" sx={{ minWidth: 120 }}>
+                              {entry.label}
+                            </Typography>
+                            <Typography variant="body2" fontWeight={500} color="text.primary">
+                              {entry.value}
+                            </Typography>
+                          </Stack>
+                        ))}
+                      </Stack>
+                    )}
+                  </Paper>
+                  {(financials?.comentariosFinanzas || financials?.comentario) && (
+                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+                      {financials.comentariosFinanzas && (
+                        <>
+                          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                            Notas de finanzas
+                          </Typography>
+                          <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-wrap' }}>
+                            {financials.comentariosFinanzas}
+                          </Typography>
+                        </>
+                      )}
+                      {financials.comentario && (
+                        <Box sx={{ mt: financials.comentariosFinanzas ? 1.5 : 0 }}>
+                          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                            Comentario general
+                          </Typography>
+                          <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-wrap' }}>
+                            {financials.comentario}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Paper>
                   )}
-                </Paper>
+                </Stack>
               </Grid>
             </Grid>
 
@@ -275,6 +343,7 @@ export default function OCInfoModal({
                 <Table size="small" stickyHeader>
                   <TableHead>
                     <TableRow>
+                      {hasSku && <TableCell sx={{ minWidth: 80 }}>SKU</TableCell>}
                       <TableCell>Material / Descripción</TableCell>
                       {(hasQuantity || hasReceived) && <TableCell align="right">Solicitada / Recibida</TableCell>}
                       {hasUnit && <TableCell align="center">Unidad</TableCell>}
@@ -302,6 +371,13 @@ export default function OCInfoModal({
                         const fmtNum = (n) => n != null ? n.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '-';
                         return (
                         <TableRow key={item.id || item.material_id || item.detalle_id} hover>
+                          {hasSku && (
+                            <TableCell>
+                              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                                {item.sku || '-'}
+                              </Typography>
+                            </TableCell>
+                          )}
                           <TableCell>
                             <Typography variant="body2" fontWeight={600} color="text.primary">
                               {item.description || '-'}
