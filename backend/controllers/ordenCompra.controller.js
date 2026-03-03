@@ -104,7 +104,11 @@ SELECT
   u.correo       AS usuario_correo,
   r.rfq_code     AS rfq_code,
   (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) AS moneda,
-  COALESCE(oc.fecha_creacion, NOW()) AS fecha_aprobacion
+  COALESCE(oc.fecha_creacion, NOW()) AS fecha_aprobacion,
+  pi.imprimir_proyecto          AS prefs_imprimir_proyecto,
+  s_prefs.nombre                AS prefs_sitio_entrega_ubicacion,
+  pi.imprimir_direccion_entrega AS prefs_imprimir_direccion_entrega,
+  ci.abreviatura                AS prefs_incoterm_abreviatura
 FROM ordenes_compra oc
 JOIN proveedores p ON oc.proveedor_id = p.id
 JOIN proyectos proy ON oc.proyecto_id = proy.id
@@ -112,6 +116,9 @@ JOIN sitios s ON oc.sitio_id = s.id
 LEFT JOIN sitios s_entrega ON s_entrega.id = oc.lugar_entrega::int
 JOIN usuarios u ON oc.usuario_id = u.id
 LEFT JOIN requisiciones r ON oc.rfq_id = r.id
+LEFT JOIN oc_preferencias_importacion pi ON pi.orden_compra_id = oc.id
+LEFT JOIN sitios s_prefs ON s_prefs.id = pi.sitio_entrega_id
+LEFT JOIN catalogo_incoterms ci ON ci.id = pi.incoterm_id
 WHERE oc.id = $1;
       `,
       [idNum]
@@ -431,11 +438,21 @@ const getDatosParaEditar = async (req, res) => {
               oc.sub_total, oc.iva, oc.ret_isr, oc.total,
               oc.rfq_id, oc.proyecto_id, oc.sitio_id,
               p.razon_social AS proveedor_nombre, p.marca AS proveedor_marca,
-              proy.nombre AS proyecto_nombre, s.nombre AS sitio_nombre
+              proy.nombre AS proyecto_nombre, s.nombre AS sitio_nombre,
+              pi.imprimir_proyecto AS pref_imprimir_proyecto,
+              pi.sitio_entrega_id AS pref_sitio_entrega_id,
+              s_pref.nombre AS pref_sitio_entrega_nombre,
+              pi.imprimir_direccion_entrega AS pref_imprimir_direccion_entrega,
+              pi.incoterm_id AS pref_incoterm_id,
+              ci.abreviatura AS pref_incoterm_abreviatura,
+              ci.nombre AS pref_incoterm_nombre
        FROM ordenes_compra oc
        JOIN proveedores p ON oc.proveedor_id = p.id
        JOIN proyectos proy ON oc.proyecto_id = proy.id
        JOIN sitios s ON oc.sitio_id = s.id
+       LEFT JOIN oc_preferencias_importacion pi ON pi.orden_compra_id = oc.id
+       LEFT JOIN sitios s_pref ON s_pref.id = pi.sitio_entrega_id
+       LEFT JOIN catalogo_incoterms ci ON ci.id = pi.incoterm_id
        WHERE oc.id = $1`,
       [idNum]
     );
@@ -476,6 +493,15 @@ const getDatosParaEditar = async (req, res) => {
       sitio_id: oc.sitio_id,
       proyecto_nombre: oc.proyecto_nombre,
       sitio_nombre: oc.sitio_nombre,
+      preferencias_importacion: {
+        imprimir_proyecto: oc.pref_imprimir_proyecto ?? true,
+        sitio_entrega_id: oc.pref_sitio_entrega_id ?? null,
+        sitio_entrega_nombre: oc.pref_sitio_entrega_nombre ?? '',
+        imprimir_direccion_entrega: oc.pref_imprimir_direccion_entrega ?? true,
+        incoterm_id: oc.pref_incoterm_id ?? null,
+        incoterm_abreviatura: oc.pref_incoterm_abreviatura ?? '',
+        incoterm_nombre: oc.pref_incoterm_nombre ?? '',
+      },
       items: itemsQuery.rows,
     });
   } catch (error) {
@@ -498,10 +524,15 @@ const editarOc = async (req, res) => {
     return res.status(400).json({ error: 'Parámetro id inválido.' });
   }
 
-  const { motivo, proveedor_id, comentarios_finanzas, items } = req.body;
+  const { motivo, proveedor_id, comentarios_finanzas, items, preferencias_importacion } = req.body;
   const payloadImpo = req.body.impo;
   const payloadIvaRate = req.body.iva_rate;
   const payloadIsrRate = req.body.isr_rate;
+  const payloadIsForcedTotal = req.body.is_forced_total_active === true;
+  const payloadForcedTotal = req.body.forced_total;
+  const payloadIsDiscountActive = req.body.is_discount_active === true;
+  const payloadDiscountType = req.body.discount_type || 'percent'; // 'percent' | 'fixed'
+  const payloadDiscountValue = req.body.discount_value;
 
   if (!motivo || !String(motivo).trim()) {
     return res.status(400).json({ error: 'El motivo de la modificación es obligatorio.' });
@@ -727,9 +758,24 @@ const editarOc = async (req, res) => {
     const subTotal = round4(
       items.reduce((sum, it) => sum + toNum(it.cantidad) * toNum(it.precio_unitario), 0)
     );
-    const iva = (!esImpo && ivaRate > 0) ? round4(subTotal * ivaRate) : 0;
-    const retIsr = (!esImpo && isrRate > 0) ? round4(subTotal * isrRate) : 0;
-    const total = round4(subTotal + iva - retIsr);
+
+    // Apply discount to subTotal before taxes
+    let discountAmount = 0;
+    if (payloadIsDiscountActive && toNum(payloadDiscountValue) > 0) {
+      if (payloadDiscountType === 'percent') {
+        discountAmount = round4(subTotal * toNum(payloadDiscountValue));
+      } else {
+        discountAmount = round4(toNum(payloadDiscountValue));
+      }
+    }
+    const baseParaImpuestos = round4(subTotal - discountAmount);
+
+    const iva = (!esImpo && ivaRate > 0) ? round4(baseParaImpuestos * ivaRate) : 0;
+    const retIsr = (!esImpo && isrRate > 0) ? round4(baseParaImpuestos * isrRate) : 0;
+    const calculatedTotal = round4(baseParaImpuestos + iva - retIsr);
+    const total = (payloadIsForcedTotal && toNum(payloadForcedTotal) > 0)
+      ? round4(toNum(payloadForcedTotal))
+      : calculatedTotal;
 
     // 8) Actualizar cabecera OC
     const comentFin = typeof comentarios_finanzas === 'string' ? comentarios_finanzas.trim() || null : null;
@@ -742,6 +788,28 @@ const editarOc = async (req, res) => {
        WHERE id = $10`,
       [nuevaProvId, comentFin, subTotal, iva, retIsr, total, ivaRate, isrRate, esImpo, idNum]
     );
+
+    // 8b) UPSERT preferencias de importación si aplica
+    if (esImpo && preferencias_importacion) {
+      const pref = preferencias_importacion;
+      await client.query(
+        `INSERT INTO oc_preferencias_importacion
+           (orden_compra_id, imprimir_proyecto, sitio_entrega_id, imprimir_direccion_entrega, incoterm_id)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (orden_compra_id) DO UPDATE SET
+           imprimir_proyecto = EXCLUDED.imprimir_proyecto,
+           sitio_entrega_id = EXCLUDED.sitio_entrega_id,
+           imprimir_direccion_entrega = EXCLUDED.imprimir_direccion_entrega,
+           incoterm_id = EXCLUDED.incoterm_id`,
+        [
+          idNum,
+          pref.imprimir_proyecto !== false,
+          pref.sitio_entrega_id || null,
+          pref.imprimir_direccion_entrega !== false,
+          pref.incoterm_id || null,
+        ]
+      );
+    }
 
     // 9) Fetch OC actualizada completa para PDF
     const ocPdfQuery = await client.query(
@@ -756,7 +824,11 @@ const editarOc = async (req, res) => {
               u.correo       AS usuario_correo,
               r.rfq_code     AS rfq_code,
               (SELECT moneda FROM ordenes_compra_detalle WHERE orden_compra_id = oc.id LIMIT 1) AS moneda,
-              NOW() AS fecha_aprobacion
+              NOW() AS fecha_aprobacion,
+              pi.imprimir_proyecto          AS prefs_imprimir_proyecto,
+              s_prefs.nombre                AS prefs_sitio_entrega_ubicacion,
+              pi.imprimir_direccion_entrega AS prefs_imprimir_direccion_entrega,
+              ci.abreviatura                AS prefs_incoterm_abreviatura
        FROM ordenes_compra oc
        JOIN proveedores p ON oc.proveedor_id = p.id
        JOIN proyectos proy ON oc.proyecto_id = proy.id
@@ -764,6 +836,9 @@ const editarOc = async (req, res) => {
        LEFT JOIN sitios s_e ON s_e.id = oc.lugar_entrega::int
        JOIN usuarios u ON oc.usuario_id = u.id
        LEFT JOIN requisiciones r ON oc.rfq_id = r.id
+       LEFT JOIN oc_preferencias_importacion pi ON pi.orden_compra_id = oc.id
+       LEFT JOIN sitios s_prefs ON s_prefs.id = pi.sitio_entrega_id
+       LEFT JOIN catalogo_incoterms ci ON ci.id = pi.incoterm_id
        WHERE oc.id = $1`,
       [idNum]
     );

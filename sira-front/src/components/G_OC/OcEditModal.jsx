@@ -6,6 +6,7 @@ import {
   Table, TableHead, TableBody, TableRow, TableCell,
   CircularProgress, Autocomplete, Box, Typography, Divider, Alert,
   IconButton, Checkbox, FormControlLabel, Chip, Paper, Stepper, Step, StepLabel,
+  Switch,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
@@ -54,6 +55,30 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
   const [ivaRate, setIvaRate] = useState('0.16');
   const [isrRate, setIsrRate] = useState('0');
 
+  // Forced total
+  const [isForcedTotalActive, setIsForcedTotalActive] = useState(false);
+  const [forcedTotal, setForcedTotal] = useState('');
+
+  // Global discount
+  const [isDiscountActive, setIsDiscountActive] = useState(false);
+  const [discountType, setDiscountType] = useState('percent'); // 'percent' | 'fixed'
+  const [discountValue, setDiscountValue] = useState('');
+
+  // Import options
+  const [importPrefs, setImportPrefs] = useState({
+    imprimir_proyecto: true,
+    sitio_entrega_id: null,
+    sitio_entrega_nombre: '',
+    imprimir_direccion_entrega: true,
+    incoterm_id: null,
+    incoterm_abreviatura: '',
+    incoterm_nombre: '',
+  });
+  const [incotermOptions, setIncotermOptions] = useState([]);
+  const [incotermLoading, setIncotermLoading] = useState(false);
+  const [sitioOptions, setSitioOptions] = useState([]);
+  const [sitioLoading, setSitioLoading] = useState(false);
+
   // Items
   const [items, setItems] = useState([]);
 
@@ -87,6 +112,11 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
     setActiveStep(0);
     setShowAddRow(false);
     setOriginalData(null);
+    setIsForcedTotalActive(false);
+    setForcedTotal('');
+    setIsDiscountActive(false);
+    setDiscountType('percent');
+    setDiscountValue('');
 
     api.get(`/api/ocs/${oc.id}/editar-datos`)
       .then(data => {
@@ -114,6 +144,20 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
         setProveedorInput(nombre);
         setProveedorOptions([{ id: data.proveedor_id, nombre }]);
 
+        // Cargar preferencias de importación
+        if (data.preferencias_importacion) {
+          const pi = data.preferencias_importacion;
+          setImportPrefs({
+            imprimir_proyecto: pi.imprimir_proyecto ?? true,
+            sitio_entrega_id: pi.sitio_entrega_id ?? null,
+            sitio_entrega_nombre: pi.sitio_entrega_nombre ?? '',
+            imprimir_direccion_entrega: pi.imprimir_direccion_entrega ?? true,
+            incoterm_id: pi.incoterm_id ?? null,
+            incoterm_abreviatura: pi.incoterm_abreviatura ?? '',
+            incoterm_nombre: pi.incoterm_nombre ?? '',
+          });
+        }
+
         // Guardar snapshot
         setOriginalData({
           proveedor_id: data.proveedor_id,
@@ -127,6 +171,8 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
           ret_isr: toNum(data.ret_isr),
           total: toNum(data.total),
           comentarios_finanzas: data.comentarios_finanzas || '',
+          proyecto_nombre: data.proyecto_nombre || '',
+          sitio_nombre: data.sitio_nombre || '',
           items: data.items.map(it => ({
             id: it.id,
             material_id: it.material_id,
@@ -150,6 +196,27 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
       .catch(() => { })
       .finally(() => setMonedaLoading(false));
   }, [open, monedas.length]);
+
+  // ─── Cargar incoterms y sitios cuando impo=true ───
+  useEffect(() => {
+    if (!open || !impo) return;
+
+    if (incotermOptions.length === 0) {
+      setIncotermLoading(true);
+      api.get('/api/catalogos/incoterms')
+        .then(data => setIncotermOptions(data || []))
+        .catch(() => { })
+        .finally(() => setIncotermLoading(false));
+    }
+
+    if (sitioOptions.length === 0) {
+      setSitioLoading(true);
+      api.get('/api/oc-directa/datos-iniciales')
+        .then(data => setSitioOptions(data?.sitios || []))
+        .catch(() => { })
+        .finally(() => setSitioLoading(false));
+    }
+  }, [open, impo, incotermOptions.length, sitioOptions.length]);
 
   // ─── Buscar proveedores ───
   useEffect(() => {
@@ -223,6 +290,10 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
     toast.success('Item agregado. Puedes agregar más.');
   }, [newMaterial, newCantidad, newPrecio, newPlazo, items]);
 
+  const handleImportPrefChange = useCallback((field, value) => {
+    setImportPrefs(prev => ({ ...prev, [field]: value }));
+  }, []);
+
   // ─── Cálculos en vivo ───
   const calculated = useMemo(() => {
     const esImpo = impo === true;
@@ -232,12 +303,28 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
     const subTotal = round4(
       items.reduce((s, it) => s + toNum(it.cantidad) * toNum(it.precio_unitario), 0)
     );
-    const ivaCalc = (!esImpo && ivR > 0) ? round4(subTotal * ivR) : 0;
-    const retIsrCalc = (!esImpo && isR > 0) ? round4(subTotal * isR) : 0;
-    const total = round4(subTotal + ivaCalc - retIsrCalc);
 
-    return { subTotal, iva: ivaCalc, retIsr: retIsrCalc, total };
-  }, [items, impo, ivaRate, isrRate]);
+    // Discount
+    let discountAmount = 0;
+    if (isDiscountActive && toNum(discountValue) > 0) {
+      if (discountType === 'percent') {
+        discountAmount = round4(subTotal * toNum(discountValue));
+      } else {
+        discountAmount = round4(toNum(discountValue));
+      }
+    }
+    const base = round4(subTotal - discountAmount);
+
+    const ivaCalc = (!esImpo && ivR > 0) ? round4(base * ivR) : 0;
+    const retIsrCalc = (!esImpo && isR > 0) ? round4(base * isR) : 0;
+    const calculatedTotal = round4(base + ivaCalc - retIsrCalc);
+
+    const total = (isForcedTotalActive && toNum(forcedTotal) > 0)
+      ? round4(toNum(forcedTotal))
+      : calculatedTotal;
+
+    return { subTotal, discountAmount, base, iva: ivaCalc, retIsr: retIsrCalc, calculatedTotal, total };
+  }, [items, impo, ivaRate, isrRate, isDiscountActive, discountType, discountValue, isForcedTotalActive, forcedTotal]);
 
   // ─── Preview data ───
   const previewChanges = useMemo(() => {
@@ -267,9 +354,11 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
     if (toNum(ivaRate) !== originalData.iva_rate) headerChanges.push('Tasa IVA');
     if (toNum(isrRate) !== originalData.isr_rate) headerChanges.push('Tasa ISR');
     if (comentariosFinanzas !== originalData.comentarios_finanzas) headerChanges.push('Comentarios Finanzas');
+    if (isForcedTotalActive) headerChanges.push('Total Forzado');
+    if (isDiscountActive) headerChanges.push('Descuento Global');
 
     return { removed, added, modified, headerChanges };
-  }, [originalData, items, proveedorValue, moneda, impo, ivaRate, isrRate, comentariosFinanzas]);
+  }, [originalData, items, proveedorValue, moneda, impo, ivaRate, isrRate, comentariosFinanzas, isForcedTotalActive, isDiscountActive]);
 
   // ─── PDF download ───
   const downloadPdf = useCallback(async (ocId, numeroOc) => {
@@ -306,6 +395,20 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
       impo,
       iva_rate: toNum(ivaRate),
       isr_rate: toNum(isrRate),
+      // Forced total
+      is_forced_total_active: isForcedTotalActive,
+      forced_total: isForcedTotalActive ? toNum(forcedTotal) : null,
+      // Discount
+      is_discount_active: isDiscountActive,
+      discount_type: discountType,
+      discount_value: isDiscountActive ? toNum(discountValue) : null,
+      // Import preferences
+      preferencias_importacion: impo ? {
+        imprimir_proyecto: importPrefs.imprimir_proyecto,
+        sitio_entrega_id: importPrefs.sitio_entrega_id,
+        imprimir_direccion_entrega: importPrefs.imprimir_direccion_entrega,
+        incoterm_id: importPrefs.incoterm_id,
+      } : null,
       items: items.map(it => ({
         id: it.id, // null for new items
         material_id: it.material_id,
@@ -344,6 +447,10 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
   };
 
   if (!oc) return null;
+
+  // Incoterm selected object for Autocomplete
+  const incotermSelected = incotermOptions.find(i => i.id === importPrefs.incoterm_id) || null;
+  const sitioSelected = sitioOptions.find(s => s.id === importPrefs.sitio_entrega_id) || null;
 
   return (
     <>
@@ -482,6 +589,184 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
                 fullWidth
                 size="small"
               />
+
+              {/* ── Config. Financiera ── */}
+              <Divider textAlign="left">
+                <Typography variant="caption" color="text.secondary">Config. financiera</Typography>
+              </Divider>
+
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                {/* Forced Total */}
+                <Paper variant="outlined" sx={{ p: 1.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={isForcedTotalActive}
+                          onChange={e => setIsForcedTotalActive(e.target.checked)}
+                          size="small"
+                        />
+                      }
+                      label={<Typography variant="body2" fontWeight={500}>Forzar total</Typography>}
+                      sx={{ mr: 0 }}
+                    />
+                    {isForcedTotalActive && (
+                      <TextField
+                        label="Total forzado"
+                        value={forcedTotal}
+                        onChange={e => setForcedTotal(e.target.value)}
+                        size="small"
+                        type="number"
+                        inputProps={{ min: 0, step: 'any' }}
+                        sx={{ width: 160 }}
+                      />
+                    )}
+                    {isForcedTotalActive && toNum(forcedTotal) > 0 && (
+                      <Typography variant="caption" color="warning.main" sx={{ ml: 1 }}>
+                        El PDF mostrará una línea de ajuste por la diferencia con el total calculado.
+                      </Typography>
+                    )}
+                  </Box>
+                </Paper>
+
+                {/* Global Discount */}
+                <Paper variant="outlined" sx={{ p: 1.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={isDiscountActive}
+                          onChange={e => setIsDiscountActive(e.target.checked)}
+                          size="small"
+                        />
+                      }
+                      label={<Typography variant="body2" fontWeight={500}>Descuento global</Typography>}
+                      sx={{ mr: 0 }}
+                    />
+                    {isDiscountActive && (
+                      <>
+                        <FormControl size="small" sx={{ minWidth: 120 }}>
+                          <InputLabel>Tipo</InputLabel>
+                          <Select
+                            value={discountType}
+                            label="Tipo"
+                            onChange={e => setDiscountType(e.target.value)}
+                          >
+                            <MenuItem value="percent">% Porcentaje</MenuItem>
+                            <MenuItem value="fixed">$ Monto fijo</MenuItem>
+                          </Select>
+                        </FormControl>
+                        <TextField
+                          label={discountType === 'percent' ? 'Porcentaje (0-1)' : 'Monto'}
+                          value={discountValue}
+                          onChange={e => setDiscountValue(e.target.value)}
+                          size="small"
+                          type="number"
+                          inputProps={{ min: 0, step: 'any' }}
+                          sx={{ width: 150 }}
+                          helperText={discountType === 'percent' ? 'ej. 0.10 = 10%' : ''}
+                        />
+                        {toNum(discountValue) > 0 && (
+                          <Chip
+                            label={`-${fmtMoney(calculated.discountAmount, moneda)}`}
+                            color="warning"
+                            size="small"
+                          />
+                        )}
+                      </>
+                    )}
+                  </Box>
+                </Paper>
+              </Box>
+
+              {/* ── Opciones de Importación (solo si impo=true) ── */}
+              {impo && (
+                <>
+                  <Divider textAlign="left">
+                    <Typography variant="caption" color="text.secondary">Opciones de importación</Typography>
+                  </Divider>
+
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {/* Incoterm */}
+                      <Autocomplete
+                        value={incotermSelected}
+                        options={incotermOptions}
+                        getOptionLabel={opt => opt ? `${opt.abreviatura} - ${opt.nombre}` : ''}
+                        isOptionEqualToValue={(opt, val) => opt?.id === val?.id}
+                        loading={incotermLoading}
+                        onChange={(_, val) => handleImportPrefChange('incoterm_id', val?.id ?? null)}
+                        renderInput={params => (
+                          <TextField
+                            {...params}
+                            label="Incoterm"
+                            size="small"
+                            InputProps={{
+                              ...params.InputProps,
+                              endAdornment: (
+                                <>
+                                  {incotermLoading && <CircularProgress size={18} />}
+                                  {params.InputProps.endAdornment}
+                                </>
+                              ),
+                            }}
+                          />
+                        )}
+                      />
+
+                      {/* Sitio de entrega */}
+                      <Autocomplete
+                        value={sitioSelected}
+                        options={sitioOptions}
+                        getOptionLabel={opt => opt?.nombre || ''}
+                        isOptionEqualToValue={(opt, val) => opt?.id === val?.id}
+                        loading={sitioLoading}
+                        onChange={(_, val) => handleImportPrefChange('sitio_entrega_id', val?.id ?? null)}
+                        renderInput={params => (
+                          <TextField
+                            {...params}
+                            label="Sitio de entrega (importación)"
+                            size="small"
+                            InputProps={{
+                              ...params.InputProps,
+                              endAdornment: (
+                                <>
+                                  {sitioLoading && <CircularProgress size={18} />}
+                                  {params.InputProps.endAdornment}
+                                </>
+                              ),
+                            }}
+                          />
+                        )}
+                      />
+
+                      {/* Print flags */}
+                      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={importPrefs.imprimir_proyecto}
+                              onChange={e => handleImportPrefChange('imprimir_proyecto', e.target.checked)}
+                              size="small"
+                            />
+                          }
+                          label="Imprimir proyecto en PDF"
+                        />
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={importPrefs.imprimir_direccion_entrega}
+                              onChange={e => handleImportPrefChange('imprimir_direccion_entrega', e.target.checked)}
+                              size="small"
+                            />
+                          }
+                          label="Imprimir dirección de entrega en PDF"
+                        />
+                      </Box>
+                    </Box>
+                  </Paper>
+                </>
+              )}
 
               <Divider textAlign="left">
                 <Typography variant="caption" color="text.secondary">Líneas de la OC</Typography>
@@ -650,6 +935,12 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
                     <Typography variant="caption" color="text.secondary">Sub Total</Typography>
                     <Typography variant="h6">{fmtMoney(calculated.subTotal, moneda)}</Typography>
                   </Box>
+                  {isDiscountActive && calculated.discountAmount > 0 && (
+                    <Box>
+                      <Typography variant="caption" color="warning.main">Descuento</Typography>
+                      <Typography variant="h6" color="warning.main">-{fmtMoney(calculated.discountAmount, moneda)}</Typography>
+                    </Box>
+                  )}
                   <Box>
                     <Typography variant="caption" color="text.secondary">
                       IVA ({impo ? 'N/A' : `${(toNum(ivaRate) * 100).toFixed(0)}%`})
@@ -663,8 +954,10 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
                     <Typography variant="h6">{impo ? '-' : fmtMoney(calculated.retIsr, moneda)}</Typography>
                   </Box>
                   <Box>
-                    <Typography variant="caption" color="text.secondary">Total</Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#1a237e' }}>
+                    <Typography variant="caption" color="text.secondary">
+                      {isForcedTotalActive ? 'Total Forzado' : 'Total'}
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold', color: isForcedTotalActive ? '#e65100' : '#1a237e' }}>
                       {fmtMoney(calculated.total, moneda)}
                     </Typography>
                   </Box>
@@ -802,6 +1095,13 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
                       <TableCell>{fmtMoney(originalData?.sub_total, originalData?.moneda)}</TableCell>
                       <TableCell sx={{ fontWeight: 'bold' }}>{fmtMoney(calculated.subTotal, moneda)}</TableCell>
                     </TableRow>
+                    {isDiscountActive && calculated.discountAmount > 0 && (
+                      <TableRow>
+                        <TableCell sx={{ color: 'warning.main' }}>Descuento</TableCell>
+                        <TableCell>-</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'warning.main' }}>-{fmtMoney(calculated.discountAmount, moneda)}</TableCell>
+                      </TableRow>
+                    )}
                     <TableRow>
                       <TableCell>IVA</TableCell>
                       <TableCell>{fmtMoney(originalData?.iva, originalData?.moneda)}</TableCell>
@@ -812,10 +1112,19 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
                       <TableCell>{fmtMoney(originalData?.ret_isr, originalData?.moneda)}</TableCell>
                       <TableCell sx={{ fontWeight: 'bold' }}>{fmtMoney(calculated.retIsr, moneda)}</TableCell>
                     </TableRow>
+                    {isForcedTotalActive && (
+                      <TableRow sx={{ bgcolor: '#fff3e0' }}>
+                        <TableCell sx={{ color: '#e65100' }}>Total calculado</TableCell>
+                        <TableCell>-</TableCell>
+                        <TableCell>{fmtMoney(calculated.calculatedTotal, moneda)}</TableCell>
+                      </TableRow>
+                    )}
                     <TableRow sx={{ bgcolor: '#e8eaf6' }}>
-                      <TableCell sx={{ fontWeight: 'bold' }}>Total</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>
+                        {isForcedTotalActive ? 'Total Forzado' : 'Total'}
+                      </TableCell>
                       <TableCell sx={{ fontWeight: 'bold' }}>{fmtMoney(originalData?.total, originalData?.moneda)}</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#1a237e', fontSize: '1.1em' }}>
+                      <TableCell sx={{ fontWeight: 'bold', color: isForcedTotalActive ? '#e65100' : '#1a237e', fontSize: '1.1em' }}>
                         {fmtMoney(calculated.total, moneda)}
                       </TableCell>
                     </TableRow>

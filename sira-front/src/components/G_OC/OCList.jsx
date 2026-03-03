@@ -4,7 +4,6 @@ import {
     Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     IconButton, Tooltip, Chip, Typography, Box
 } from '@mui/material';
-import InfoIcon from '@mui/icons-material/Info';
 import EditIcon from '@mui/icons-material/Edit';
 import CancelIcon from '@mui/icons-material/Cancel';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz'; // Substitute
@@ -58,8 +57,28 @@ export default function OCList({ ocs, loading, onAction }) {
                             key={oc.id}
                             sx={{ '&:hover': { bgcolor: '#f9fafb' } }}
                         >
-                            <TableCell component="th" scope="row" sx={{ fontWeight: 'medium' }}>
-                                {oc.numero_oc || oc.id}
+                            <TableCell component="th" scope="row">
+                                <Chip
+                                    label={oc.numero_oc || oc.id}
+                                    size="small"
+                                    onClick={() => onAction('info', oc)}
+                                    sx={{
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        bgcolor: 'primary.50',
+                                        color: 'primary.dark',
+                                        border: '1px solid',
+                                        borderColor: 'primary.200',
+                                        transition: 'all 0.2s ease',
+                                        '&:hover': {
+                                            bgcolor: 'primary.main',
+                                            color: 'white',
+                                            borderColor: 'primary.main',
+                                            boxShadow: 2,
+                                            transform: 'translateY(-1px)',
+                                        },
+                                    }}
+                                />
                             </TableCell>
                             <TableCell>{oc.proyecto || '-'}</TableCell>
                             <TableCell>{oc.proveedor || '-'}</TableCell>
@@ -76,11 +95,6 @@ export default function OCList({ ocs, loading, onAction }) {
                             </TableCell>
                             <TableCell align="center">
                                 <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
-                                    <Tooltip title="Ver Información">
-                                        <IconButton size="small" onClick={() => onAction('info', oc)}>
-                                            <InfoIcon fontSize="small" color="info" />
-                                        </IconButton>
-                                    </Tooltip>
                                     <Tooltip title="Kardex / Trazabilidad">
                                         <IconButton size="small" onClick={() => onAction('kardex', oc)}>
                                             <HistoryIcon fontSize="small" />
