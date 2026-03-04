@@ -445,7 +445,7 @@ const getDatosParaEditar = async (req, res) => {
               pi.imprimir_direccion_entrega AS pref_imprimir_direccion_entrega,
               pi.incoterm_id AS pref_incoterm_id,
               ci.abreviatura AS pref_incoterm_abreviatura,
-              ci.nombre AS pref_incoterm_nombre
+              ci.incoterm AS pref_incoterm_nombre
        FROM ordenes_compra oc
        JOIN proveedores p ON oc.proveedor_id = p.id
        JOIN proyectos proy ON oc.proyecto_id = proy.id
