@@ -1,21 +1,23 @@
 const express = require('express');
-const router = require('express').Router();
+const router = express.Router();
+const empleadosController = require('../../controllers/empleados/empleadosController'); // Ajusta la ruta a tu controlador si es diferente
+const multer = require('multer');
 
-// Importar el controlador de empleados
-const empleadoController = require('../../controllers/empleados/empleadosController');
+// --- Configuración básica de Multer ---
+// Usamos memoria temporal (MemoryStorage) por ahora. 
+// Multer extraerá los textos hacia req.body y la foto hacia req.file
+const upload = multer({ storage: multer.memoryStorage() });
 
-if (!empleadoController) {
-    console.error("Error: No se pudo cargar el controlador de empleados. Revisa la ruta.");
-}
+// --- Rutas ---
+// Nota cómo agregamos `upload.single('foto_emp')` en medio de la ruta y el controlador
+router.get('/', empleadosController.obtenerEmpleados);
 
-// NUEVA RUTA: Obtener lista de departamentos
-// ¡OJO! Como este archivo maneja todo lo de "empleados", la URL final será /api/empleados/departamentos
-router.get('/departamentos', empleadoController.obtenerDepartamentos);
+// Ruta POST: Usar multer para interceptar el 'FormData'
+router.post('/', upload.single('foto_emp'), empleadosController.crearEmpleado);
 
-// Rutas del CRUD de empleados
-router.get('/', empleadoController.obtenerEmpleados); 
-router.post('/', empleadoController.crearEmpleado); 
-router.put('/:id', empleadoController.actualizarEmpleado); 
-router.delete('/:id', empleadoController.eliminarEmpleado); 
+// Ruta PUT: Usar multer para interceptar el 'FormData' al actualizar
+router.put('/:id', upload.single('foto_emp'), empleadosController.actualizarEmpleado);
+
+router.delete('/:id', empleadosController.eliminarEmpleado);
 
 module.exports = router;

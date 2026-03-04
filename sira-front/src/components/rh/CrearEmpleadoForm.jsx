@@ -1,73 +1,118 @@
 import { useState, useEffect } from 'react';
 import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
-// Configuración de URL (ajustar según tu entorno)
+// --- CONFIGURACIÓN DE URL ---
+// En tu entorno de producción local (Vite), descomenta la siguiente línea y borra la URL fija:
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
+
 export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado }) {
-  // Estado inicial del formulario actualizado
+  // 1. ESTADO INICIAL DEL FORMULARIO
   const [formData, setFormData] = useState({
     num_empl: '',
-    empleado: '',
+    empleado: '', 
     fecha_ingreso: '',
+    fecha_reingreso: '',
     rfc: '',
     nss: '',
     curp: '',
     genero: '',
     fecha_nacimiento: '',
-    empresa: '',
-    puesto: '',
-    departamento_id: '', // <-- Cambiado de 'departamento' a 'departamento_id'
-    status_laboral: 'Activo'
+    status_laboral: '', // Restaurado: Estatus interno (Activo/Inactivo)
+    empresa_id: '',
+    area_id: '',
+    puesto_id: '',
+    departamento_id: '',
+    departamento_rh_id: '',
+    status_trabajador_id: '' // Nuevo: Estatus referenciado del catálogo
   });
 
-  const [listaDeptos, setListaDeptos] = useState([]); // <-- Nuevo estado para guardar los departamentos
+  const [fotoArchivo, setFotoArchivo] = useState(null);
+
+  const [catalogos, setCatalogos] = useState({
+    empresas: [], areas: [], puestos: [], departamentos_rh: [], status_trabajadores: [], departamentos: []
+  });
+  const [loadingCatalogos, setLoadingCatalogos] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // --- NUEVO EFECTO: Cargar Departamentos ---
+  // 2. CARGAR CATÁLOGOS AL ABRIR EL MODAL (CON MEJOR MANEJO DE ERRORES)
   useEffect(() => {
-    const fetchDepartamentos = async () => {
+    const fetchCatalogos = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/empleados/departamentos`); // <-- URL actualizada
-        if (response.ok) {
-          const data = await response.json();
-          setListaDeptos(data);
+        setLoadingCatalogos(true);
+        const res = await fetch(`${API_BASE_URL}/api/catalogos`);
+        
+        if (!res.ok) {
+            // Extraer el texto exacto del error para saber por qué falla
+            const errorText = await res.text();
+            throw new Error(`Código ${res.status}: ${errorText}`);
         }
+        
+        const data = await res.json();
+        setCatalogos({
+            empresas: data.empresas || [],
+            areas: data.areas || [],
+            puestos: data.puestos || [],
+            departamentos_rh: data.departamentos_rh || [],
+            status_trabajadores: data.status_trabajadores || [],
+            departamentos: data.departamentos || []
+        });
       } catch (err) {
-        console.error("Error al cargar departamentos:", err);
+        console.error("Error detallado al cargar catálogos:", err);
+        // Ahora el error mostrará exactamente qué está fallando
+        setError(`Error de conexión con catálogos: ${err.message}`);
+      } finally {
+        setLoadingCatalogos(false);
       }
     };
-    fetchDepartamentos();
+    fetchCatalogos();
   }, []);
 
-  // Efecto para rellenar datos si estamos editando
+  // 3. RELLENAR DATOS SI ESTAMOS EDITANDO
   useEffect(() => {
-    if (empleadoAEditar) {
+    if (empleadoAEditar && !loadingCatalogos) {
       const formatearParaInput = (fecha) => {
         if (!fecha) return '';
         return new Date(fecha).toISOString().split('T')[0];
       };
 
       setFormData({
-        ...empleadoAEditar,
+        num_empl: empleadoAEditar.num_empl || '',
+        empleado: empleadoAEditar.empleado || '',
         fecha_ingreso: formatearParaInput(empleadoAEditar.fecha_ingreso),
+        fecha_reingreso: formatearParaInput(empleadoAEditar.fecha_reingreso),
+        rfc: empleadoAEditar.rfc || '',
+        nss: empleadoAEditar.nss || '',
+        curp: empleadoAEditar.curp || '',
+        genero: empleadoAEditar.genero || '',
         fecha_nacimiento: formatearParaInput(empleadoAEditar.fecha_nacimiento),
-        // Aseguramos que tome el ID si viene en el objeto de edición
-        departamento_id: empleadoAEditar.departamento_id || '' 
+        status_laboral: empleadoAEditar.status_laboral || '', // Restaurado
+        empresa_id: empleadoAEditar.empresa_id || '',
+        area_id: empleadoAEditar.area_id || '',
+        puesto_id: empleadoAEditar.puesto_id || '',
+        departamento_id: empleadoAEditar.departamento_id || '',
+        departamento_rh_id: empleadoAEditar.departamento_rh_id || '',
+        status_trabajador_id: empleadoAEditar.status_trabajador_id || ''
       });
     }
-  }, [empleadoAEditar]);
+  }, [empleadoAEditar, loadingCatalogos]);
 
+  // 4. MANEJO DE CAMBIOS
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setFotoArchivo(e.target.files[0]);
+    }
+  };
+
+  // 5. ENVÍO DE DATOS
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -75,30 +120,39 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
 
     try {
       const url = empleadoAEditar 
-        ? `${API_BASE_URL}/api/empleados/${empleadoAEditar.id}` // PUT
-        : `${API_BASE_URL}/api/empleados`; // POST
+        ? `${API_BASE_URL}/api/empleados/${empleadoAEditar.id}` 
+        : `${API_BASE_URL}/api/empleados`;
       
       const method = empleadoAEditar ? 'PUT' : 'POST';
 
+      const payload = new FormData();
+      
+      Object.keys(formData).forEach(key => {
+        if (formData[key] !== '') {
+            payload.append(key, formData[key]);
+        }
+      });
+
+      if (fotoArchivo) {
+        payload.append('foto_emp', fotoArchivo);
+      }
+
       const response = await fetch(url, {
         method: method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        // formData ahora contiene 'departamento_id'
-        body: JSON.stringify(formData) 
+        body: payload
       });
 
       if (!response.ok) {
-        throw new Error('Error al guardar la información');
+        const errData = await response.json();
+        throw new Error(errData.error || 'Error al guardar la información');
       }
 
-      onGuardado();
-      onClose();
+      onGuardado(); 
+      onClose();    
 
     } catch (err) {
       console.error(err);
-      setError('Ocurrió un error al intentar guardar. Intenta nuevamente.');
+      setError(err.message || 'Ocurrió un error al intentar guardar. Intenta nuevamente.');
     } finally {
       setLoading(false);
     }
@@ -122,185 +176,204 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
         <div className="p-6 overflow-y-auto custom-scrollbar">
           
           {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm">
-              {error}
+            <div className="mb-4 p-4 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm font-medium">
+              ⚠️ {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            {/* --- SECCIÓN 1: DATOS GENERALES --- */}
-            <div className="md:col-span-3 pb-2 border-b border-gray-100 mb-2">
-              <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wide">Datos Personales</h3>
-            </div>
+          {loadingCatalogos ? (
+             <div className="flex flex-col justify-center items-center py-10 text-gray-500">
+                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+                 <p>Cargando catálogos del sistema...</p>
+             </div>
+          ) : (
+            <form id="empleado-form" onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              
+              {/* --- SECCIÓN 1: DATOS GENERALES --- */}
+              <div className="md:col-span-3 pb-2 border-b border-gray-100 mb-2">
+                <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wide">Datos Personales</h3>
+              </div>
 
-            <div className="md:col-span-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">No. Empleado</label>
-              <input 
-                type="text" name="num_empl" value={formData.num_empl} onChange={handleChange} required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                placeholder="Ej: 10045"
-              />
-            </div>
+              <div className="md:col-span-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">No. Empleado <span className="text-red-500">*</span></label>
+                <input 
+                  type="text" name="num_empl" value={formData.num_empl} onChange={handleChange} required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  placeholder="Ej: 10045"
+                />
+              </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
-              <input 
-                type="text" name="empleado" value={formData.empleado} onChange={handleChange} required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                placeholder="Ej: Juan Pérez"
-              />
-            </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo <span className="text-red-500">*</span></label>
+                <input 
+                  type="text" name="empleado" value={formData.empleado} onChange={handleChange} required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  placeholder="Ej: Juan Pérez"
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Nacimiento</label>
-              <input 
-                type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento} onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-              />
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Nacimiento</label>
+                <input 
+                  type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento} onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Género</label>
-              <select 
-                name="genero" value={formData.genero} onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
-              >
-                <option value="">Seleccione</option>
-                <option value="MASCULINO">Masculino</option>
-                <option value="FEMENINO">Femenino</option>
-                <option value="OTRO">Otro</option>
-              </select>
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Género</label>
+                <select 
+                  name="genero" value={formData.genero} onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
+                >
+                  <option value="">Seleccione</option>
+                  <option value="MASCULINO">Masculino</option>
+                  <option value="FEMENINO">Femenino</option>
+                  <option value="OTRO">Otro</option>
+                  <option value="NO ESPECIFICADO">No Especificado</option>
+                </select>
+              </div>
 
-            {/* --- SECCIÓN 2: DATOS FISCALES --- */}
-            <div className="md:col-span-3 pb-2 border-b border-gray-100 mt-4 mb-2">
-              <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wide">Información Legal</h3>
-            </div>
+              {/* FOTO DEL EMPLEADO */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fotografía del Empleado</label>
+                <div className="flex items-center gap-2">
+                    <label className="flex-1 flex flex-col items-center justify-center px-3 py-2 bg-white text-blue-600 rounded-lg border border-blue-200 border-dashed cursor-pointer hover:bg-blue-50 transition">
+                        <span className="flex items-center gap-2 text-xs font-medium">
+                            <CloudUploadIcon fontSize="small"/> {fotoArchivo ? fotoArchivo.name : 'Subir Imagen'}
+                        </span>
+                        <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                    </label>
+                </div>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">RFC</label>
-              <input 
-                type="text" name="rfc" value={formData.rfc} onChange={handleChange} maxLength={13}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition uppercase"
-                placeholder="RFC con Homoclave"
-              />
-            </div>
+              {/* --- SECCIÓN 2: DATOS FISCALES --- */}
+              <div className="md:col-span-3 pb-2 border-b border-gray-100 mt-4 mb-2">
+                <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wide">Información Legal</h3>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">CURP</label>
-              <input 
-                type="text" name="curp" value={formData.curp} onChange={handleChange} maxLength={18}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition uppercase"
-                placeholder="CURP"
-              />
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">RFC</label>
+                <input type="text" name="rfc" value={formData.rfc} onChange={handleChange} maxLength={13}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition uppercase"
+                  placeholder="Con Homoclave"
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">NSS</label>
-              <input 
-                type="text" name="nss" value={formData.nss} onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                placeholder="Número de Seguro Social"
-              />
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">CURP</label>
+                <input type="text" name="curp" value={formData.curp} onChange={handleChange} maxLength={18}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition uppercase"
+                  placeholder="18 caracteres"
+                />
+              </div>
 
-            {/* --- SECCIÓN 3: DATOS LABORALES --- */}
-            <div className="md:col-span-3 pb-2 border-b border-gray-100 mt-4 mb-2">
-              <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wide">Datos Laborales</h3>
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">NSS</label>
+                <input type="text" name="nss" value={formData.nss} onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  placeholder="Seguro Social"
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
-              <select 
-                name="empresa" value={formData.empresa} onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
-              >
-                <option value="">Seleccione</option>
-                <option value="BIOENERGY">BIOENERGY</option>
-                <option value="IG BIOGAS">IG BIOGAS</option>
-              </select>
-            </div>
+              {/* --- SECCIÓN 3: DATOS LABORALES --- */}
+              <div className="md:col-span-3 pb-2 border-b border-gray-100 mt-4 mb-2">
+                <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wide">Datos Laborales e Ingreso</h3>
+              </div>
 
-            {/* --- SELECT DE DEPARTAMENTOS ACTUALIZADO --- */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Departamento</label>
-              <select 
-                name="departamento_id" // <-- Apuntamos a departamento_id
-                value={formData.departamento_id} 
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
-              >
-                <option value="">Seleccione</option>
-                {/* Mapeamos la lista que viene de la base de datos */}
-                {listaDeptos.map((dep) => (
-                  <option key={dep.id} value={dep.id}>
-                    {dep.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Empresa <span className="text-red-500">*</span></label>
+                <select name="empresa_id" value={formData.empresa_id} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
+                  <option value="">Selecciona Empresa</option>
+                  {catalogos.empresas.map(e => <option key={e.id} value={e.id}>{e.razon_social}</option>)}
+                </select>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Puesto</label>
-              <select 
-                name="puesto" value={formData.puesto} onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
-              >
-                <option value="">Seleccione</option>
-                <option value="GERENTE">GERENTE</option>
-                <option value="JEFE">JEFE</option>
-                <option value="STAFF">STAFF</option>
-                <option value="COORDINADOR">COORDINADOR</option>
-                <option value="VIGILANTE">VIGILANTE</option>
-                <option value="AUXILIAR">AUXILIAR</option>
-                <option value="AYUDANTE GENERAL">AYUDANTE GENERAL</option>
-                <option value="SOLDADOR A">SOLDADOR A</option>
-                <option value="SOLDADOR B">SOLDADOR B</option>
-                <option value="INSTALADOR">INSTALADOR</option>
-                <option value="INGENIERO">INGENIERO</option>
-                <option value="PERSONAL DE LIMPIEZA">PERSONAL DE LIMPIEZA</option>
-                <option value="PRACTICANTE">PRACTICANTE</option>
-              </select>
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Área <span className="text-red-500">*</span></label>
+                <select name="area_id" value={formData.area_id} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
+                  <option value="">Selecciona Área</option>
+                  {catalogos.areas.map(a => <option key={a.id} value={a.id}>{a.nombre_area}</option>)}
+                </select>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Ingreso</label>
-              <input 
-                type="date" name="fecha_ingreso" value={formData.fecha_ingreso} onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-              />
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Puesto <span className="text-red-500">*</span></label>
+                <select name="puesto_id" value={formData.puesto_id} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
+                  <option value="">Selecciona Puesto</option>
+                  {catalogos.puestos.map(p => <option key={p.id} value={p.id}>{p.nombre_puesto}</option>)}
+                </select>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Estatus Laboral</label>
-              <select 
-                name="status_laboral" value={formData.status_laboral} onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
-              >
-                <option value="Seleccione">Seleccione</option>
-                <option value="activo">activo</option>
-                <option value="inactivo">inactivo</option>
-                <option value="vacaciones">vacaciones</option>
-                <option value="licencia">licencia</option>
-                <option value="baja">baja</option>
-              </select>
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Depto. Operativo (SIRA)</label>
+                <select name="departamento_id" value={formData.departamento_id} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
+                  <option value="">Selecciona Depto Operativo</option>
+                  {catalogos.departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
+                </select>
+              </div>
 
-          </form>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Depto. Recursos Humanos</label>
+                <select name="departamento_rh_id" value={formData.departamento_rh_id} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
+                  <option value="">Selecciona Depto RH</option>
+                  {catalogos.departamentos_rh.map(drh => <option key={drh.id} value={drh.id}>{drh.nombre}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Catálogo Estatus Trab. <span className="text-red-500">*</span></label>
+                <select name="status_trabajador_id" value={formData.status_trabajador_id} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
+                  <option value="">Selecciona Estatus</option>
+                  {catalogos.status_trabajadores.map(st => <option key={st.id} value={st.id}>{st.nombre_status}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Estatus Laboral (SIRA) <span className="text-red-500">*</span></label>
+                <select name="status_laboral" value={formData.status_laboral} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
+                  <option value="">Selecciona Estatus</option>
+                  <option value="activo">Activo</option>
+                  <option value="inactivo">Inactivo</option>
+                  <option value="vacaciones">Vacaciones</option>
+                  <option value="licencia">Licencia</option>
+                  <option value="baja">Baja</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Ingreso Original</label>
+                <input 
+                  type="date" name="fecha_ingreso" value={formData.fecha_ingreso} onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                />
+              </div>
+
+              <div className="md:col-span-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Reingreso <span className="text-xs text-gray-400 font-normal">(Si aplica)</span></label>
+                <input 
+                  type="date" name="fecha_reingreso" value={formData.fecha_reingreso} onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                />
+              </div>
+
+            </form>
+          )}
         </div>
 
         {/* Footer con Botones */}
-        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end gap-3 shrink-0">
           <button 
+            type="button"
             onClick={onClose}
             className="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
           >
             Cancelar
           </button>
           <button 
-            onClick={handleSubmit}
-            disabled={loading}
+            type="submit"
+            form="empleado-form"
+            disabled={loading || loadingCatalogos}
             className="flex items-center gap-2 px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
           >
             {loading ? 'Guardando...' : (

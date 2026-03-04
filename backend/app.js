@@ -169,6 +169,11 @@ app.use('/api/incrementables', incrementablesRoutes);
 const vacacionesRoutes = require('./routes/vacaciones/vacaciones.routes');
 app.use('/api/vacaciones', vacacionesRoutes);
 
+const catalogoController = require('./controllers/empleados/catalogoController');
+app.get('/api/catalogos/empleados', catalogoController.obtenerTodosLosCatalogos);
+
+const catalogosRoutes = require('./routes/empleados/catalogos.routes');
+app.use('/api/catalogos', catalogosRoutes);
 
 // Ruta base de prueba
 app.get('/', (_req, res) => {
