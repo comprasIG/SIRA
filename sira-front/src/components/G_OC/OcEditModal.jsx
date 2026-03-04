@@ -203,7 +203,7 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
 
     if (incotermOptions.length === 0) {
       setIncotermLoading(true);
-      api.get('/api/catalogos/incoterms')
+      api.get('/api/incrementables/catalogos/incoterms')
         .then(data => setIncotermOptions(data || []))
         .catch(() => { })
         .finally(() => setIncotermLoading(false));
@@ -692,7 +692,7 @@ export default function OcEditModal({ open, oc, onClose, onSuccess }) {
                       <Autocomplete
                         value={incotermSelected}
                         options={incotermOptions}
-                        getOptionLabel={opt => opt ? `${opt.abreviatura} - ${opt.nombre}` : ''}
+                        getOptionLabel={opt => opt ? `${opt.abreviatura} - ${opt.incoterm}` : ''}
                         isOptionEqualToValue={(opt, val) => opt?.id === val?.id}
                         loading={incotermLoading}
                         onChange={(_, val) => handleImportPrefChange('incoterm_id', val?.id ?? null)}
