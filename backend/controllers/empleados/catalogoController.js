@@ -10,15 +10,13 @@ const obtenerTodosLosCatalogos = async (req, res) => {
         // 1. Obtenemos un solo cliente (conexión) del pool
         client = await pool.connect();
 
-        // 2. Ejecutamos las consultas secuencialmente o en paralelo, 
-        // pero usando el MISMO cliente, lo que consume solo 1 conexión real.
+        // 2. Ejecutamos las consultas exactas usando el MISMO cliente
         const [
             empresasResult,
             areasResult,
             puestosResult,
             departamentosRhResult,
             statusResult,
-            departamentosResult,
             nivelAcademicoResult 
         ] = await Promise.all([
             client.query('SELECT id, razon_social FROM empresas ORDER BY razon_social ASC'),
@@ -26,18 +24,16 @@ const obtenerTodosLosCatalogos = async (req, res) => {
             client.query('SELECT id, nombre_puesto FROM puestos ORDER BY nombre_puesto ASC'),
             client.query('SELECT id, nombre FROM departamentos_rh ORDER BY nombre ASC'),
             client.query('SELECT id, nombre_status FROM status_trabajador ORDER BY id ASC'), 
-            client.query('SELECT id, nombre FROM departamentos ORDER BY nombre ASC'), 
             client.query('SELECT id, nivel AS nombre FROM nivel_academico') 
         ]);
 
-        // Construimos un objeto con todas las listas
+        // 3. Construimos un objeto con todas las listas
         res.json({
             empresas: empresasResult.rows,
             areas: areasResult.rows,
             puestos: puestosResult.rows,
             departamentos_rh: departamentosRhResult.rows,
             status_trabajadores: statusResult.rows,
-            departamentos: departamentosResult.rows,
             nivel_academico: nivelAcademicoResult.rows 
         });
 
@@ -45,7 +41,7 @@ const obtenerTodosLosCatalogos = async (req, res) => {
         console.error("Error al obtener los catálogos:", error);
         res.status(500).json({ error: 'Error interno al cargar las listas de catálogos.' });
     } finally {
-        // 3. ¡MUY IMPORTANTE! Liberamos el cliente de vuelta al pool
+        // 4. ¡MUY IMPORTANTE! Liberamos el cliente de vuelta al pool
         if (client) {
             client.release();
         }
