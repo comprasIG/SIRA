@@ -1,26 +1,33 @@
-const pool = require('../../db/pool'); // Ajusta la ruta a tu archivo pool.js si es necesario
+const pool = require('../../db/pool'); 
 
 /**
  * Obtiene todos los catálogos necesarios para los formularios de empleados
- * en una sola consulta para optimizar el rendimiento.
+ * utilizando una sola conexión (client) para evitar agotar el pool.
  */
 const obtenerTodosLosCatalogos = async (req, res) => {
+    let client;
     try {
-        // Ejecutamos todas las consultas en paralelo con Promise.all
+        // 1. Obtenemos un solo cliente (conexión) del pool
+        client = await pool.connect();
+
+        // 2. Ejecutamos las consultas secuencialmente o en paralelo, 
+        // pero usando el MISMO cliente, lo que consume solo 1 conexión real.
         const [
             empresasResult,
             areasResult,
             puestosResult,
             departamentosRhResult,
             statusResult,
-            departamentosResult
+            departamentosResult,
+            nivelAcademicoResult 
         ] = await Promise.all([
-            pool.query('SELECT id, razon_social FROM empresas '),
-            pool.query('SELECT id, nombre_area FROM areas ORDER BY nombre_area ASC'),
-            pool.query('SELECT id, nombre_puesto FROM puestos ORDER BY nombre_puesto ASC'),
-            pool.query('SELECT id, nombre FROM departamentos_rh ORDER BY nombre ASC'),
-            pool.query('SELECT id, nombre_status FROM status_trabajador ORDER BY id ASC'), // Puede ser por ID para que "Activo" salga primero
-            pool.query('SELECT id, nombre FROM departamentos ORDER BY nombre ASC') // El departamento operativo que ya tenías
+            client.query('SELECT id, razon_social FROM empresas ORDER BY razon_social ASC'),
+            client.query('SELECT id, nombre_area FROM areas ORDER BY nombre_area ASC'),
+            client.query('SELECT id, nombre_puesto FROM puestos ORDER BY nombre_puesto ASC'),
+            client.query('SELECT id, nombre FROM departamentos_rh ORDER BY nombre ASC'),
+            client.query('SELECT id, nombre_status FROM status_trabajador ORDER BY id ASC'), 
+            client.query('SELECT id, nombre FROM departamentos ORDER BY nombre ASC'), 
+            client.query('SELECT id, nivel AS nombre FROM nivel_academico') 
         ]);
 
         // Construimos un objeto con todas las listas
@@ -30,12 +37,18 @@ const obtenerTodosLosCatalogos = async (req, res) => {
             puestos: puestosResult.rows,
             departamentos_rh: departamentosRhResult.rows,
             status_trabajadores: statusResult.rows,
-            departamentos: departamentosResult.rows
+            departamentos: departamentosResult.rows,
+            nivel_academico: nivelAcademicoResult.rows 
         });
 
     } catch (error) {
         console.error("Error al obtener los catálogos:", error);
         res.status(500).json({ error: 'Error interno al cargar las listas de catálogos.' });
+    } finally {
+        // 3. ¡MUY IMPORTANTE! Liberamos el cliente de vuelta al pool
+        if (client) {
+            client.release();
+        }
     }
 };
 

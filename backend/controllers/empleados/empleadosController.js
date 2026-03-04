@@ -22,7 +22,7 @@ const obtenerEmpleados = async (req, res) => {
         const params = [];
         let i = 1;
 
-        // 👇 SE CORRIGIERON LOS NOMBRES DE LAS COLUMNAS Y TABLAS (razon_social, nombre_area, status_trabajador, etc.) 👇
+        // Se agregó el JOIN para nivel_academico
         let sql = `
             SELECT 
                 e.*, 
@@ -31,7 +31,8 @@ const obtenerEmpleados = async (req, res) => {
                 a.nombre_area AS nombre_area,
                 p.nombre_puesto AS nombre_puesto,
                 drh.nombre AS nombre_departamento_rh,
-                st.nombre_status AS nombre_status
+                st.nombre_status AS nombre_status,
+                na.nivel AS nombre_nivel_academico
             FROM empleados e
             LEFT JOIN departamentos d ON e.departamento_id = d.id
             LEFT JOIN empresas emp ON e.empresa_id = emp.id
@@ -39,6 +40,7 @@ const obtenerEmpleados = async (req, res) => {
             LEFT JOIN puestos p ON e.puesto_id = p.id
             LEFT JOIN departamentos_rh drh ON e.departamento_rh_id = drh.id
             LEFT JOIN status_trabajador st ON e.status_trabajador_id = st.id
+            LEFT JOIN nivel_academico na ON e.nivel_academico_id = na.id
         `;
         
         const where = [];
@@ -49,7 +51,6 @@ const obtenerEmpleados = async (req, res) => {
         }
 
         if (search) {
-            // 👇 TAMBIÉN SE CORRIGIERON LAS COLUMNAS EN EL BUSCADOR 👇
             where.push(`(
                 e.num_empl ILIKE $${i} OR
                 e.empleado ILIKE $${i} OR
@@ -81,7 +82,7 @@ const obtenerEmpleados = async (req, res) => {
 };
 
 // ========================================================================================
-// Crear Empleado (Incluyendo status_laboral Y status_trabajador_id)
+// Crear Empleado 
 // ========================================================================================
 const crearEmpleado = async (req, res) => {
     try {
@@ -90,7 +91,7 @@ const crearEmpleado = async (req, res) => {
             genero, fecha_nacimiento, departamento_id, 
             empresa_id, area_id, puesto_id, departamento_rh_id, status_trabajador_id,
             status_laboral, 
-            fecha_reingreso, foto_emp
+            fecha_reingreso, foto_emp, nivel_academico_id // <-- AÑADIDO
         } = req.body;
 
         const fechaIngresoDB = fecha_ingreso === '' ? null : fecha_ingreso;
@@ -98,24 +99,19 @@ const crearEmpleado = async (req, res) => {
         const fechaReingresoDB = fecha_reingreso === '' ? null : fecha_reingreso;
         const aniosCalculados = calcularEdad(fechaNacimientoDB);
 
-        // Se agregan "empresa", "puesto" y "departamento" como columnas legacy 
-        // para evitar el error NOT NULL de la base de datos.
-        // Se removió "area" ya que no existe en tu tabla de empleados original.
         const query = `
             INSERT INTO empleados (
                 num_empl, empleado, fecha_ingreso, rfc, nss, curp, 
                 genero, fecha_nacimiento, años, departamento_id,
                 empresa_id, area_id, puesto_id, departamento_rh_id, status_trabajador_id,
                 status_laboral,
-                fecha_reingreso, foto_emp,
-                empresa, puesto, departamento,
+                fecha_reingreso, foto_emp, nivel_academico_id,
                 created_at, updated_at
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, 
                 $7, $8, $9, $10,
                 $11, $12, $13, $14, $15,
-                $16, $17, $18,
-                'N/A', 'N/A', 'N/A',
+                $16, $17, $18, $19,
                 NOW(), NOW()
             )
             RETURNING *;
@@ -126,7 +122,7 @@ const crearEmpleado = async (req, res) => {
             genero, fechaNacimientoDB, aniosCalculados, departamento_id || null, 
             empresa_id || null, area_id || null, puesto_id || null, departamento_rh_id || null, status_trabajador_id || null,
             status_laboral || 'Activo', 
-            fechaReingresoDB, foto_emp || null
+            fechaReingresoDB, foto_emp || null, nivel_academico_id || null // <-- AÑADIDO
         ];
 
         const result = await pool.query(query, values);
@@ -138,7 +134,7 @@ const crearEmpleado = async (req, res) => {
 };
 
 // ========================================================================================
-// Actualizar Empleado (Incluyendo status_laboral Y status_trabajador_id)
+// Actualizar Empleado 
 // ========================================================================================
 const actualizarEmpleado = async (req, res) => {
     try {
@@ -148,7 +144,7 @@ const actualizarEmpleado = async (req, res) => {
             genero, fecha_nacimiento, departamento_id,
             empresa_id, area_id, puesto_id, departamento_rh_id, status_trabajador_id,
             status_laboral, 
-            fecha_reingreso, foto_emp
+            fecha_reingreso, foto_emp, nivel_academico_id // <-- AÑADIDO
         } = req.body;
 
         const aniosCalculados = calcularEdad(fecha_nacimiento);
@@ -163,8 +159,9 @@ const actualizarEmpleado = async (req, res) => {
                 empresa_id = $11, area_id = $12, puesto_id = $13, departamento_rh_id = $14, status_trabajador_id = $15,
                 status_laboral = $16,
                 fecha_reingreso = $17, foto_emp = COALESCE($18, foto_emp),
+                nivel_academico_id = $19, -- <-- AÑADIDO
                 updated_at = NOW()
-            WHERE id = $19
+            WHERE id = $20
             RETURNING *;
         `;
 
@@ -174,7 +171,7 @@ const actualizarEmpleado = async (req, res) => {
             departamento_id || null,
             empresa_id || null, area_id || null, puesto_id || null, departamento_rh_id || null, status_trabajador_id || null,
             status_laboral || 'activo', 
-            fechaReingresoDB, foto_emp || null,
+            fechaReingresoDB, foto_emp || null, nivel_academico_id || null, // <-- AÑADIDO
             id
         ];
 
