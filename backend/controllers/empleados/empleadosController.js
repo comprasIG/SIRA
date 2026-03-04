@@ -22,7 +22,6 @@ const obtenerEmpleados = async (req, res) => {
         const params = [];
         let i = 1;
 
-        // 👇 SE CORRIGIERON LOS NOMBRES DE LAS COLUMNAS Y TABLAS (razon_social, nombre_area, status_trabajador, etc.) 👇
         let sql = `
             SELECT 
                 e.*, 
@@ -31,7 +30,8 @@ const obtenerEmpleados = async (req, res) => {
                 a.nombre_area AS nombre_area,
                 p.nombre_puesto AS nombre_puesto,
                 drh.nombre AS nombre_departamento_rh,
-                st.nombre_status AS nombre_status
+                st.nombre_status AS nombre_status,
+                na.nivel AS nombre_nivel_academico
             FROM empleados e
             LEFT JOIN departamentos d ON e.departamento_id = d.id
             LEFT JOIN empresas emp ON e.empresa_id = emp.id
@@ -39,6 +39,7 @@ const obtenerEmpleados = async (req, res) => {
             LEFT JOIN puestos p ON e.puesto_id = p.id
             LEFT JOIN departamentos_rh drh ON e.departamento_rh_id = drh.id
             LEFT JOIN status_trabajador st ON e.status_trabajador_id = st.id
+            LEFT JOIN nivel_academico na ON e.nivel_academico_id = na.id
         `;
         
         const where = [];
@@ -49,12 +50,10 @@ const obtenerEmpleados = async (req, res) => {
         }
 
         if (search) {
-            // 👇 TAMBIÉN SE CORRIGIERON LAS COLUMNAS EN EL BUSCADOR 👇
             where.push(`(
                 e.num_empl ILIKE $${i} OR
                 e.empleado ILIKE $${i} OR
                 p.nombre_puesto ILIKE $${i} OR
-                d.nombre ILIKE $${i} OR
                 emp.razon_social ILIKE $${i}
             )`);
             params.push(`%${search}%`);
@@ -81,41 +80,39 @@ const obtenerEmpleados = async (req, res) => {
 };
 
 // ========================================================================================
-// Crear Empleado (Incluyendo status_laboral Y status_trabajador_id)
+// Crear Empleado (Sin Depto SIRA y con Nivel Académico)
 // ========================================================================================
 const crearEmpleado = async (req, res) => {
     try {
         const { 
             num_empl, empleado, fecha_ingreso, rfc, nss, curp, 
-            genero, fecha_nacimiento, departamento_id, 
+            genero, fecha_nacimiento, 
             empresa_id, area_id, puesto_id, departamento_rh_id, status_trabajador_id,
             status_laboral, 
-            fecha_reingreso, foto_emp
+            fecha_reingreso, nivel_academico_id
         } = req.body;
 
         const fechaIngresoDB = fecha_ingreso === '' ? null : fecha_ingreso;
         const fechaNacimientoDB = fecha_nacimiento === '' ? null : fecha_nacimiento;
         const fechaReingresoDB = fecha_reingreso === '' ? null : fecha_reingreso;
+        const generoDB = genero === '' ? null : genero; 
         const aniosCalculados = calcularEdad(fechaNacimientoDB);
 
-        // Se agregan "empresa", "puesto" y "departamento" como columnas legacy 
-        // para evitar el error NOT NULL de la base de datos.
-        // Se removió "area" ya que no existe en tu tabla de empleados original.
+        const foto_emp = req.file ? `uploads/fotos_empleados/${req.file.filename}` : null;
+
         const query = `
             INSERT INTO empleados (
                 num_empl, empleado, fecha_ingreso, rfc, nss, curp, 
-                genero, fecha_nacimiento, años, departamento_id,
+                genero, fecha_nacimiento, años, 
                 empresa_id, area_id, puesto_id, departamento_rh_id, status_trabajador_id,
                 status_laboral,
-                fecha_reingreso, foto_emp,
-                empresa, puesto, departamento,
+                fecha_reingreso, foto_emp, nivel_academico_id,
                 created_at, updated_at
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, 
-                $7, $8, $9, $10,
-                $11, $12, $13, $14, $15,
-                $16, $17, $18,
-                'N/A', 'N/A', 'N/A',
+                $7, $8, $9, 
+                $10, $11, $12, $13, $14,
+                $15, $16, $17, $18,
                 NOW(), NOW()
             )
             RETURNING *;
@@ -123,10 +120,10 @@ const crearEmpleado = async (req, res) => {
 
         const values = [
             num_empl, empleado, fechaIngresoDB, rfc, nss, curp, 
-            genero, fechaNacimientoDB, aniosCalculados, departamento_id || null, 
+            generoDB, fechaNacimientoDB, aniosCalculados, 
             empresa_id || null, area_id || null, puesto_id || null, departamento_rh_id || null, status_trabajador_id || null,
             status_laboral || 'Activo', 
-            fechaReingresoDB, foto_emp || null
+            fechaReingresoDB, foto_emp, nivel_academico_id || null
         ];
 
         const result = await pool.query(query, values);
@@ -138,31 +135,35 @@ const crearEmpleado = async (req, res) => {
 };
 
 // ========================================================================================
-// Actualizar Empleado (Incluyendo status_laboral Y status_trabajador_id)
+// Actualizar Empleado (Sin Depto SIRA y con Nivel Académico)
 // ========================================================================================
 const actualizarEmpleado = async (req, res) => {
     try {
         const { id } = req.params;
         const { 
             num_empl, empleado, fecha_ingreso, rfc, nss, curp, 
-            genero, fecha_nacimiento, departamento_id,
+            genero, fecha_nacimiento, 
             empresa_id, area_id, puesto_id, departamento_rh_id, status_trabajador_id,
             status_laboral, 
-            fecha_reingreso, foto_emp
+            fecha_reingreso, nivel_academico_id
         } = req.body;
 
         const aniosCalculados = calcularEdad(fecha_nacimiento);
         const fechaIngresoDB = fecha_ingreso === '' ? null : fecha_ingreso;
         const fechaReingresoDB = fecha_reingreso === '' ? null : fecha_reingreso;
+        const generoDB = genero === '' ? null : genero; 
+
+        const foto_emp = req.file ? `uploads/fotos_empleados/${req.file.filename}` : null;
 
         const query = `
             UPDATE empleados SET
                 num_empl = $1, empleado = $2, fecha_ingreso = $3, rfc = $4, nss = $5, 
                 curp = $6, genero = $7, fecha_nacimiento = $8, años = $9, 
-                departamento_id = $10,
-                empresa_id = $11, area_id = $12, puesto_id = $13, departamento_rh_id = $14, status_trabajador_id = $15,
-                status_laboral = $16,
-                fecha_reingreso = $17, foto_emp = COALESCE($18, foto_emp),
+                empresa_id = $10, area_id = $11, puesto_id = $12, departamento_rh_id = $13, status_trabajador_id = $14,
+                status_laboral = $15,
+                fecha_reingreso = $16, 
+                foto_emp = COALESCE($17, foto_emp),
+                nivel_academico_id = $18,
                 updated_at = NOW()
             WHERE id = $19
             RETURNING *;
@@ -170,11 +171,10 @@ const actualizarEmpleado = async (req, res) => {
 
         const values = [
             num_empl, empleado, fechaIngresoDB, rfc, nss, curp, 
-            genero, fecha_nacimiento || null, aniosCalculados, 
-            departamento_id || null,
+            generoDB, fecha_nacimiento || null, aniosCalculados, 
             empresa_id || null, area_id || null, puesto_id || null, departamento_rh_id || null, status_trabajador_id || null,
-            status_laboral || 'activo', 
-            fechaReingresoDB, foto_emp || null,
+            status_laboral || 'Activo', 
+            fechaReingresoDB, foto_emp, nivel_academico_id || null,
             id
         ];
 
@@ -185,19 +185,6 @@ const actualizarEmpleado = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 }; 
-
-// ========================================================================================
-// Obtener Departamentos
-// ========================================================================================
-const obtenerDepartamentos = async (req, res) => {
-    try {
-        const result = await pool.query('SELECT id, nombre FROM departamentos ORDER BY nombre ASC');
-        res.json(result.rows);
-    } catch (error) {
-        console.error("Error al obtener departamentos:", error);
-        res.status(500).json({ error: 'Error al obtener la lista de departamentos' });
-    }
-};
 
 // ========================================================================================
 // Eliminar Empleado 
@@ -216,9 +203,8 @@ const eliminarEmpleado = async (req, res) => {
     }
 };
 
-// Exportar funciones para usarlas en las rutas
+// Exportar funciones
 module.exports = { 
-    obtenerDepartamentos, 
     obtenerEmpleados, 
     crearEmpleado, 
     actualizarEmpleado,
