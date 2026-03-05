@@ -33,3 +33,22 @@ html {
   scrollbar-width: thin;
   scrollbar-color: #c1c1c1 #f1f1f1;
 }
+
+/* ── Shared utility: dropdown menu item ── */
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 14px;
+  font-size: 0.8125rem;
+  text-align: left;
+  color: #334155;
+  transition: background-color 0.12s;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+.menu-item:hover {
+  background-color: #f1f5f9;
+}
