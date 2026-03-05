@@ -21,6 +21,10 @@ router.get('/ubicaciones',     ctrl.listUbicaciones);
 router.post('/ubicaciones',    ctrl.createUbicacion);
 router.put('/ubicaciones/:id', ctrl.updateUbicacion);
 
+// ── Pendientes de asignación ──────────────────────────────────────────────────
+router.get('/pendientes/count', ctrl.getPendientesCount);
+router.get('/pendientes',       ctrl.listPendientes);
+
 // ── Movimientos globales ───────────────────────────────────────────────────────
 router.get('/movimientos', ctrl.listMovimientos);
 

@@ -107,9 +107,10 @@ export const useIngresoOC = () => {
 
     const registrarIngreso = async (payload) => {
         try {
-            await api.post('/api/ingreso/registrar', payload);
+            const data = await api.post('/api/ingreso/registrar', payload);
             toast.success('Ingreso registrado con éxito.');
             refreshData(); // Recarga todo
+            return data; // Incluye activos_fisicos_creados si aplica
         } catch (error) {
             toast.error(error?.error || 'Error al registrar el ingreso.');
             throw error; // Propaga para manejo en el modal si es necesario

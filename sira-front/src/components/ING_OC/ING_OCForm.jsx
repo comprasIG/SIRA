@@ -63,9 +63,13 @@ export default function ING_OCForm() {
 
 
     const handleRegistrarIngreso = async (ingresoData) => {
-        await registrarIngreso(ingresoData);
-        handleCloseModal(); // Cierra el modal si el registro fue exitoso
-        // refreshData(); // Ya se llama dentro de registrarIngreso si tiene éxito
+        const result = await registrarIngreso(ingresoData);
+        // Si no hay activos físicos creados, cerrar el modal directamente.
+        // Si los hay, el modal maneja el paso 2 de asignación y cierra él mismo.
+        if (!result?.activos_fisicos_creados?.length) {
+            handleCloseModal();
+        }
+        return result;
     };
 
     const handleKpiClick = (filterCriteria, key) => {

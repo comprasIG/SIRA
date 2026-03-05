@@ -2,12 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   Modal, Box, Typography, Button, Stack, CircularProgress, TextField,
-  IconButton, Collapse, Autocomplete, Tooltip, Paper, Divider, Chip
+  IconButton, Collapse, Autocomplete, Tooltip, Paper, Divider, Chip,
+  Select, MenuItem, FormControl, InputLabel, Alert,
 } from '@mui/material';
 import { alpha, styled } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import AssignmentIndOutlinedIcon from '@mui/icons-material/AssignmentIndOutlined';
+import SkipNextOutlinedIcon from '@mui/icons-material/SkipNextOutlined';
 
 const ModalContainer = styled(Paper)(({ theme }) => ({
   position: 'absolute',
@@ -47,6 +50,14 @@ const ItemRow = styled(Box, {
   transition: 'background-color 0.2s ease',
 }));
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+const MODOS = {
+  DEJAR_PENDIENTE: 'DEJAR_PENDIENTE',
+  SOLO_ASIGNAR: 'SOLO_ASIGNAR',
+  ASIGNAR_Y_ENTREGAR: 'ASIGNAR_Y_ENTREGAR',
+};
+
 export default function IngresoOCModal({
   open,
   onClose,
@@ -60,6 +71,15 @@ export default function IngresoOCModal({
   const [itemsState, setItemsState] = useState([]);
   const [selectedUbicacion, setSelectedUbicacion] = useState(null); // number|null
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ── Paso 2: asignación de activos físicos ──────────────────────────────────
+  const [step, setStep] = useState(1);
+  const [activosPendientes, setActivosPendientes] = useState([]); // [{ id, sku, nombre }]
+  const [asignaciones, setAsignaciones] = useState({}); // { [id]: { modo, empleado_id, ubicacion_af_id } }
+  const [empleados, setEmpleados] = useState([]);
+  const [ubicacionesAF, setUbicacionesAF] = useState([]);
+  const [globalAsig, setGlobalAsig] = useState({ modo: MODOS.SOLO_ASIGNAR, empleado_id: null, ubicacion_af_id: null });
+  const [isSavingAsig, setIsSavingAsig] = useState(false);
 
   // ✅ Regla robusta: el backend nos dice si entra a disponible (almacén central)
   // Evitamos depender de strings tipo "STOCK ALMACEN".
@@ -83,7 +103,23 @@ export default function IngresoOCModal({
 
     setSelectedUbicacion(null);
     setIsSubmitting(false);
+    setStep(1);
+    setActivosPendientes([]);
+    setAsignaciones({});
   }, [detalles, open]);
+
+  // Cargar empleados y ubicaciones AF cuando llegue al paso 2
+  useEffect(() => {
+    if (step !== 2) return;
+    const headers = { Authorization: `Bearer ${localStorage.getItem('firebaseToken') || ''}` };
+    Promise.all([
+      fetch(`${API_BASE_URL}/api/empleados/list`, { headers }).then(r => r.json()).catch(() => []),
+      fetch(`${API_BASE_URL}/api/activos-fisicos/ubicaciones`, { headers }).then(r => r.json()).catch(() => []),
+    ]).then(([emps, ubics]) => {
+      setEmpleados(Array.isArray(emps) ? emps : []);
+      setUbicacionesAF(Array.isArray(ubics) ? ubics : []);
+    });
+  }, [step]);
 
   const handleItemChange = (detalle_id, field, value) => {
     setItemsState(prev => prev.map(item => {
@@ -170,11 +206,227 @@ export default function IngresoOCModal({
 
     setIsSubmitting(true);
     try {
-      await onRegistrar(payload);
+      const result = await onRegistrar(payload);
+      const nuevosActivos = result?.activos_fisicos_creados ?? [];
+      if (nuevosActivos.length > 0) {
+        // Inicializar asignaciones en modo "dejar pendiente" por defecto
+        const initAsig = {};
+        nuevosActivos.forEach(a => {
+          initAsig[a.id] = { modo: MODOS.DEJAR_PENDIENTE, empleado_id: null, ubicacion_af_id: null };
+        });
+        setActivosPendientes(nuevosActivos);
+        setAsignaciones(initAsig);
+        setStep(2);
+      } else {
+        onClose();
+      }
     } catch (error) {
+      // error ya fue mostrado por el hook
+    } finally {
       setIsSubmitting(false);
     }
   };
+
+  const handleAsigChange = (activoId, field, value) => {
+    setAsignaciones(prev => ({
+      ...prev,
+      [activoId]: { ...prev[activoId], [field]: value },
+    }));
+  };
+
+  const aplicarGlobal = () => {
+    setAsignaciones(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(id => {
+        next[id] = { ...next[id], ...globalAsig };
+      });
+      return next;
+    });
+  };
+
+  const handleGuardarAsignaciones = async () => {
+    const aAsignar = activosPendientes.filter(a => asignaciones[a.id]?.modo !== MODOS.DEJAR_PENDIENTE);
+    if (aAsignar.length === 0) {
+      onClose();
+      return;
+    }
+
+    const token = localStorage.getItem('firebaseToken') || '';
+    setIsSavingAsig(true);
+    try {
+      for (const activo of aAsignar) {
+        const asig = asignaciones[activo.id];
+        if (!asig.empleado_id) continue; // ALTO requiere al menos empleado
+        const body = {
+          tipo_movimiento: 'ALTA',
+          usuario_id: null, // el backend toma req.siraUser.id
+          empleado_responsable_nuevo_id: asig.empleado_id,
+          ubicacion_nueva_id: asig.modo === MODOS.ASIGNAR_Y_ENTREGAR ? asig.ubicacion_af_id : null,
+        };
+        await fetch(`${API_BASE_URL}/api/activos-fisicos/${activo.id}/movimientos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(body),
+        });
+      }
+    } finally {
+      setIsSavingAsig(false);
+      onClose();
+    }
+  };
+
+  if (step === 2) {
+    return (
+      <Modal open={open} onClose={onClose}>
+        <ModalContainer sx={{ maxWidth: 860 }}>
+          {/* Cabecera paso 2 */}
+          <Box sx={{ px: 4, py: 3, backgroundImage: (t) => `linear-gradient(135deg, ${alpha(t.palette.warning.main, 0.14)} 0%, ${alpha(t.palette.warning.main, 0.04)} 60%, ${t.palette.background.paper} 100%)` }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Box>
+                <Typography variant="overline" color="warning.dark" sx={{ letterSpacing: 1.2 }}>
+                  Paso 2 de 2 — Opcional
+                </Typography>
+                <Typography variant="h6" fontWeight={700}>
+                  Asignación de Activos Físicos
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  {activosPendientes.length} activo{activosPendientes.length !== 1 ? 's' : ''} creado{activosPendientes.length !== 1 ? 's' : ''} · Asígnalos ahora o hazlo después desde Activo Físico
+                </Typography>
+              </Box>
+              <AssignmentIndOutlinedIcon sx={{ fontSize: 40, color: 'warning.main', opacity: 0.6 }} />
+            </Stack>
+          </Box>
+
+          <Divider />
+
+          <ContentBox>
+            <Alert severity="info" sx={{ mb: 2, fontSize: '0.82rem' }}>
+              Los activos sin asignación quedarán pendientes en la pestaña <strong>"Pendientes"</strong> de Activo Físico.
+            </Alert>
+
+            {/* Aplicar a todos */}
+            <Paper variant="outlined" sx={{ p: 2, mb: 3, borderRadius: 2 }}>
+              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
+                Aplicar a todos igual
+              </Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} flexWrap="wrap">
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <InputLabel>Modo</InputLabel>
+                  <Select
+                    label="Modo"
+                    value={globalAsig.modo}
+                    onChange={e => setGlobalAsig(g => ({ ...g, modo: e.target.value }))}
+                  >
+                    <MenuItem value={MODOS.DEJAR_PENDIENTE}>Dejar pendiente</MenuItem>
+                    <MenuItem value={MODOS.SOLO_ASIGNAR}>Solo asignar responsable</MenuItem>
+                    <MenuItem value={MODOS.ASIGNAR_Y_ENTREGAR}>Asignar y entregar</MenuItem>
+                  </Select>
+                </FormControl>
+                {globalAsig.modo !== MODOS.DEJAR_PENDIENTE && (
+                  <Autocomplete
+                    size="small"
+                    sx={{ minWidth: 240, flex: 1 }}
+                    options={empleados}
+                    getOptionLabel={e => e.nombre_completo || `${e.nombre} ${e.apellido_paterno}` || ''}
+                    value={empleados.find(e => e.id === globalAsig.empleado_id) || null}
+                    onChange={(_, v) => setGlobalAsig(g => ({ ...g, empleado_id: v?.id ?? null }))}
+                    renderInput={params => <TextField {...params} label="Responsable" />}
+                  />
+                )}
+                {globalAsig.modo === MODOS.ASIGNAR_Y_ENTREGAR && (
+                  <Autocomplete
+                    size="small"
+                    sx={{ minWidth: 200, flex: 1 }}
+                    options={ubicacionesAF}
+                    getOptionLabel={u => u.nombre || ''}
+                    value={ubicacionesAF.find(u => u.id === globalAsig.ubicacion_af_id) || null}
+                    onChange={(_, v) => setGlobalAsig(g => ({ ...g, ubicacion_af_id: v?.id ?? null }))}
+                    renderInput={params => <TextField {...params} label="Ubicación destino" />}
+                  />
+                )}
+                <Button variant="outlined" size="small" onClick={aplicarGlobal} sx={{ whiteSpace: 'nowrap' }}>
+                  Aplicar a todos
+                </Button>
+              </Stack>
+            </Paper>
+
+            {/* Tabla por activo */}
+            <Stack spacing={1.5}>
+              {activosPendientes.map(activo => {
+                const asig = asignaciones[activo.id] || { modo: MODOS.DEJAR_PENDIENTE, empleado_id: null, ubicacion_af_id: null };
+                return (
+                  <Paper key={activo.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} flexWrap="wrap">
+                      <Box sx={{ minWidth: 160 }}>
+                        <Typography variant="caption" color="text.secondary">SKU</Typography>
+                        <Typography variant="body2" fontWeight={700} fontFamily="monospace">{activo.sku}</Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap>{activo.nombre}</Typography>
+                      </Box>
+                      <FormControl size="small" sx={{ minWidth: 200 }}>
+                        <InputLabel>Acción</InputLabel>
+                        <Select
+                          label="Acción"
+                          value={asig.modo}
+                          onChange={e => handleAsigChange(activo.id, 'modo', e.target.value)}
+                        >
+                          <MenuItem value={MODOS.DEJAR_PENDIENTE}>Dejar pendiente</MenuItem>
+                          <MenuItem value={MODOS.SOLO_ASIGNAR}>Solo asignar responsable</MenuItem>
+                          <MenuItem value={MODOS.ASIGNAR_Y_ENTREGAR}>Asignar y entregar</MenuItem>
+                        </Select>
+                      </FormControl>
+                      {asig.modo !== MODOS.DEJAR_PENDIENTE && (
+                        <Autocomplete
+                          size="small"
+                          sx={{ minWidth: 220, flex: 1 }}
+                          options={empleados}
+                          getOptionLabel={e => e.nombre_completo || `${e.nombre} ${e.apellido_paterno}` || ''}
+                          value={empleados.find(e => e.id === asig.empleado_id) || null}
+                          onChange={(_, v) => handleAsigChange(activo.id, 'empleado_id', v?.id ?? null)}
+                          renderInput={params => <TextField {...params} label="Responsable *" />}
+                        />
+                      )}
+                      {asig.modo === MODOS.ASIGNAR_Y_ENTREGAR && (
+                        <Autocomplete
+                          size="small"
+                          sx={{ minWidth: 180, flex: 1 }}
+                          options={ubicacionesAF}
+                          getOptionLabel={u => u.nombre || ''}
+                          value={ubicacionesAF.find(u => u.id === asig.ubicacion_af_id) || null}
+                          onChange={(_, v) => handleAsigChange(activo.id, 'ubicacion_af_id', v?.id ?? null)}
+                          renderInput={params => <TextField {...params} label="Ubicación" />}
+                        />
+                      )}
+                    </Stack>
+                  </Paper>
+                );
+              })}
+            </Stack>
+          </ContentBox>
+
+          <Divider />
+          <Stack direction="row" justifyContent="flex-end" spacing={2} sx={{ px: 4, py: 3 }}>
+            <Button
+              variant="text"
+              startIcon={<SkipNextOutlinedIcon />}
+              onClick={onClose}
+              disabled={isSavingAsig}
+            >
+              Dejar todos pendientes
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleGuardarAsignaciones}
+              disabled={isSavingAsig}
+              startIcon={isSavingAsig ? <CircularProgress size={18} color="inherit" /> : <AssignmentIndOutlinedIcon />}
+              sx={{ minWidth: 200, fontWeight: 600, textTransform: 'none', boxShadow: 'none' }}
+            >
+              {isSavingAsig ? 'Guardando…' : 'Guardar asignaciones'}
+            </Button>
+          </Stack>
+        </ModalContainer>
+      </Modal>
+    );
+  }
 
   return (
     <Modal open={open} onClose={onClose}>
