@@ -26,17 +26,23 @@ const obtenerEmpleados = async (req, res) => {
         let sql = `
             SELECT 
                 e.*, 
+                -- ¡AQUÍ ESTÁ LA MAGIA! Traemos los IDs del periodo activo para tu formulario
+                pl.empresa_id,
+                pl.area_id,
+                pl.puesto_id,
+                pl.departamento_rh_id,
+                pl.status_trabajador_id,
+                pl.fecha_ingreso,
+                
+                -- Y aquí siguen los nombres para que tu tabla visual (verEmpleados) se vea bonita
                 emp.razon_social AS nombre_empresa,
                 a.nombre_area AS nombre_area,
                 p.nombre_puesto AS nombre_puesto,
                 drh.nombre AS nombre_departamento_rh,
                 st.nombre_status AS nombre_status,
-                na.nivel AS nombre_nivel_academico,
-                pl.fecha_ingreso
+                na.nivel AS nombre_nivel_academico
             FROM empleados e
-            -- Hacemos JOIN al periodo que esté activo (fecha_baja es NULL)
             LEFT JOIN periodos_laborales pl ON e.id = pl.empleado_id AND pl.fecha_baja IS NULL
-            -- Los demás JOINs ahora apuntan a 'pl' (periodos_laborales)
             LEFT JOIN empresas emp ON pl.empresa_id = emp.id
             LEFT JOIN areas a ON pl.area_id = a.id
             LEFT JOIN puestos p ON pl.puesto_id = p.id
@@ -135,7 +141,7 @@ const crearEmpleado = async (req, res) => {
             INSERT INTO periodos_laborales (
                 empleado_id, empresa_id, area_id, departamento_rh_id, 
                 puesto_id, status_trabajador_id, fecha_ingreso, fecha_baja,
-                created_at, updated_at
+                creado_en, actualizado_en
             ) VALUES (
                 $1, $2, $3, $4, 
                 $5, $6, $7, NULL, -- fecha_baja nace nula
@@ -272,7 +278,7 @@ const actualizarEmpleado = async (req, res) => {
                     INSERT INTO periodos_laborales (
                         empleado_id, empresa_id, area_id, departamento_rh_id, 
                         puesto_id, status_trabajador_id, fecha_ingreso, fecha_baja,
-                        created_at, updated_at
+                        creado_en, actualizado_en
                     ) VALUES (
                         $1, $2, $3, $4, $5, $6, $7, NULL, NOW(), NOW()
                     )
