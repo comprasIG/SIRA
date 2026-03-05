@@ -307,7 +307,7 @@ const getOcDetalleParaIngreso = async (req, res) => {
   const { id: ordenCompraId } = req.params;
   try {
     const query = `
-            SELECT 
+            SELECT
                 ocd.id AS detalle_id,
                 ocd.material_id,
                 cm.sku AS sku,
@@ -316,7 +316,8 @@ const getOcDetalleParaIngreso = async (req, res) => {
                 ocd.cantidad AS cantidad_pedida,
                 ocd.cantidad_recibida,
                 ocd.precio_unitario,
-                ocd.moneda
+                ocd.moneda,
+                cm.es_activo_fijo
             FROM public.ordenes_compra_detalle ocd
             JOIN public.catalogo_materiales cm ON ocd.material_id = cm.id
             JOIN public.catalogo_unidades cu ON cm.unidad_de_compra = cu.id
@@ -487,6 +488,61 @@ const registrarIngreso = async (req, res) => {
       const precioInventario = cantidadUso > 1 ? (precioFinal / cantidadUso) : precioFinal;
 
       const isServicio = ['SERV', 'SERVICIO'].includes(simboloReal.toUpperCase());
+
+      // ── Activo Fijo: si el material está marcado como activo fijo, crear registros
+      //    individuales en activos_fisicos en lugar de entrar al inventario de stock.
+      const afQuery = await client.query(
+        `SELECT es_activo_fijo, activo_fisico_categoria_id, activo_fisico_tipo_id,
+                nombre, proveedor_id AS proveedor_oc_hint
+         FROM public.catalogo_materiales
+         WHERE id = $1`,
+        [material_id]
+      );
+      const matAF = afQuery.rows[0];
+
+      // También necesitamos el proveedor de la OC
+      const ocProveedorRes = await client.query(
+        `SELECT proveedor_id FROM public.ordenes_compra WHERE id = $1`,
+        [orden_compra_id]
+      );
+      const ocProveedorId = ocProveedorRes.rows[0]?.proveedor_id ?? null;
+
+      if (matAF?.es_activo_fijo) {
+        if (!matAF.activo_fisico_categoria_id || !matAF.activo_fisico_tipo_id) {
+          throw new Error(
+            `El material "${matAF.nombre}" está marcado como activo fijo pero no tiene categoría/tipo de activo físico configurados. ` +
+            `Edita el catálogo de materiales antes de recepcionar.`
+          );
+        }
+        // Crear N registros individuales (uno por unidad recibida)
+        const unidades = Math.max(1, Math.floor(cantidadNum));
+        for (let u = 0; u < unidades; u++) {
+          await client.query(
+            `INSERT INTO public.activos_fisicos
+               (categoria_id, tipo_id, nombre, fecha_compra, costo_compra, moneda,
+                proveedor_id, origen_oc_detalle_id)
+             VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7)`,
+            [
+              matAF.activo_fisico_categoria_id,
+              matAF.activo_fisico_tipo_id,
+              matAF.nombre,
+              precioFinal > 0 ? precioFinal : null,
+              monedaFinal || null,
+              ocProveedorId,
+              detalle_id,
+            ]
+          );
+        }
+        ingresoDetalles.push({
+          detalle_id,
+          material_id,
+          cantidad: cantidadNum,
+          esActivoFijo: true,
+          activosFisicosCreados: unidades,
+        });
+        // No tocar inventario_actual ni kardex de stock
+        continue;
+      }
 
       if (isServicio) {
         // ES SERVICIO -> NO ENTRA A INVENTARIO

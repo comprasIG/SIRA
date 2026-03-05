@@ -276,9 +276,19 @@ export default function IngresoOCModal({
                   <Box key={item.detalle_id}>
                     <ItemRow hasIssue={!!item.incidencia?.tipo_id}>
                       <Stack spacing={0.5}>
-                        <Typography variant="body2" fontWeight={500}>{materialLabel}</Typography>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="body2" fontWeight={500}>{materialLabel}</Typography>
+                          {item.es_activo_fijo && (
+                            <Chip
+                              label="Activo Fijo"
+                              size="small"
+                              sx={{ bgcolor: '#FFF3E0', color: '#E65100', fontWeight: 700, fontSize: 10, height: 18, borderRadius: '6px' }}
+                            />
+                          )}
+                        </Stack>
                         <Typography variant="caption" color="text.secondary">
                           {`Faltan ${Math.max(0, parseFloat(item.cantidad_pedida) - parseFloat(item.cantidad_recibida))} ${item.unidad_simbolo}`}
+                          {item.es_activo_fijo && ' · Al recibir se crearán registros en Activo Físico'}
                         </Typography>
                       </Stack>
 

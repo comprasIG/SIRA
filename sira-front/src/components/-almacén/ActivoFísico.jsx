@@ -201,6 +201,8 @@ export default function ActivoFísico() {
   // ── Carga masiva state ───────────────────────────────────────────────────────
   const [bulkRows, setBulkRows] = useState([]);
   const [bulkErrors, setBulkErrors] = useState([]);
+  const [bulkUnresolved, setBulkUnresolved] = useState({ categorias: [], tipos: [] }); // claves no encontradas
+  const [bulkMappings, setBulkMappings] = useState({}); // { 'CLAVE_DESCONOCIDA': 'CLAVE_VALIDA' }
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef(null);
@@ -363,14 +365,39 @@ export default function ActivoFísico() {
 
   // ── Excel: Carga masiva ──────────────────────────────────────────────────────
   const downloadTemplate = () => {
-    const ws = XLSX.utils.aoa_to_sheet([
+    // Hoja 1: Plantilla de datos
+    const ws1 = XLSX.utils.aoa_to_sheet([
       EXCEL_TEMPLATE_COLS,
-      ['Silla Ergonómica', 'MOBIL', 'SILLA', 'OfficeMax', 'Modelo Pro X', 'SN-00001', 'ACT-001', '2024-01-15', '2500.00', 'MXN', 'Color negro, altura ajustable'],
-      ['Laptop Dell', 'TI', 'LAPTOP', 'Dell', 'Latitude 5540', 'SN-LP-001', 'ACT-002', '2024-03-10', '35000.00', 'MXN', 'Intel i7, 16GB RAM, 512GB SSD'],
+      ['Silla Ergonómica', categorias[0]?.clave || 'MOBIL', tipos[0]?.clave || 'SILLA', 'OfficeMax', 'Modelo Pro X', 'SN-00001', 'ACT-001', '2024-01-15', '2500.00', 'MXN', 'Color negro, altura ajustable'],
+      ['Laptop Dell', categorias[1]?.clave || 'TI', tipos[1]?.clave || 'LAPTOP', 'Dell', 'Latitude 5540', 'SN-LP-001', 'ACT-002', '2024-03-10', '35000.00', 'MXN', 'Intel i7, 16GB RAM, 512GB SSD'],
     ]);
-    ws['!cols'] = EXCEL_TEMPLATE_COLS.map(() => ({ wch: 18 }));
+    ws1['!cols'] = EXCEL_TEMPLATE_COLS.map(() => ({ wch: 18 }));
+
+    // Hoja 2: Referencia de claves válidas (generada con catálogos actuales)
+    const refRows = [
+      ['=== CATEGORÍAS VÁLIDAS ===', '', '=== TIPOS VÁLIDOS ===', '', ''],
+      ['categoria_clave', 'nombre_categoría', 'tipo_clave', 'categoría_padre', 'nombre_tipo'],
+    ];
+    const maxLen = Math.max(categorias.length, tipos.length);
+    for (let i = 0; i < maxLen; i++) {
+      const cat = categorias[i];
+      const tip = tipos[i];
+      refRows.push([
+        cat?.clave || '', cat?.nombre || '',
+        tip?.clave || '', categorias.find(c => c.id === tip?.categoria_id)?.clave || '', tip?.nombre || '',
+      ]);
+    }
+    if (ubicaciones.length > 0) {
+      refRows.push([''], ['=== UBICACIONES (referencia) ===', '']);
+      refRows.push(['ubicacion_clave', 'nombre']);
+      ubicaciones.forEach(u => refRows.push([u.clave, u.nombre]));
+    }
+    const ws2 = XLSX.utils.aoa_to_sheet(refRows);
+    ws2['!cols'] = [{ wch: 20 }, { wch: 30 }, { wch: 20 }, { wch: 20 }, { wch: 30 }];
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Activos');
+    XLSX.utils.book_append_sheet(wb, ws1, 'Activos');
+    XLSX.utils.book_append_sheet(wb, ws2, 'Referencia_Claves');
     XLSX.writeFile(wb, 'plantilla_activos_fisicos.xlsx');
   };
 
@@ -380,7 +407,7 @@ export default function ActivoFísico() {
     reader.onload = (ev) => {
       try {
         const wb = XLSX.read(ev.target.result, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
+        const ws = wb.Sheets[wb.SheetNames[0]]; // Siempre leer hoja 1
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
         const [headers, ...dataRows] = rows;
         const missing = EXCEL_TEMPLATE_COLS.filter(c => !(headers ?? []).includes(c));
@@ -392,8 +419,21 @@ export default function ActivoFísico() {
         const parsed = dataRows
           .filter(r => r.some(v => String(v).trim() !== ''))
           .map(r => Object.fromEntries(EXCEL_TEMPLATE_COLS.map(c => [c, r[headers.indexOf(c)] ?? ''])));
+
+        // Detectar claves no reconocidas
+        const catClaves = new Set(categorias.map(c => c.clave.toUpperCase()));
+        const tipClaves = new Set(tipos.map(t => t.clave.toUpperCase()));
+        const unknownCats = [...new Set(
+          parsed.map(r => String(r.categoria_clave ?? '').trim().toUpperCase()).filter(k => k && !catClaves.has(k))
+        )];
+        const unknownTips = [...new Set(
+          parsed.map(r => String(r.tipo_clave ?? '').trim().toUpperCase()).filter(k => k && !tipClaves.has(k))
+        )];
+
         setBulkRows(parsed);
         setBulkErrors([]);
+        setBulkUnresolved({ categorias: unknownCats, tipos: unknownTips });
+        setBulkMappings({});
       } catch {
         setBulkErrors(['No se pudo leer el archivo. Asegúrate de que sea un Excel válido (.xlsx).']);
       }
@@ -401,18 +441,46 @@ export default function ActivoFísico() {
     reader.readAsArrayBuffer(file);
   };
 
+  const hasUnresolved = bulkUnresolved.categorias.length > 0 || bulkUnresolved.tipos.length > 0;
+
+  const resolveBulkRows = () => {
+    // Aplica mappings sobre las filas antes de enviar
+    return bulkRows.map(row => {
+      const catKey = String(row.categoria_clave ?? '').trim().toUpperCase();
+      const tipKey = String(row.tipo_clave ?? '').trim().toUpperCase();
+      return {
+        ...row,
+        categoria_clave: bulkMappings[catKey] ?? row.categoria_clave,
+        tipo_clave: bulkMappings[tipKey] ?? row.tipo_clave,
+      };
+    });
+  };
+
   const handleBulkSubmit = async () => {
     if (!bulkRows.length) return;
+    // Verificar que todas las claves desconocidas han sido mapeadas
+    const unmapped = [
+      ...bulkUnresolved.categorias.filter(k => !bulkMappings[k]),
+      ...bulkUnresolved.tipos.filter(k => !bulkMappings[k]),
+    ];
+    if (unmapped.length > 0) {
+      setBulkErrors([`Debes resolver las referencias pendientes antes de importar: ${unmapped.join(', ')}`]);
+      return;
+    }
     setUploading(true);
     setBulkErrors([]);
     try {
-      await api.post('/api/activos-fisicos/bulk', { items: bulkRows });
+      const items = resolveBulkRows();
+      await api.post('/api/activos-fisicos/bulk', { items });
       setBulkRows([]);
       setBulkErrors([]);
+      setBulkUnresolved({ categorias: [], tipos: [] });
+      setBulkMappings({});
       setActiveTab('inventario');
       fetchActivos({ search: '', categoria_id: '', estatus: '', ubicacion_id: '' });
     } catch (err) {
-      setBulkErrors([err?.error || err?.message || 'Error al importar. Verifica los datos e inténtalo de nuevo.']);
+      const detail = err?.errores ? err.errores.join('\n') : (err?.error || err?.message || 'Error al importar.');
+      setBulkErrors([detail]);
     } finally {
       setUploading(false);
     }
@@ -805,6 +873,59 @@ export default function ActivoFísico() {
               </div>
             )}
 
+            {/* Resolver referencias no encontradas */}
+            {hasUnresolved && bulkRows.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-4">
+                <div className="flex items-start gap-3">
+                  <WarningAmberIcon sx={{ fontSize: 22 }} className="text-amber-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-semibold text-amber-900">Referencias no reconocidas</p>
+                    <p className="text-sm text-amber-700 mt-0.5">Las siguientes claves del archivo no coinciden con ningún catálogo activo. Asígnalas a un registro existente para continuar.</p>
+                  </div>
+                </div>
+
+                {bulkUnresolved.categorias.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-amber-800 uppercase tracking-wider">Categorías desconocidas</p>
+                    {bulkUnresolved.categorias.map(clave => (
+                      <div key={clave} className="flex items-center gap-3">
+                        <span className="font-mono text-sm bg-white border border-amber-300 px-2 py-1 rounded-lg text-amber-900 min-w-[120px]">{clave}</span>
+                        <span className="text-slate-500 text-sm">→</span>
+                        <select
+                          className="flex-1 rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                          value={bulkMappings[clave] || ''}
+                          onChange={e => setBulkMappings(p => ({ ...p, [clave]: e.target.value }))}
+                        >
+                          <option value="">— Seleccionar categoría —</option>
+                          {categorias.map(c => <option key={c.id} value={c.clave}>{c.clave} — {c.nombre}</option>)}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {bulkUnresolved.tipos.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-amber-800 uppercase tracking-wider">Tipos desconocidos</p>
+                    {bulkUnresolved.tipos.map(clave => (
+                      <div key={clave} className="flex items-center gap-3">
+                        <span className="font-mono text-sm bg-white border border-amber-300 px-2 py-1 rounded-lg text-amber-900 min-w-[120px]">{clave}</span>
+                        <span className="text-slate-500 text-sm">→</span>
+                        <select
+                          className="flex-1 rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                          value={bulkMappings[clave] || ''}
+                          onChange={e => setBulkMappings(p => ({ ...p, [clave]: e.target.value }))}
+                        >
+                          <option value="">— Seleccionar tipo —</option>
+                          {tipos.map(t => <option key={t.id} value={t.clave}>{t.categoria_clave ? `[${t.categoria_clave}] ` : ''}{t.clave} — {t.nombre}</option>)}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Vista previa */}
             {bulkRows.length > 0 && (
               <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -815,15 +936,20 @@ export default function ActivoFísico() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => { setBulkRows([]); setBulkErrors([]); if (fileRef.current) fileRef.current.value = ''; }}
+                      onClick={() => {
+                        setBulkRows([]); setBulkErrors([]);
+                        setBulkUnresolved({ categorias: [], tipos: [] }); setBulkMappings({});
+                        if (fileRef.current) fileRef.current.value = '';
+                      }}
                       className="px-4 py-2 text-sm rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50"
                     >
                       Cancelar
                     </button>
                     <button
                       onClick={handleBulkSubmit}
-                      disabled={uploading}
-                      className="flex items-center gap-2 px-5 py-2 text-sm rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-60"
+                      disabled={uploading || (hasUnresolved && bulkUnresolved.categorias.some(k => !bulkMappings[k]) || bulkUnresolved.tipos.some(k => !bulkMappings[k]))}
+                      className="flex items-center gap-2 px-5 py-2 text-sm rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                      title={hasUnresolved ? 'Resuelve todas las referencias antes de importar' : ''}
                     >
                       {uploading ? 'Importando...' : `Confirmar importación (${bulkRows.length})`}
                     </button>
