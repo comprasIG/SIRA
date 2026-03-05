@@ -22,7 +22,7 @@ const styleModal = {
 };
 
 export default function ModalSolicitarServicio({ open, onClose, unidad, onReqCreada }) {
-  const { eventoTipos, loadingEventoTipos, isSubmitting, crearRequisicion } = useUnidadServicios();
+  const { eventoTipos, loadingEventoTipos, isSubmitting, crearRequisicion, refetchEventoTipos } = useUnidadServicios();
 
   const [eventoTipo, setEventoTipo] = useState(null);
   const [kilometraje, setKilometraje] = useState('');
@@ -30,13 +30,17 @@ export default function ModalSolicitarServicio({ open, onClose, unidad, onReqCre
   const [fechaRequerida, setFechaRequerida] = useState(dayjs().add(3, 'day').format('YYYY-MM-DD'));
 
   useEffect(() => {
+    if (open) {
+      // Siempre recarga los tipos al abrir para reflejar tipos recién creados
+      refetchEventoTipos();
+    }
     if (unidad) {
       setEventoTipo(null);
       setDescripcion('');
       setKilometraje(typeof unidad.km === 'number' ? unidad.km : '');
       setFechaRequerida(dayjs().add(3, 'day').format('YYYY-MM-DD'));
     }
-  }, [unidad, open]);
+  }, [unidad, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filtramos los tipos que generan requisición y que aplican al tipo de combustible de la unidad.
   // tipo_combustible_aplica === null significa que aplica a todos.

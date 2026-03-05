@@ -470,8 +470,14 @@ const crearEventoTipo = async (req, res) => {
   const esServicio = genera_requisicion === true;
 
   if (esServicio && !material_sku?.trim()) {
-    return res.status(400).json({ error: 'El SKU de material es obligatorio para tipos de servicio.' });
+    return res.status(400).json({ error: 'El sufijo del SKU es obligatorio para tipos de servicio.' });
   }
+
+  // Normalizar el sufijo ingresado por el usuario y construir el SKU completo SERV-VEH-{sufijo}
+  const sufijoNormalizado = esServicio
+    ? material_sku.trim().toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9\-_]/g, '').slice(0, 41)
+    : null;
+  const skuCompleto = esServicio ? `SERV-VEH-${sufijoNormalizado}` : null;
 
   // Generar código automáticamente a partir del nombre
   const codigo = nombre.trim()
@@ -480,8 +486,48 @@ const crearEventoTipo = async (req, res) => {
     .replace(/[^A-Z0-9_]/g, '')
     .slice(0, 50);
 
+  const client = await pool.connect();
   try {
-    const { rows, rowCount } = await pool.query(
+    await client.query('BEGIN');
+
+    // ── Paso 1: Si es servicio, crear material en catalogo_materiales ───────
+    // NOTA: `sku` en catalogo_materiales NO tiene UNIQUE constraint; la UNIQUE
+    // real es sobre `nombre` (columna GENERATED = tipo||' '||categoria||' '||detalle).
+    // Por eso usamos ON CONFLICT ON CONSTRAINT catalogo_materiales_nombre_key.
+    // detalle = skuCompleto garantiza que cada SKU genere un nombre único.
+    if (esServicio) {
+      const unidadRes = await client.query(`
+        SELECT id FROM catalogo_unidades
+        WHERE UPPER(simbolo) IN ('SERV', 'SRV', 'SERVICIO', 'SVC', 'PZA', 'PIEZA', 'PZAS')
+        ORDER BY id ASC LIMIT 1
+      `);
+      let unidadId = unidadRes.rows[0]?.id ?? null;
+
+      if (!unidadId) {
+        const fallback = await client.query('SELECT id FROM catalogo_unidades ORDER BY id ASC LIMIT 1');
+        unidadId = fallback.rows[0]?.id ?? null;
+      }
+
+      if (!unidadId) {
+        await client.query('ROLLBACK');
+        return res.status(500).json({
+          error: 'No se encontró ninguna unidad de medida en el catálogo. Configura al menos una unidad antes de crear tipos de servicio.',
+        });
+      }
+
+      // detalle = skuCompleto (max 50) → nombre GENERATED = 'SERVICIO VEHICULAR SERV-VEH-{sufijo}'
+      const detalleParaCatalogo = skuCompleto.slice(0, 50);
+      await client.query(
+        `INSERT INTO catalogo_materiales
+           (tipo, categoria, detalle, sku, unidad_de_compra, ultimo_precio, activo)
+         VALUES ('SERVICIO', 'VEHICULAR', $1, $2, $3, '0', true)
+         ON CONFLICT ON CONSTRAINT catalogo_materiales_nombre_key DO NOTHING`,
+        [detalleParaCatalogo, skuCompleto, unidadId]
+      );
+    }
+
+    // ── Paso 2: Crear el tipo de evento ────────────────────────────────────
+    const { rows, rowCount } = await client.query(
       `INSERT INTO public.unidades_evento_tipos
          (codigo, nombre, descripcion, genera_requisicion, requiere_num_serie, km_intervalo, tipo_combustible_aplica, material_sku)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -495,18 +541,23 @@ const crearEventoTipo = async (req, res) => {
         requiere_num_serie === true,
         km_intervalo ? parseInt(km_intervalo, 10) : null,
         tipo_combustible_aplica || null,
-        material_sku?.trim() || null,
+        skuCompleto,
       ]
     );
 
     if (rowCount === 0) {
+      await client.query('ROLLBACK');
       return res.status(409).json({ error: `Ya existe un tipo de evento con el código "${codigo}". Usa un nombre diferente.` });
     }
 
+    await client.query('COMMIT');
     res.status(201).json(rows[0]);
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error al crear tipo de evento:', error);
-    res.status(500).json({ error: 'Error interno del servidor.' });
+    res.status(500).json({ error: 'Error interno del servidor.', detalle: error.message });
+  } finally {
+    client.release();
   }
 };
 
@@ -762,6 +813,20 @@ const editarEventoTipo = async (req, res) => {
     return res.status(400).json({ error: 'El nombre es obligatorio.' });
   }
 
+  // Re-construir el SKU completo si se envía un sufijo.
+  // El frontend envía solo el sufijo (sin prefijo SERV-VEH-).
+  // Si el valor ya trae el prefijo (datos anteriores), lo usamos tal cual.
+  let skuFinal = null;
+  if (material_sku?.trim()) {
+    const raw = material_sku.trim().toUpperCase();
+    if (raw.startsWith('SERV-VEH-')) {
+      skuFinal = raw;
+    } else {
+      const sufijo = raw.replace(/\s+/g, '-').replace(/[^A-Z0-9\-_]/g, '').slice(0, 41);
+      skuFinal = `SERV-VEH-${sufijo}`;
+    }
+  }
+
   try {
     const { rowCount } = await pool.query(
       `UPDATE public.unidades_evento_tipos SET
@@ -779,7 +844,7 @@ const editarEventoTipo = async (req, res) => {
         requiere_num_serie === true,
         km_intervalo ? parseInt(km_intervalo, 10) : null,
         tipo_combustible_aplica || null,
-        material_sku || null,
+        skuFinal,
         id,
       ]
     );
@@ -824,6 +889,77 @@ const eliminarEventoTipo = async (req, res) => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// GET /api/unidades/requisicion/:id/detalle-vehicular
+// Devuelve el detalle de una requisición vehicular incluyendo datos de la unidad
+// y el tipo de servicio. Solo aplica a requisiciones ligadas a unidades_historial.
+// ---------------------------------------------------------------------------
+const getDetalleRequisicionVehicular = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+         r.id, r.numero_requisicion, r.fecha_requerida, r.comentario, r.status,
+         u.id   AS unidad_id,
+         u.unidad AS unidad_nombre,
+         u.no_eco,
+         et.id   AS evento_tipo_id,
+         et.nombre AS servicio_nombre,
+         cm.nombre AS material_nombre,
+         cm.sku    AS material_sku,
+         usr.nombre AS creador_nombre
+       FROM requisiciones r
+       JOIN unidades_historial uh  ON uh.requisicion_id  = r.id
+       JOIN unidades u             ON uh.unidad_id        = u.id
+       JOIN unidades_evento_tipos et ON uh.evento_tipo_id = et.id
+       JOIN requisiciones_detalle rd ON rd.requisicion_id = r.id
+       JOIN catalogo_materiales cm   ON rd.material_id    = cm.id
+       JOIN usuarios usr             ON r.usuario_id      = usr.id
+       WHERE r.id = $1
+       LIMIT 1`,
+      [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Requisición vehicular no encontrada.' });
+    }
+    res.json(rows[0]);
+  } catch (error) {
+    console.error(`Error al obtener detalle vehicular de requisición ${id}:`, error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// PUT /api/unidades/requisicion/:id
+// Edita únicamente fecha_requerida y comentario de una requisición vehicular.
+// Solo se permite mientras la requisición esté en estado ABIERTA.
+// ---------------------------------------------------------------------------
+const editarRequisicionVehicular = async (req, res) => {
+  const { id } = req.params;
+  const { fecha_requerida, comentario } = req.body;
+
+  if (!fecha_requerida) {
+    return res.status(400).json({ error: 'La fecha requerida es obligatoria.' });
+  }
+
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE requisiciones
+         SET fecha_requerida = $1,
+             comentario      = $2
+       WHERE id = $3 AND status = 'ABIERTA'`,
+      [fecha_requerida, comentario?.trim() || null, id]
+    );
+    if (rowCount === 0) {
+      return res.status(404).json({ error: 'Requisición no encontrada o ya no está en estado ABIERTA.' });
+    }
+    res.json({ mensaje: 'Requisición vehicular actualizada correctamente.' });
+  } catch (error) {
+    console.error(`Error al editar requisición vehicular ${id}:`, error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+};
+
 module.exports = {
   getUnidades,
   getUnidadDetalle,
@@ -836,6 +972,8 @@ module.exports = {
   editarEventoTipo,
   eliminarEventoTipo,
   crearRequisicionVehicular,
+  editarRequisicionVehicular,
+  getDetalleRequisicionVehicular,
   agregarRegistroManualHistorial,
   getDatosParaFiltros,
 };

@@ -31,7 +31,23 @@ const getRequisicionesPorAprobar = async (req, res) => {
         return res.status(403).json({ error: "No se pudo determinar el departamento del usuario." });
     }
     try {
-        const query = `SELECT r.id, r.numero_requisicion, r.fecha_creacion, r.fecha_requerida, u.nombre AS usuario_creador, p.nombre AS proyecto, s.nombre AS sitio, r.comentario, r.status FROM requisiciones r JOIN usuarios u ON r.usuario_id = u.id JOIN proyectos p ON r.proyecto_id = p.id JOIN sitios s ON r.sitio_id = s.id WHERE r.departamento_id = $1 AND r.status = 'ABIERTA' ORDER BY r.fecha_creacion ASC;`;
+        const query = `
+          SELECT
+            r.id, r.numero_requisicion, r.fecha_creacion, r.fecha_requerida,
+            u.nombre AS usuario_creador,
+            p.nombre AS proyecto,
+            s.nombre AS sitio,
+            r.comentario, r.status,
+            CASE WHEN EXISTS (
+              SELECT 1 FROM unidades_historial uh WHERE uh.requisicion_id = r.id
+            ) THEN true ELSE false END AS es_vehicular
+          FROM requisiciones r
+          JOIN usuarios u  ON r.usuario_id  = u.id
+          JOIN proyectos p ON r.proyecto_id = p.id
+          JOIN sitios s    ON r.sitio_id    = s.id
+          WHERE r.departamento_id = $1 AND r.status = 'ABIERTA'
+          ORDER BY r.fecha_creacion ASC
+        `;
         const result = await pool.query(query, [departamentoId]);
         res.json(result.rows);
     } catch (error) {
