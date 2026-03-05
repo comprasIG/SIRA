@@ -1,3 +1,4 @@
+import ActivoFísicoPage from "./pages/ActivoFísicoPage";
 import Viaticos_GastosPage from "./pages/Viaticos-&GastosPage";
 import GasolinaPage from "./pages/GasolinaPage";
 import CatálogoDeEnsamblesPage from "./pages/CatálogoDeEnsamblesPage";
@@ -100,6 +101,7 @@ export default function App() {
           <Route path="/catalogo-ensambles" element={<RutaProtegida permiso="CATALOGO_ENSAMBLES"><MainLayout><CatálogoDeEnsamblesPage /></MainLayout></RutaProtegida>} />
           <Route path="/pay_gas" element={<RutaProtegida permiso="pay_gas"><MainLayout><GasolinaPage /></MainLayout></RutaProtegida>} />
           <Route path="/viaticos" element={<RutaProtegida permiso="FlightTakeoffIcon"><MainLayout><Viaticos_GastosPage /></MainLayout></RutaProtegida>} />
+                    <Route path="/activo_fisico" element={<RutaProtegida permiso="act_fisico"><MainLayout><ActivoFísicoPage /></MainLayout></RutaProtegida>}/>
           {/* --- AÑADIR NUEVAS RUTAS AUTOMÁTICAMENTE AQUÍ --- */}
 
           {/* Redirección y página no encontrada */}

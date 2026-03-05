@@ -37,6 +37,8 @@ import ContactPageIcon from '@mui/icons-material/ContactPage'; // Icono Para con
 import BeachAccessIcon from '@mui/icons-material/BeachAccess'; // Icono Para Vacaciones
 import WorkHistoryIcon from '@mui/icons-material/WorkHistory'; // Icono Para permisos RH
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff'; // Icono Para Viaticos & Gastos
+import HandymanIcon from '@mui/icons-material/Handyman'; // Icono Para Activo Físico 
+
 // Mapa de íconos: Convierte el string de la BD al componente de React.
 // Aqui es donde se hace el mapeo de los iconos para manejarlos desde la base de datos
 // Para cambiarlo en la base de datos, en la columna 'icono', coloca el nombre ejemplo: 'DashboardIcon'
@@ -71,7 +73,8 @@ const iconMap = {
   WorkHistoryIcon: <WorkHistoryIcon sx={{ fontSize: 20 }} />, // Icono Para permisos RH
   ThreeDRotationIcon: <ThreeDRotationIcon sx={{ fontSize: 20 }} />, // Icono Para 3D
   LocalGasStationIcon: <LocalGasStationIcon sx={{ fontSize: 20 }} />, // Icono Para Gasolina
-  FlightTakeoffIcon: <FlightTakeoffIcon sx={{ fontSize: 20 }} /> // Icono Para Viaticos & Gastos
+  FlightTakeoffIcon: <FlightTakeoffIcon sx={{ fontSize: 20 }} />, // Icono Para Viaticos & Gastos
+  HandymanIcon: <HandymanIcon sx={{ fontSize: 20 }} /> // Icono Para Activo Físico
 };
 
 export default function Sidebar({ isOpen, toggleSidebar }) {
