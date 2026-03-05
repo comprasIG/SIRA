@@ -18,6 +18,10 @@ router.post('/', upload.single('foto_emp'), empleadosController.crearEmpleado);
 // Ruta PUT: Usar multer para interceptar el 'FormData' al actualizar
 router.put('/:id', upload.single('foto_emp'), empleadosController.actualizarEmpleado);
 
+// Nueva ruta DELETE para eliminar un empleado por ID
 router.delete('/:id', empleadosController.eliminarEmpleado);
+
+// Nueva ruta GET para obtener el historial de un empleado por ID
+router.get('/:id/historial', empleadosController.obtenerHistorialEmpleado);
 
 module.exports = router;
