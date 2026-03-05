@@ -19,6 +19,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import SchoolIcon from '@mui/icons-material/School'; 
+import HistoryIcon from '@mui/icons-material/History';
 
 // --- CONFIGURACIÓN DE LA URL ---
 const API_BASE_URL = import.meta.env.VITE_API_URL;
@@ -40,6 +41,10 @@ export default function VerEmpleados() {
   // Estados para el modal de Crear/Editar
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [empleadoAEditar, setEmpleadoAEditar] = useState(null);
+
+  // Nuevos estados para el historial del empleado
+  const [historialLaboral, setHistorialLaboral] = useState([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
 
   // --- CARGA DE DATOS ---
   const fetchEmpleados = async () => {
@@ -85,6 +90,29 @@ export default function VerEmpleados() {
         console.error(error);
         alert("Error al eliminar");
       }
+    }
+  };
+
+  // Nueva función para manejar la visualización del historial laboral
+  const handleVerDetalle = async (emp, e) => {
+    if (e) e.stopPropagation(); 
+    setEmpleadoSeleccionado(emp);
+    setCargandoHistorial(true);
+    
+    try {
+      // Llamamos a tu nuevo endpoint
+      const response = await fetch(`${API_BASE_URL}/api/empleados/${emp.id}/historial`);
+      if (response.ok) {
+        const data = await response.json();
+        setHistorialLaboral(data);
+      } else {
+        setHistorialLaboral([]);
+      }
+    } catch (error) {
+      console.error("Error al obtener el historial:", error);
+      setHistorialLaboral([]);
+    } finally {
+      setCargandoHistorial(false);
     }
   };
 
@@ -398,13 +426,54 @@ export default function VerEmpleados() {
                 <div className="space-y-4">
                     <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Datos Laborales</h3>
                     <div className="flex items-start gap-3"><CalendarTodayIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">Fecha de Ingreso</p><p className="text-sm font-medium text-gray-800">{formatearFecha(empleadoSeleccionado.fecha_ingreso)}</p></div></div>
-                    {empleadoSeleccionado.fecha_reingreso && (
-                        <div className="flex items-start gap-3"><CalendarTodayIcon className="text-orange-400" /><div><p className="text-xs text-orange-500">Fecha de Reingreso</p><p className="text-sm font-medium text-gray-800">{formatearFecha(empleadoSeleccionado.fecha_reingreso)}</p></div></div>
-                    )}
                     <div className="flex items-start gap-3"><AccessTimeIcon className="text-blue-500" /><div><p className="text-xs text-gray-500">Antigüedad</p><p className="text-sm font-bold text-blue-700">{calcularAntiguedad(empleadoSeleccionado.fecha_ingreso)}</p></div></div>
                     <div className="flex items-start gap-3"><BadgeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">NSS</p><p className="text-sm font-medium text-gray-800">{empleadoSeleccionado.nss || '---'}</p></div></div>
                 </div>
               </div>
+              
+              {/* --- LÍNEA DE TIEMPO: HISTORIAL LABORAL --- */}
+              <div className="mt-8 pt-6 border-t border-gray-100">
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-6 flex items-center gap-2">
+                  <HistoryIcon sx={{ fontSize: 20 }} /> Historial de Movimientos
+                </h3>
+                
+                {cargandoHistorial ? (
+                  <p className="text-sm text-gray-500 italic animate-pulse">Cargando historial...</p>
+                ) : historialLaboral.length > 0 ? (
+                  <div className="relative border-l-2 border-blue-200 ml-3 space-y-6">
+                    {historialLaboral.map((periodo, idx) => (
+                      <div key={periodo.periodo_id || idx} className="relative pl-6">
+                        {/* Puntito de la línea de tiempo */}
+                        <span className={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 border-white ${periodo.fecha_baja ? 'bg-gray-400' : 'bg-blue-600'}`}></span>
+                        
+                        <div className="bg-gray-50 hover:bg-gray-100 transition p-4 rounded-xl border border-gray-100">
+                          <div className="flex justify-between items-start mb-1">
+                            <p className="text-sm font-bold text-gray-900">{periodo.nombre_puesto}</p>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${periodo.fecha_baja ? 'bg-gray-200 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
+                              {periodo.nombre_status_trabajador || 'N/A'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-600 mb-2">
+                            {periodo.nombre_departamento_rh} en <strong>{periodo.nombre_empresa}</strong>
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <CalendarTodayIcon sx={{ fontSize: 14 }} /> 
+                            <span>{formatearFecha(periodo.fecha_ingreso)} — {periodo.fecha_baja ? formatearFecha(periodo.fecha_baja) : 'Actualidad'}</span>
+                          </div>
+                          {periodo.motivo_baja && (
+                            <p className="mt-2 text-xs text-red-500 bg-red-50 p-2 rounded border border-red-100">
+                              <strong>Motivo de baja:</strong> {periodo.motivo_baja}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 italic">No hay registros de historial disponibles.</p>
+                )}
+              </div>
+
               <div className="mt-8 pt-4 border-t border-gray-100 flex justify-between text-xs text-gray-400">
                 <span>Registrado: {new Date(empleadoSeleccionado.created_at).toLocaleDateString()}</span>
                 <button onClick={() => setEmpleadoSeleccionado(null)} className="px-6 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition">Cerrar Ficha</button>

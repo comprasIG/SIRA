@@ -12,7 +12,6 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
     num_empl: '',
     empleado: '', 
     fecha_ingreso: '',
-    fecha_reingreso: '',
     rfc: '',
     nss: '',
     curp: '',
@@ -24,7 +23,10 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
     puesto_id: '',
     departamento_rh_id: '',
     status_trabajador_id: '',
-    nivel_academico_id: '' 
+    nivel_academico_id: '', 
+    // NUEVOS CAMPOS PARA EL CONTROL DE BAJAS
+    fecha_baja: '',
+    motivo_baja: ''
   });
 
   const [fotoArchivo, setFotoArchivo] = useState(null);
@@ -77,20 +79,25 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
       setFormData({
         num_empl: empleadoAEditar.num_empl || '',
         empleado: empleadoAEditar.empleado || '',
-        fecha_ingreso: formatearParaInput(empleadoAEditar.fecha_ingreso),
-        fecha_reingreso: formatearParaInput(empleadoAEditar.fecha_reingreso),
+        // Si estamos editando, asumimos que la fecha de ingreso es la del periodo actual
+        fecha_ingreso: formatearParaInput(empleadoAEditar.fecha_ingreso), 
+        // fecha_reingreso: formatearParaInput(empleadoAEditar.fecha_reingreso), <-- ¡BÓRRALO!
         rfc: empleadoAEditar.rfc || '',
         nss: empleadoAEditar.nss || '',
         curp: empleadoAEditar.curp || '',
         genero: empleadoAEditar.genero || '',
         fecha_nacimiento: formatearParaInput(empleadoAEditar.fecha_nacimiento),
-        status_laboral: empleadoAEditar.status_laboral || '', 
+        // IMPORTANTE: Asegúrate de que tu backend mande estos datos al buscar el empleado
+        status_laboral: (empleadoAEditar.status_laboral || '').toLowerCase(), 
         empresa_id: empleadoAEditar.empresa_id || '',
         area_id: empleadoAEditar.area_id || '',
         puesto_id: empleadoAEditar.puesto_id || '',
         departamento_rh_id: empleadoAEditar.departamento_rh_id || '',
         status_trabajador_id: empleadoAEditar.status_trabajador_id || '',
-        nivel_academico_id: empleadoAEditar.nivel_academico_id || '' 
+        nivel_academico_id: empleadoAEditar.nivel_academico_id || '',
+        // INICIALIZAMOS VACÍOS POR SI LO VAN A DAR DE BAJA
+        fecha_baja: '',
+        motivo_baja: '' 
       });
 
       if (empleadoAEditar.foto_emp) {
@@ -295,22 +302,64 @@ export default function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado
                   {catalogos.status_trabajadores.map(st => <option key={st.id} value={st.id}>{st.nombre_status || st.nombre}</option>)}
                 </select>
               </div>
+              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Estatus Laboral (SIRA) <span className="text-red-500">*</span></label>
-                <select name="status_laboral" value={formData.status_laboral} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Estatus General <span className="text-red-500">*</span></label>
+                <select name="status_laboral" value={formData.status_laboral} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
                   <option value="">Selecciona Estatus</option>
                   <option value="activo">Activo</option>
-                  <option value="inactivo">Inactivo</option>
-                  <option value="baja">Baja</option>
+                  <option value="inactivo">Inactivo (Permiso/Incapacidad)</option>
+                  <option value="baja">Baja Definitiva</option>
                 </select>
               </div>
+
+              {/* Lógica Condicional: Si seleccionan "Baja", mostramos estos campos */}
+              {formData.status_laboral === 'baja' && (
+                <>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-red-600 mb-1">Motivo de la Baja <span className="text-red-500">*</span></label>
+                    <input 
+                      type="text" 
+                      name="motivo_baja" 
+                      value={formData.motivo_baja} 
+                      onChange={handleChange} 
+                      required={formData.status_laboral === 'baja'} 
+                      className="w-full px-3 py-2 border border-red-300 bg-red-50 rounded-lg focus:ring-2 focus:ring-red-500 outline-none transition" 
+                      placeholder="Ej: Renuncia voluntaria, Fin de contrato..." 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-red-600 mb-1">Fecha de Baja <span className="text-red-500">*</span></label>
+                    <input 
+                      type="date" 
+                      name="fecha_baja" 
+                      value={formData.fecha_baja} 
+                      onChange={handleChange} 
+                      required={formData.status_laboral === 'baja'} 
+                      className="w-full px-3 py-2 border border-red-300 bg-red-50 rounded-lg focus:ring-2 focus:ring-red-500 outline-none transition" 
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Ajustamos el título del campo fecha_ingreso */}
+              <div className="md:col-span-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fecha de Ingreso / Movimiento
+                </label>
+                <input 
+                  type="date" 
+                  name="fecha_ingreso" 
+                  value={formData.fecha_ingreso} 
+                  onChange={handleChange} 
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" 
+                />
+              </div>
+
               <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Ingreso Original</label>
                 <input type="date" name="fecha_ingreso" value={formData.fecha_ingreso} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
-              </div>
-              <div className="md:col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Reingreso <span className="text-xs text-gray-400 font-normal">(Si aplica)</span></label>
-                <input type="date" name="fecha_reingreso" value={formData.fecha_reingreso} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
               </div>
             </form>
           )}
