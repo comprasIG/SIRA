@@ -224,7 +224,7 @@ const actualizarEmpleado = async (req, res) => {
             UPDATE empleados SET
                 num_empl = $1, empleado = $2, rfc = $3, nss = $4, curp = $5, 
                 genero = $6, fecha_nacimiento = $7, años = $8, 
-                status_laboral = $9, foto_emp = COALESCE($10, foto_empl),
+                status_laboral = $9, foto_emp = COALESCE($10, foto_emp),
                 nivel_academico_id = $11, updated_at = NOW()
             WHERE id = $12
         `;
@@ -245,7 +245,7 @@ const actualizarEmpleado = async (req, res) => {
                 // Cerramos su periodo activo actual
                 await client.query(`
                     UPDATE periodos_laborales 
-                    SET fecha_baja = $1, motivo_baja = $2, updated_at = NOW() 
+                    SET fecha_baja = $1, motivo_baja = $2, actualizado_en = NOW() 
                     WHERE id = $3
                 `, [fecha_baja || new Date(), motivo_baja || 'No especificado', periodoActivoId]);
             }
@@ -268,7 +268,7 @@ const actualizarEmpleado = async (req, res) => {
                 if (periodoActivoId) {
                     await client.query(`
                         UPDATE periodos_laborales 
-                        SET fecha_baja = CURRENT_DATE, motivo_baja = 'Cambio de puesto/contrato', updated_at = NOW() 
+                        SET fecha_baja = CURRENT_DATE, motivo_baja = 'Cambio de puesto/contrato', actualizado_en = NOW() 
                         WHERE id = $1
                     `, [periodoActivoId]);
                 }

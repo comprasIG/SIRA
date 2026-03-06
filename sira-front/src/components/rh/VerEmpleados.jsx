@@ -31,9 +31,9 @@ export default function VerEmpleados() {
 
   // Estados para filtros actualizados (RH, Área y Estatus)
   const [busqueda, setBusqueda] = useState('');
-  const [filtroDepartamentoRH, setFiltroDepartamentoRH] = useState('');
+  const [filtroDepartamentoRH, setFiltroDepartamentoRH] = useState('');//aqui se puede colocar el valor por defecto que se quiera, por ejemplo "Recursos Humanos" o "activo" para mostrar solo los activos
   const [filtroArea, setFiltroArea] = useState('');
-  const [filtroEstatus, setFiltroEstatus] = useState(''); 
+  const [filtroEstatus, setFiltroEstatus] = useState('activo'); // <-- FILTRA POR DEFECTO SOLO LOS ACTIVOS, CAMBIA A '' PARA MOSTRAR TODOS AL INICIO
 
   // Estado para el modal de Detalles (Tarjeta de empleado)
   const [empleadoSeleccionado, setEmpleadoSeleccionado] = useState(null);
@@ -45,6 +45,7 @@ export default function VerEmpleados() {
   // Nuevos estados para el historial del empleado
   const [historialLaboral, setHistorialLaboral] = useState([]);
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [tabActiva, setTabActiva] = useState('info');
 
   // --- CARGA DE DATOS ---
   const fetchEmpleados = async () => {
@@ -97,6 +98,7 @@ export default function VerEmpleados() {
   const handleVerDetalle = async (emp, e) => {
     if (e) e.stopPropagation(); 
     setEmpleadoSeleccionado(emp);
+    setTabActiva('info'); // <--- AGREGA ESTA LÍNEA
     setCargandoHistorial(true);
     
     try {
@@ -291,10 +293,10 @@ export default function VerEmpleados() {
               ) : empleadosFiltrados.length > 0 ? (
                 empleadosFiltrados.map((emp) => (
                   <tr 
-                    key={emp.id} 
-                    onClick={() => setEmpleadoSeleccionado(emp)}
-                    className="hover:bg-blue-50 transition-colors cursor-pointer group"
-                  >
+                        key={emp.id} 
+                        onClick={(e) => handleVerDetalle(emp, e)} 
+                        className="hover:bg-blue-50 transition-colors cursor-pointer group"
+                      >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-4">
                         <div className="h-10 w-10 rounded-full overflow-hidden bg-gray-200 text-gray-400 flex items-center justify-center border border-gray-300 flex-shrink-0">
@@ -328,10 +330,10 @@ export default function VerEmpleados() {
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex items-center justify-center gap-2">
                         <button 
-                          onClick={(e) => { e.stopPropagation(); setEmpleadoSeleccionado(emp); }}
-                          className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                          title="Ver Detalle"
-                        >
+                              onClick={(e) => handleVerDetalle(emp, e)} 
+                              className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                              title="Ver Detalle"
+                            >
                           <VisibilityIcon sx={{ fontSize: 20 }} />
                         </button>
                         
@@ -378,16 +380,24 @@ export default function VerEmpleados() {
         />
       )}
 
-      {/* --- MODAL DETALLES --- */}
+      {/* --- MODAL DETALLES (DISEÑO ORIGINAL CON PESTAÑAS - CORREGIDO) --- */}
       {empleadoSeleccionado && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden relative animate-fade-in-up">
+          {/* Contenedor principal: Mantiene el max-h para el scroll interno general */}
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] relative animate-fade-in-up overflow-hidden">
+            
             <button onClick={() => setEmpleadoSeleccionado(null)} className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-black/10 rounded-full text-white z-10 transition">
               <CloseIcon sx={{ fontSize: 20 }} />
             </button>
-            <div className="h-32 bg-gradient-to-r from-blue-600 to-indigo-700"></div>
-            <div className="px-8 pb-8">
-              <div className="relative -mt-16 mb-6 flex justify-between items-end">
+            
+            <div className="h-32 bg-gradient-to-r from-blue-600 to-indigo-700 shrink-0"></div>
+            
+            {/* CORRECCIÓN AQUÍ: Quitamos 'overflow-hidden' para que la foto no se corte */}
+            <div className="px-8 flex flex-col flex-1 min-h-0">
+              
+              {/* CABECERA (Perfil) */}
+              {/* relative y -mt-16 suben la foto. Sin overflow-hidden, ya no se corta */}
+              <div className="relative -mt-16 mb-4 flex justify-between items-end shrink-0">
                 <div className="h-32 w-32 rounded-full border-4 border-white bg-white overflow-hidden shadow-lg flex items-center justify-center text-gray-300">
                     {empleadoSeleccionado.foto_emp ? (
                          <img src={empleadoSeleccionado.foto_emp.startsWith('http') ? empleadoSeleccionado.foto_emp : `${API_BASE_URL}/${empleadoSeleccionado.foto_emp}`} alt="foto perfil" className="h-full w-full object-cover" />
@@ -402,7 +412,8 @@ export default function VerEmpleados() {
                    <p className="text-xs text-gray-400 mt-1">ID: {empleadoSeleccionado.num_empl}</p>
                 </div>
               </div>
-              <div className="mb-6 border-b border-gray-100 pb-4">
+
+              <div className="mb-4 shrink-0">
                 <h2 className="text-3xl font-bold text-gray-900">{empleadoSeleccionado.empleado}</h2>
                 <div className="flex items-center text-blue-700 font-medium mt-1 gap-2"><WorkIcon sx={{ fontSize: 18 }} />{empleadoSeleccionado.nombre_puesto || 'N/A'}</div>
                 <div className="flex items-center text-gray-500 text-sm mt-1 gap-2">
@@ -415,69 +426,92 @@ export default function VerEmpleados() {
                     </div>
                 )}
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Información Personal</h3>
-                    <div className="flex items-start gap-3"><BadgeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">CURP</p><p className="text-sm font-medium text-gray-800">{empleadoSeleccionado.curp || '---'}</p></div></div>
-                    <div className="flex items-start gap-3"><BadgeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">RFC</p><p className="text-sm font-medium text-gray-800">{empleadoSeleccionado.rfc || '---'}</p></div></div>
-                    <div className="flex items-start gap-3"><CakeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">Nacimiento / Edad</p><p className="text-sm font-medium text-gray-800">{formatearFecha(empleadoSeleccionado.fecha_nacimiento)} <span className="text-blue-600 font-bold">({calcularEdad(empleadoSeleccionado.fecha_nacimiento)} años)</span></p><p className="text-xs text-gray-400 capitalize">{empleadoSeleccionado.genero}</p></div></div>
-                    <div className="flex items-start gap-3"><SchoolIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">Nivel Académico</p><p className="text-sm font-medium text-gray-800">{empleadoSeleccionado.nombre_nivel_academico || '---'}</p></div></div>
-                </div>
-                <div className="space-y-4">
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Datos Laborales</h3>
-                    <div className="flex items-start gap-3"><CalendarTodayIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">Fecha de Ingreso</p><p className="text-sm font-medium text-gray-800">{formatearFecha(empleadoSeleccionado.fecha_ingreso)}</p></div></div>
-                    <div className="flex items-start gap-3"><AccessTimeIcon className="text-blue-500" /><div><p className="text-xs text-gray-500">Antigüedad</p><p className="text-sm font-bold text-blue-700">{calcularAntiguedad(empleadoSeleccionado.fecha_ingreso)}</p></div></div>
-                    <div className="flex items-start gap-3"><BadgeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">NSS</p><p className="text-sm font-medium text-gray-800">{empleadoSeleccionado.nss || '---'}</p></div></div>
-                </div>
+
+              {/* NAVEGACIÓN DE PESTAÑAS */}
+              <div className="flex border-b border-gray-200 mb-4 shrink-0">
+                <button
+                  onClick={() => setTabActiva('info')}
+                  className={`px-4 py-3 font-medium text-sm border-b-2 transition-colors ${tabActiva === 'info' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
+                >
+                  Información General
+                </button>
+                <button
+                  onClick={() => setTabActiva('historial')}
+                  className={`px-4 py-3 font-medium text-sm border-b-2 transition-colors flex items-center gap-2 ${tabActiva === 'historial' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
+                >
+                  <HistoryIcon sx={{ fontSize: 18 }} /> Historial de Movimientos
+                </button>
               </div>
-              
-              {/* --- LÍNEA DE TIEMPO: HISTORIAL LABORAL --- */}
-              <div className="mt-8 pt-6 border-t border-gray-100">
-                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-6 flex items-center gap-2">
-                  <HistoryIcon sx={{ fontSize: 20 }} /> Historial de Movimientos
-                </h3>
+
+              {/* CONTENEDOR CON SCROLL SOLO AQUÍ ADENTRO */}
+              <div className="overflow-y-auto custom-scrollbar flex-1 pb-4">
                 
-                {cargandoHistorial ? (
-                  <p className="text-sm text-gray-500 italic animate-pulse">Cargando historial...</p>
-                ) : historialLaboral.length > 0 ? (
-                  <div className="relative border-l-2 border-blue-200 ml-3 space-y-6">
-                    {historialLaboral.map((periodo, idx) => (
-                      <div key={periodo.periodo_id || idx} className="relative pl-6">
-                        {/* Puntito de la línea de tiempo */}
-                        <span className={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 border-white ${periodo.fecha_baja ? 'bg-gray-400' : 'bg-blue-600'}`}></span>
-                        
-                        <div className="bg-gray-50 hover:bg-gray-100 transition p-4 rounded-xl border border-gray-100">
-                          <div className="flex justify-between items-start mb-1">
-                            <p className="text-sm font-bold text-gray-900">{periodo.nombre_puesto}</p>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${periodo.fecha_baja ? 'bg-gray-200 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
-                              {periodo.nombre_status_trabajador || 'N/A'}
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-600 mb-2">
-                            {periodo.nombre_departamento_rh} en <strong>{periodo.nombre_empresa}</strong>
-                          </p>
-                          <div className="flex items-center gap-2 text-xs text-gray-500">
-                            <CalendarTodayIcon sx={{ fontSize: 14 }} /> 
-                            <span>{formatearFecha(periodo.fecha_ingreso)} — {periodo.fecha_baja ? formatearFecha(periodo.fecha_baja) : 'Actualidad'}</span>
-                          </div>
-                          {periodo.motivo_baja && (
-                            <p className="mt-2 text-xs text-red-500 bg-red-50 p-2 rounded border border-red-100">
-                              <strong>Motivo de baja:</strong> {periodo.motivo_baja}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                {/* --- PESTAÑA 1: INFORMACIÓN GENERAL --- */}
+                {tabActiva === 'info' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in-up">
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Información Personal</h3>
+                        <div className="flex items-start gap-3"><BadgeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">CURP</p><p className="text-sm font-medium text-gray-800">{empleadoSeleccionado.curp || '---'}</p></div></div>
+                        <div className="flex items-start gap-3"><BadgeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">RFC</p><p className="text-sm font-medium text-gray-800">{empleadoSeleccionado.rfc || '---'}</p></div></div>
+                        <div className="flex items-start gap-3"><CakeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">Nacimiento / Edad</p><p className="text-sm font-medium text-gray-800">{formatearFecha(empleadoSeleccionado.fecha_nacimiento)} <span className="text-blue-600 font-bold">({calcularEdad(empleadoSeleccionado.fecha_nacimiento)} años)</span></p><p className="text-xs text-gray-400 capitalize">{empleadoSeleccionado.genero}</p></div></div>
+                        <div className="flex items-start gap-3"><SchoolIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">Nivel Académico</p><p className="text-sm font-medium text-gray-800">{empleadoSeleccionado.nombre_nivel_academico || '---'}</p></div></div>
+                    </div>
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Datos Laborales</h3>
+                        <div className="flex items-start gap-3"><CalendarTodayIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">Fecha de Ingreso</p><p className="text-sm font-medium text-gray-800">{formatearFecha(empleadoSeleccionado.fecha_ingreso)}</p></div></div>
+                        <div className="flex items-start gap-3"><AccessTimeIcon className="text-blue-500" /><div><p className="text-xs text-gray-500">Antigüedad</p><p className="text-sm font-bold text-blue-700">{calcularAntiguedad(empleadoSeleccionado.fecha_ingreso)}</p></div></div>
+                        <div className="flex items-start gap-3"><BadgeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">NSS</p><p className="text-sm font-medium text-gray-800">{empleadoSeleccionado.nss || '---'}</p></div></div>
+                    </div>
                   </div>
-                ) : (
-                  <p className="text-sm text-gray-500 italic">No hay registros de historial disponibles.</p>
+                )}
+
+                {/* --- PESTAÑA 2: HISTORIAL LABORAL --- */}
+                {tabActiva === 'historial' && (
+                  <div className="animate-fade-in-up pt-2">
+                    {cargandoHistorial ? (
+                      <p className="text-sm text-gray-500 italic animate-pulse">Cargando historial...</p>
+                    ) : historialLaboral.length > 0 ? (
+                      <div className="relative border-l-2 border-blue-200 ml-3 space-y-6">
+                        {historialLaboral.map((periodo, idx) => (
+                          <div key={periodo.periodo_id || idx} className="relative pl-6">
+                            <span className={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 border-white ${periodo.fecha_baja ? 'bg-gray-400' : 'bg-blue-600'}`}></span>
+                            
+                            <div className="bg-gray-50 hover:bg-gray-100 transition p-4 rounded-xl border border-gray-100">
+                              <div className="flex justify-between items-start mb-1">
+                                <p className="text-sm font-bold text-gray-900">{periodo.nombre_puesto}</p>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${periodo.fecha_baja ? 'bg-gray-200 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
+                                  {periodo.nombre_status_trabajador || 'N/A'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-600 mb-2">
+                                {periodo.nombre_departamento_rh} en <strong>{periodo.nombre_empresa}</strong>
+                              </p>
+                              <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <CalendarTodayIcon sx={{ fontSize: 14 }} /> 
+                                <span>{formatearFecha(periodo.fecha_ingreso)} — {periodo.fecha_baja ? formatearFecha(periodo.fecha_baja) : 'Actualidad'}</span>
+                              </div>
+                              {periodo.motivo_baja && (
+                                <p className="mt-2 text-xs text-red-500 bg-red-50 p-2 rounded border border-red-100">
+                                  <strong>Motivo de baja:</strong> {periodo.motivo_baja}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 italic">No hay registros de historial disponibles.</p>
+                    )}
+                  </div>
                 )}
               </div>
 
-              <div className="mt-8 pt-4 border-t border-gray-100 flex justify-between text-xs text-gray-400">
+              {/* FOOTER */}
+              <div className="mt-2 pt-4 mb-4 border-t border-gray-100 flex justify-between items-center text-xs text-gray-400 shrink-0">
                 <span>Registrado: {new Date(empleadoSeleccionado.created_at).toLocaleDateString()}</span>
                 <button onClick={() => setEmpleadoSeleccionado(null)} className="px-6 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition">Cerrar Ficha</button>
               </div>
+
             </div>
           </div>
         </div>
