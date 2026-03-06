@@ -213,9 +213,52 @@ const updateUbicacion = async (req, res) => {
 // ACTIVOS — LISTADO
 // ═══════════════════════════════════════════════════════════════════════════════
 
+const getPendientesCount = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT COUNT(*)::int AS total
+       FROM public.activos_fisicos
+       WHERE empleado_responsable_actual_id IS NULL
+         AND estatus = 'ACTIVO'
+         AND activo = true`
+    );
+    res.json({ total: result.rows[0].total });
+  } catch (err) {
+    console.error('getPendientesCount:', err);
+    res.status(500).json({ error: 'Error al contar pendientes.' });
+  }
+};
+
+const listPendientes = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT
+         a.id, a.sku, a.codigo, a.nombre, a.marca, a.modelo, a.numero_serie,
+         a.fecha_compra, a.costo_compra, a.moneda,
+         a.estatus, a.activo, a.creado_en,
+         a.categoria_id,  cat.nombre AS categoria_nombre,
+         a.tipo_id,       tip.nombre AS tipo_nombre,
+         a.ubicacion_actual_id,
+         ub.nombre AS ubicacion_nombre
+       FROM public.activos_fisicos a
+       LEFT JOIN public.catalogo_activo_fisico_categorias cat ON cat.id = a.categoria_id
+       LEFT JOIN public.catalogo_activo_fisico_tipos       tip ON tip.id = a.tipo_id
+       LEFT JOIN public.catalogo_activo_fisico_ubicaciones ub  ON ub.id  = a.ubicacion_actual_id
+       WHERE a.empleado_responsable_actual_id IS NULL
+         AND a.estatus = 'ACTIVO'
+         AND a.activo = true
+       ORDER BY a.creado_en DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('listPendientes:', err);
+    res.status(500).json({ error: 'Error al listar pendientes.' });
+  }
+};
+
 const listActivos = async (req, res) => {
   try {
-    const { search, categoria_id, estatus, ubicacion_id } = req.query;
+    const { search, categoria_id, estatus, ubicacion_id, sin_asignar } = req.query;
     const params = [];
     const conditions = ['1=1'];
 
@@ -224,9 +267,10 @@ const listActivos = async (req, res) => {
       const ph = `$${params.length}`;
       conditions.push(`(a.sku ILIKE ${ph} OR a.nombre ILIKE ${ph} OR a.codigo ILIKE ${ph} OR a.numero_serie ILIKE ${ph})`);
     }
-    if (categoria_id) { params.push(categoria_id); conditions.push(`a.categoria_id = $${params.length}`); }
-    if (estatus)      { params.push(estatus);      conditions.push(`a.estatus = $${params.length}`); }
-    if (ubicacion_id) { params.push(ubicacion_id); conditions.push(`a.ubicacion_actual_id = $${params.length}`); }
+    if (categoria_id)               { params.push(categoria_id); conditions.push(`a.categoria_id = $${params.length}`); }
+    if (estatus)                    { params.push(estatus);      conditions.push(`a.estatus = $${params.length}`); }
+    if (ubicacion_id)               { params.push(ubicacion_id); conditions.push(`a.ubicacion_actual_id = $${params.length}`); }
+    if (sin_asignar === 'true')     { conditions.push(`a.empleado_responsable_actual_id IS NULL AND a.estatus = 'ACTIVO' AND a.activo = true`); }
 
     const where = conditions.join(' AND ');
 
@@ -595,7 +639,7 @@ module.exports = {
   // Ubicaciones
   listUbicaciones, createUbicacion, updateUbicacion,
   // Activos
-  listActivos, createActivo, updateActivo,
+  listActivos, createActivo, updateActivo, getPendientesCount, listPendientes,
   // Movimientos
   listMovimientosActivo, createMovimiento, listMovimientos,
   // Bulk

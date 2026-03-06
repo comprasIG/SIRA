@@ -444,11 +444,14 @@ const crearIncrementable = async (req, res) => {
     );
 
     // ── 6) Insertar línea en ordenes_compra_detalle (material_id = NULL) ─────
+    // requisicion_detalle_id y comparativa_precio_id son NULL porque las OC
+    // incrementables no pasan por el flujo RFQ tradicional.
     const ocBaseNums = ocBasesRes.rows.map(b => b.numero_oc).join(', ');
     await client.query(
       `INSERT INTO ordenes_compra_detalle
-         (orden_compra_id, material_id, cantidad, precio_unitario, moneda)
-       VALUES ($1, NULL, 1, $2, $3)`,
+         (orden_compra_id, requisicion_detalle_id, comparativa_precio_id,
+          material_id, cantidad, precio_unitario, moneda)
+       VALUES ($1, NULL, NULL, NULL, 1, $2, $3)`,
       [nuevaOcId, montoTotal, moneda]
     );
 

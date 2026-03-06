@@ -516,12 +516,14 @@ const registrarIngreso = async (req, res) => {
         }
         // Crear N registros individuales (uno por unidad recibida)
         const unidades = Math.max(1, Math.floor(cantidadNum));
+        const activosCreados = [];
         for (let u = 0; u < unidades; u++) {
-          await client.query(
+          const afRes = await client.query(
             `INSERT INTO public.activos_fisicos
                (categoria_id, tipo_id, nombre, fecha_compra, costo_compra, moneda,
                 proveedor_id, origen_oc_detalle_id)
-             VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7)`,
+             VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7)
+             RETURNING id, sku, nombre`,
             [
               matAF.activo_fisico_categoria_id,
               matAF.activo_fisico_tipo_id,
@@ -532,13 +534,14 @@ const registrarIngreso = async (req, res) => {
               detalle_id,
             ]
           );
+          activosCreados.push(afRes.rows[0]);
         }
         ingresoDetalles.push({
           detalle_id,
           material_id,
           cantidad: cantidadNum,
           esActivoFijo: true,
-          activosFisicosCreados: unidades,
+          activosFisicosCreados: activosCreados,
         });
         // No tocar inventario_actual ni kardex de stock
         continue;
@@ -772,7 +775,13 @@ const registrarIngreso = async (req, res) => {
 
 
     await client.query("COMMIT");
-    return res.status(200).json({ mensaje: "Ingreso registrado exitosamente." });
+    const todosLosActivosCreados = ingresoDetalles
+      .filter(d => d.esActivoFijo)
+      .flatMap(d => d.activosFisicosCreados);
+    return res.status(200).json({
+      mensaje: "Ingreso registrado exitosamente.",
+      activos_fisicos_creados: todosLosActivosCreados,
+    });
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Error registrando ingreso OC:", error);
