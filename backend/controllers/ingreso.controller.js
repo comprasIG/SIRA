@@ -493,7 +493,7 @@ const registrarIngreso = async (req, res) => {
       //    individuales en activos_fisicos en lugar de entrar al inventario de stock.
       const afQuery = await client.query(
         `SELECT es_activo_fijo, activo_fisico_categoria_id, activo_fisico_tipo_id,
-                nombre, proveedor_id AS proveedor_oc_hint
+                nombre
          FROM public.catalogo_materiales
          WHERE id = $1`,
         [material_id]
