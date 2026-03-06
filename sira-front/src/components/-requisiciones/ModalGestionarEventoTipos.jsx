@@ -1,11 +1,11 @@
 // sira-front/src/components/-requisiciones/ModalGestionarEventoTipos.jsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Modal, Box, Typography, Stack, Tabs, Tab, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, IconButton, Tooltip, Button,
   TextField, Checkbox, FormControlLabel, Select, MenuItem, FormControl,
   InputLabel, CircularProgress, Dialog, DialogTitle, DialogContent,
-  DialogActions, Chip, Divider,
+  DialogActions, Chip, Divider, InputAdornment,
 } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import EditIcon from '@mui/icons-material/Edit';
@@ -51,17 +51,35 @@ const FORM_INIT_SERVICIO = {
   material_sku: '',
 };
 
+// Genera el sufijo del SKU a partir del nombre (se usa para auto-fill)
+const generarSufijo = (nombre) =>
+  nombre.trim().toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9\-_]/g, '').slice(0, 41);
+
 // ── Formulario reutilizable para crear / editar ─────────────────────────────
 function FormEventoTipo({ inicial, esServicio, onGuardar, onCancelar, isSubmitting }) {
   const [form, setForm] = useState(inicial);
+  // Ref para saber si el usuario ya editó el sufijo manualmente
+  const skuManual = useRef(!!inicial.material_sku);
 
   const set = (campo, valor) => setForm(prev => ({ ...prev, [campo]: valor }));
+
+  // Auto-generar sufijo desde el nombre mientras el usuario no lo haya editado
+  useEffect(() => {
+    if (esServicio && !skuManual.current) {
+      set('material_sku', generarSufijo(form.nombre));
+    }
+  }, [form.nombre]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSkuChange = (valor) => {
+    skuManual.current = !!valor; // Si escribe algo, queda fijo; si borra todo, vuelve a auto-generar
+    set('material_sku', valor);
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.nombre.trim()) { toast.error('El nombre es obligatorio.'); return; }
     if (esServicio && !form.material_sku.trim()) {
-      toast.error('El SKU de material es obligatorio para servicios.'); return;
+      toast.error('El sufijo del SKU es obligatorio para servicios.'); return;
     }
     onGuardar(form);
   };
@@ -102,10 +120,23 @@ function FormEventoTipo({ inicial, esServicio, onGuardar, onCancelar, isSubmitti
               </FormControl>
             </Stack>
             <TextField
-              label="SKU Material *" required fullWidth size="small"
+              label="SKU del Servicio *"
+              required
+              fullWidth
+              size="small"
               value={form.material_sku}
-              onChange={e => set('material_sku', e.target.value)}
-              helperText="SKU del catálogo de materiales (ej. SERV-VEH-PREV)"
+              onChange={e => handleSkuChange(e.target.value.toUpperCase().replace(/[^A-Z0-9\-_]/g, ''))}
+              helperText={`SKU completo: SERV-VEH-${form.material_sku || '…'}`}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Typography variant="body2" color="text.secondary" fontFamily="monospace" sx={{ userSelect: 'none' }}>
+                      SERV-VEH-
+                    </Typography>
+                  </InputAdornment>
+                ),
+              }}
+              inputProps={{ maxLength: 41, style: { fontFamily: 'monospace' } }}
             />
           </>
         ) : null}
@@ -315,7 +346,10 @@ export default function ModalGestionarEventoTipos({ open, onClose }) {
         requiere_num_serie:     editando.requiere_num_serie || false,
         km_intervalo:           editando.km_intervalo || '',
         tipo_combustible_aplica: editando.tipo_combustible_aplica || '',
-        material_sku:           editando.material_sku || '',
+        // Al editar, mostrar solo el sufijo (sin el prefijo SERV-VEH-)
+        material_sku: editando.material_sku
+          ? editando.material_sku.replace(/^SERV-VEH-/i, '')
+          : '',
       }
     : esServicio ? FORM_INIT_SERVICIO : FORM_INIT_MANUAL;
 

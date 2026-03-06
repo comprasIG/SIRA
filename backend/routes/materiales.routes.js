@@ -23,11 +23,21 @@ router.get('/', async (req, res) => {
       return res.json([]);
     }
 
-    // Construimos la consulta dinámica
+    // Construimos la consulta dinámica.
+    // Excluimos materiales reservados para servicios vehiculares (Flotilla Vehicular)
+    // para que no aparezcan al crear requisiciones normales en /G_REQ.
     let sql = `
       SELECT id, nombre, sku
       FROM catalogo_materiales
-      WHERE activo = true ${whereClause}
+      WHERE activo = true
+        AND UPPER(sku) NOT IN (
+          SELECT UPPER(material_sku)
+          FROM unidades_evento_tipos
+          WHERE genera_requisicion = true
+            AND activo = true
+            AND material_sku IS NOT NULL
+        )
+        ${whereClause}
     `;
 
     // Ordenamiento:

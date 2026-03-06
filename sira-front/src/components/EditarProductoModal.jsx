@@ -31,6 +31,8 @@ const EditarProductoModal = ({ producto, onClose, onUpdate }) => {
   const [mostrarConversion, setMostrarConversion] = useState(
     !!(producto.cantidad_uso || producto.unidad_uso_id)
   );
+  const [categoriasAF, setCategoriasAF] = useState([]);
+  const [tiposAF, setTiposAF] = useState([]);
 
   // Efecto para actualizar el nombre compuesto automáticamente
   useEffect(() => {
@@ -45,17 +47,21 @@ const EditarProductoModal = ({ producto, onClose, onUpdate }) => {
     setCambiosRealizados(hayCambios);
   }, [formData, producto]);
 
-  // Cargar unidades y stock al abrir el modal
+  // Cargar unidades, stock y catálogos AF al abrir el modal
   useEffect(() => {
     const cargarDatos = async () => {
       try {
         setCargandoUnidades(true);
-        const [respuestaUnidades, respuestaStock] = await Promise.all([
+        const [respuestaUnidades, respuestaStock, respCats, respTipos] = await Promise.all([
           axios.get(`${API_BASE_URL}/api/catalogo_unidades`),
           axios.get(`${API_BASE_URL}/api/materiales/${producto.id}`).catch(() => null),
+          axios.get(`${API_BASE_URL}/api/activos-fisicos/categorias`).catch(() => ({ data: [] })),
+          axios.get(`${API_BASE_URL}/api/activos-fisicos/tipos`).catch(() => ({ data: [] })),
         ]);
         setListaUnidades(respuestaUnidades.data);
         if (respuestaStock) setStockInfo(respuestaStock.data);
+        setCategoriasAF(Array.isArray(respCats.data) ? respCats.data : []);
+        setTiposAF(Array.isArray(respTipos.data) ? respTipos.data : []);
       } catch (error) {
         console.error("Error al cargar datos en el modal:", error);
         toast.error("❌ No se pudieron cargar los datos del modal.");
@@ -87,6 +93,9 @@ const EditarProductoModal = ({ producto, onClose, onUpdate }) => {
         unidad_de_compra: parseInt(formData.unidad_de_compra, 10),
         cantidad_uso: formData.cantidad_uso ? parseFloat(formData.cantidad_uso) : null,
         unidad_uso_id: formData.unidad_uso_id ? parseInt(formData.unidad_uso_id, 10) : null,
+        es_activo_fijo: !!formData.es_activo_fijo,
+        activo_fisico_categoria_id: formData.es_activo_fijo && formData.activo_fisico_categoria_id ? parseInt(formData.activo_fisico_categoria_id, 10) : null,
+        activo_fisico_tipo_id: formData.es_activo_fijo && formData.activo_fisico_tipo_id ? parseInt(formData.activo_fisico_tipo_id, 10) : null,
       };
 
       const url = `${API_BASE_URL}/api/catalogo_materiales/${producto.id}`;
@@ -346,6 +355,77 @@ const EditarProductoModal = ({ producto, onClose, onUpdate }) => {
                   </span>
                 </div>
               </div>
+            </div>
+
+            {/* ── Activo Fijo ────────────────────────────────────── */}
+            <div className={`p-4 rounded-lg border shadow-sm ${formData.es_activo_fijo ? 'bg-orange-50 border-orange-200' : 'bg-white border-gray-200'}`}>
+              <div className="flex items-center justify-between">
+                <label className={labelStyle}>
+                  <InventoryIcon fontSize="small" className="text-orange-500" />
+                  ¿Es Activo Fijo?
+                </label>
+                <div className="flex items-center gap-3">
+                  <label htmlFor="es_activo_fijo" className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      id="es_activo_fijo"
+                      name="es_activo_fijo"
+                      type="checkbox"
+                      checked={!!formData.es_activo_fijo}
+                      onChange={handleChange}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                  </label>
+                  <span className={`text-sm font-medium ${formData.es_activo_fijo ? 'text-orange-700' : 'text-gray-500'}`}>
+                    {formData.es_activo_fijo ? 'Sí — irá a Activo Físico al recibirse' : 'No'}
+                  </span>
+                </div>
+              </div>
+              {formData.es_activo_fijo && (
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      Categoría de Activo Físico <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      name="activo_fisico_categoria_id"
+                      value={formData.activo_fisico_categoria_id || ''}
+                      onChange={(e) => setFormData(p => ({ ...p, activo_fisico_categoria_id: e.target.value, activo_fisico_tipo_id: '' }))}
+                      className={inputStyle}
+                      required={!!formData.es_activo_fijo}
+                    >
+                      <option value="">Seleccionar categoría AF</option>
+                      {categoriasAF.filter(c => c.activo).map(c => (
+                        <option key={c.id} value={c.id}>{c.nombre} ({c.clave})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      Tipo de Activo Físico <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      name="activo_fisico_tipo_id"
+                      value={formData.activo_fisico_tipo_id || ''}
+                      onChange={handleChange}
+                      className={inputStyle}
+                      disabled={!formData.activo_fisico_categoria_id}
+                      required={!!formData.es_activo_fijo}
+                    >
+                      <option value="">Seleccionar tipo AF</option>
+                      {tiposAF
+                        .filter(t => t.activo && String(t.categoria_id) === String(formData.activo_fisico_categoria_id))
+                        .map(t => (
+                          <option key={t.id} value={t.id}>{t.nombre} ({t.clave})</option>
+                        ))
+                      }
+                    </select>
+                  </div>
+                  <div className="col-span-2 text-xs text-orange-700 bg-orange-100 rounded-lg p-3">
+                    Al recepcionar este material en ING_OC, se crearán registros individuales en <strong>Activo Físico</strong> en lugar de ingresar al inventario de stock. Posteriormente se asignará responsable y ubicación desde el módulo de Activo Físico.
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Vista Previa del Nombre */}

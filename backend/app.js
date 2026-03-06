@@ -175,6 +175,9 @@ app.get('/api/catalogos/empleados', catalogoController.obtenerTodosLosCatalogos)
 const catalogosRoutes = require('./routes/empleados/catalogos.routes');
 app.use('/api/catalogos', catalogosRoutes);
 
+const activosFisicosRoutes = require('./routes/activos_fisicos.routes');
+app.use('/api/activos-fisicos', activosFisicosRoutes);
+
 // Ruta base de prueba
 app.get('/', (_req, res) => {
   res.send('Backend SIRA - ¡Despliegue Automático! V1.0.7🎉🎉');

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import CrearEmpleadoForm from './CrearEmpleadoForm'; // Componente para el formulario de creación/edición de empleados
 
 // --- IMPORTACIONES DE ICONOS MATERIAL UI (MUI) ---
 import GroupIcon from '@mui/icons-material/Group';
@@ -7,7 +8,6 @@ import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import CloseIcon from '@mui/icons-material/Close';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
-import LocationOnIcon from '@mui/icons-material/LocationOn';
 import BadgeIcon from '@mui/icons-material/Badge';
 import WorkIcon from '@mui/icons-material/Work';
 import CakeIcon from '@mui/icons-material/Cake';
@@ -18,319 +18,12 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
-import SaveIcon from '@mui/icons-material/Save';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import SchoolIcon from '@mui/icons-material/School'; 
+import HistoryIcon from '@mui/icons-material/History';
 
 // --- CONFIGURACIÓN DE LA URL ---
-// En tu entorno de producción local (Vite), descomenta la siguiente línea y borra la URL fija:
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
-
-// ========================================================================================
-// COMPONENTE FORMULARIO DE EMPLEADOS (Integrado para visualización en entorno)
-// ========================================================================================
-function CrearEmpleadoForm({ empleadoAEditar, onClose, onGuardado }) {
-  const [formData, setFormData] = useState({
-    num_empl: '',
-    empleado: '', 
-    fecha_ingreso: '',
-    fecha_reingreso: '',
-    rfc: '',
-    nss: '',
-    curp: '',
-    genero: '',
-    fecha_nacimiento: '',
-    status_laboral: '', 
-    empresa_id: '',
-    area_id: '',
-    puesto_id: '',
-    departamento_id: '',
-    departamento_rh_id: '',
-    status_trabajador_id: '' 
-  });
-
-  const [fotoArchivo, setFotoArchivo] = useState(null);
-
-  const [catalogos, setCatalogos] = useState({
-    empresas: [], areas: [], puestos: [], departamentos_rh: [], status_trabajadores: [], departamentos: []
-  });
-  const [loadingCatalogos, setLoadingCatalogos] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    const fetchCatalogos = async () => {
-      try {
-        setLoadingCatalogos(true);
-        const res = await fetch(`${API_BASE_URL}/api/catalogos`);
-        
-        if (!res.ok) {
-            const errorText = await res.text();
-            throw new Error(`Código ${res.status}: ${errorText}`);
-        }
-        
-        const data = await res.json();
-        setCatalogos({
-            empresas: data.empresas || [],
-            areas: data.areas || [],
-            puestos: data.puestos || [],
-            departamentos_rh: data.departamentos_rh || [],
-            status_trabajadores: data.status_trabajadores || [],
-            departamentos: data.departamentos || []
-        });
-      } catch (err) {
-        console.error("Error detallado al cargar catálogos:", err);
-        setError(`Error de conexión con catálogos: ${err.message}`);
-      } finally {
-        setLoadingCatalogos(false);
-      }
-    };
-    fetchCatalogos();
-  }, []);
-
-  useEffect(() => {
-    if (empleadoAEditar && !loadingCatalogos) {
-      const formatearParaInput = (fecha) => {
-        if (!fecha) return '';
-        return new Date(fecha).toISOString().split('T')[0];
-      };
-
-      setFormData({
-        num_empl: empleadoAEditar.num_empl || '',
-        empleado: empleadoAEditar.empleado || '',
-        fecha_ingreso: formatearParaInput(empleadoAEditar.fecha_ingreso),
-        fecha_reingreso: formatearParaInput(empleadoAEditar.fecha_reingreso),
-        rfc: empleadoAEditar.rfc || '',
-        nss: empleadoAEditar.nss || '',
-        curp: empleadoAEditar.curp || '',
-        genero: empleadoAEditar.genero || '',
-        fecha_nacimiento: formatearParaInput(empleadoAEditar.fecha_nacimiento),
-        status_laboral: empleadoAEditar.status_laboral || '', 
-        empresa_id: empleadoAEditar.empresa_id || '',
-        area_id: empleadoAEditar.area_id || '',
-        puesto_id: empleadoAEditar.puesto_id || '',
-        departamento_id: empleadoAEditar.departamento_id || '',
-        departamento_rh_id: empleadoAEditar.departamento_rh_id || '',
-        status_trabajador_id: empleadoAEditar.status_trabajador_id || ''
-      });
-    }
-  }, [empleadoAEditar, loadingCatalogos]);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setFotoArchivo(e.target.files[0]);
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    try {
-      const url = empleadoAEditar 
-        ? `${API_BASE_URL}/api/empleados/${empleadoAEditar.id}` 
-        : `${API_BASE_URL}/api/empleados`;
-      
-      const method = empleadoAEditar ? 'PUT' : 'POST';
-
-      const payload = new FormData();
-      
-      Object.keys(formData).forEach(key => {
-        if (formData[key] !== '') {
-            payload.append(key, formData[key]);
-        }
-      });
-
-      if (fotoArchivo) {
-        payload.append('foto_emp', fotoArchivo);
-      }
-
-      const response = await fetch(url, {
-        method: method,
-        body: payload
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Error al guardar la información');
-      }
-
-      onGuardado(); 
-      onClose();    
-
-    } catch (err) {
-      console.error(err);
-      setError(err.message || 'Ocurrió un error al intentar guardar. Intenta nuevamente.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-gray-800">
-            {empleadoAEditar ? 'Editar Empleado' : 'Registrar Nuevo Empleado'}
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
-            <CloseIcon />
-          </button>
-        </div>
-
-        <div className="p-6 overflow-y-auto custom-scrollbar">
-          {error && (
-            <div className="mb-4 p-4 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm font-medium">
-              ⚠️ {error}
-            </div>
-          )}
-
-          {loadingCatalogos ? (
-             <div className="flex flex-col justify-center items-center py-10 text-gray-500">
-                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-                 <p>Cargando catálogos del sistema...</p>
-             </div>
-          ) : (
-            <form id="empleado-form" onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="md:col-span-3 pb-2 border-b border-gray-100 mb-2">
-                <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wide">Datos Personales</h3>
-              </div>
-              <div className="md:col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Id. Empleado <span className="text-red-500">*</span></label>
-                <input type="text" name="num_empl" value={formData.num_empl} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="Ej: 10045" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo <span className="text-red-500">*</span></label>
-                <input type="text" name="empleado" value={formData.empleado} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="Ej: Juan Pérez" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Nacimiento</label>
-                <input type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Género</label>
-                <select name="genero" value={formData.genero} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white">
-                  <option value="">Seleccione</option>
-                  <option value="MASCULINO">Masculino</option>
-                  <option value="FEMENINO">Femenino</option>
-                  <option value="OTRO">Otro</option>
-                  <option value="NO ESPECIFICADO">No Especificado</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fotografía del Empleado</label>
-                <div className="flex items-center gap-2">
-                    <label className="flex-1 flex flex-col items-center justify-center px-3 py-2 bg-white text-blue-600 rounded-lg border border-blue-200 border-dashed cursor-pointer hover:bg-blue-50 transition">
-                        <span className="flex items-center gap-2 text-xs font-medium">
-                            <CloudUploadIcon fontSize="small"/> {fotoArchivo ? fotoArchivo.name : 'Subir Imagen'}
-                        </span>
-                        <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
-                    </label>
-                </div>
-              </div>
-              <div className="md:col-span-3 pb-2 border-b border-gray-100 mt-4 mb-2">
-                <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wide">Información Legal</h3>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">RFC</label>
-                <input type="text" name="rfc" value={formData.rfc} onChange={handleChange} maxLength={13} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition uppercase" placeholder="Con Homoclave" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">CURP</label>
-                <input type="text" name="curp" value={formData.curp} onChange={handleChange} maxLength={18} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition uppercase" placeholder="18 caracteres" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">NSS</label>
-                <input type="text" name="nss" value={formData.nss} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="Seguro Social" />
-              </div>
-              <div className="md:col-span-3 pb-2 border-b border-gray-100 mt-4 mb-2">
-                <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wide">Datos Laborales e Ingreso</h3>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Empresa <span className="text-red-500">*</span></label>
-                <select name="empresa_id" value={formData.empresa_id} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
-                  <option value="">Selecciona Empresa</option>
-                  {catalogos.empresas.map(e => <option key={e.id} value={e.id}>{e.razon_social}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Área <span className="text-red-500">*</span></label>
-                <select name="area_id" value={formData.area_id} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
-                  <option value="">Selecciona Área</option>
-                  {catalogos.areas.map(a => <option key={a.id} value={a.id}>{a.nombre_area}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Puesto <span className="text-red-500">*</span></label>
-                <select name="puesto_id" value={formData.puesto_id} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
-                  <option value="">Selecciona Puesto</option>
-                  {catalogos.puestos.map(p => <option key={p.id} value={p.id}>{p.nombre_puesto}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Depto. Operativo (SIRA)</label>
-                <select name="departamento_id" value={formData.departamento_id} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
-                  <option value="">Selecciona Depto Operativo</option>
-                  {catalogos.departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Depto. Recursos Humanos</label>
-                <select name="departamento_rh_id" value={formData.departamento_rh_id} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
-                  <option value="">Selecciona Depto RH</option>
-                  {catalogos.departamentos_rh.map(drh => <option key={drh.id} value={drh.id}>{drh.nombre}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Catálogo Estatus Trab. <span className="text-red-500">*</span></label>
-                <select name="status_trabajador_id" value={formData.status_trabajador_id} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
-                  <option value="">Selecciona Estatus</option>
-                  {catalogos.status_trabajadores.map(st => <option key={st.id} value={st.id}>{st.nombre_status}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Estatus Laboral (SIRA) <span className="text-red-500">*</span></label>
-                <select name="status_laboral" value={formData.status_laboral} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
-                  <option value="">Selecciona Estatus</option>
-                  <option value="activo">Activo</option>
-                  <option value="inactivo">Inactivo</option>
-                  <option value="baja">Baja</option>
-                </select>
-              </div>
-              <div className="md:col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Ingreso </label>
-                <input type="date" name="fecha_ingreso" value={formData.fecha_ingreso} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
-              </div>
-              <div className="md:col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Reingreso <span className="text-xs text-gray-400 font-normal">(Si aplica)</span></label>
-                <input type="date" name="fecha_reingreso" value={formData.fecha_reingreso} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
-              </div>
-            </form>
-          )}
-        </div>
-        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end gap-3 shrink-0">
-          <button type="button" onClick={onClose} className="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
-            Cancelar
-          </button>
-          <button type="submit" form="empleado-form" disabled={loading || loadingCatalogos} className="flex items-center gap-2 px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm">
-            {loading ? 'Guardando...' : (<><SaveIcon fontSize="small" />{empleadoAEditar ? 'Actualizar' : 'Guardar'}</>)}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-// ========================================================================================
-// COMPONENTE PRINCIPAL: VER EMPLEADOS
-// ========================================================================================
 export default function VerEmpleados() {
   const [empleados, setEmpleados] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -338,16 +31,21 @@ export default function VerEmpleados() {
 
   // Estados para filtros actualizados (RH, Área y Estatus)
   const [busqueda, setBusqueda] = useState('');
-  const [filtroDepartamentoRH, setFiltroDepartamentoRH] = useState('');
+  const [filtroDepartamentoRH, setFiltroDepartamentoRH] = useState('');//aqui se puede colocar el valor por defecto que se quiera, por ejemplo "Recursos Humanos" o "activo" para mostrar solo los activos
   const [filtroArea, setFiltroArea] = useState('');
-  const [filtroEstatus, setFiltroEstatus] = useState(''); // NUEVO: Filtro de Estatus
+  const [filtroEstatus, setFiltroEstatus] = useState('activo'); // <-- FILTRA POR DEFECTO SOLO LOS ACTIVOS, CAMBIA A '' PARA MOSTRAR TODOS AL INICIO
 
   // Estado para el modal de Detalles (Tarjeta de empleado)
   const [empleadoSeleccionado, setEmpleadoSeleccionado] = useState(null);
 
-  // NUEVOS ESTADOS: Para el modal de Crear/Editar
+  // Estados para el modal de Crear/Editar
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [empleadoAEditar, setEmpleadoAEditar] = useState(null);
+
+  // Nuevos estados para el historial del empleado
+  const [historialLaboral, setHistorialLaboral] = useState([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [tabActiva, setTabActiva] = useState('info');
 
   // --- CARGA DE DATOS ---
   const fetchEmpleados = async () => {
@@ -377,7 +75,7 @@ export default function VerEmpleados() {
   };
 
   const handleEditarEmpleado = (empleado, e) => {
-    e.stopPropagation(); // Evita que se abra también la tarjeta de detalles
+    e.stopPropagation(); 
     setEmpleadoAEditar(empleado);
     setMostrarFormulario(true);
   };
@@ -396,6 +94,30 @@ export default function VerEmpleados() {
     }
   };
 
+  // Nueva función para manejar la visualización del historial laboral
+  const handleVerDetalle = async (emp, e) => {
+    if (e) e.stopPropagation(); 
+    setEmpleadoSeleccionado(emp);
+    setTabActiva('info'); // <--- AGREGA ESTA LÍNEA
+    setCargandoHistorial(true);
+    
+    try {
+      // Llamamos a tu nuevo endpoint
+      const response = await fetch(`${API_BASE_URL}/api/empleados/${emp.id}/historial`);
+      if (response.ok) {
+        const data = await response.json();
+        setHistorialLaboral(data);
+      } else {
+        setHistorialLaboral([]);
+      }
+    } catch (error) {
+      console.error("Error al obtener el historial:", error);
+      setHistorialLaboral([]);
+    } finally {
+      setCargandoHistorial(false);
+    }
+  };
+
   // --- LÓGICA DE FILTROS Y CÁLCULOS ---
   const departamentosRH = useMemo(() => {
     const deps = empleados.map(e => e.nombre_departamento_rh).filter(Boolean);
@@ -407,7 +129,6 @@ export default function VerEmpleados() {
     return [...new Set(arr)].sort();
   }, [empleados]);
 
-  // NUEVO: Extraer estatus laborales únicos para el select
   const estatusLaborales = useMemo(() => {
     const arr = empleados.map(e => e.status_laboral).filter(Boolean);
     return [...new Set(arr)].sort();
@@ -419,10 +140,9 @@ export default function VerEmpleados() {
     const coincideNombre = (emp.empleado || '').toLowerCase().includes(termino);
     const coincideNum = (emp.num_empl || '').toString().toLowerCase().includes(termino);
     
-    // Filtrado por los nuevos selects
     const coincideDeptoRH = filtroDepartamentoRH ? emp.nombre_departamento_rh === filtroDepartamentoRH : true;
     const coincideArea = filtroArea ? emp.nombre_area === filtroArea : true;
-    const coincideEstatus = filtroEstatus ? emp.status_laboral === filtroEstatus : true; // NUEVO: Filtro por Estatus
+    const coincideEstatus = filtroEstatus ? emp.status_laboral === filtroEstatus : true; 
     
     return (coincideNombre || coincideNum) && coincideDeptoRH && coincideArea && coincideEstatus;
   });
@@ -430,7 +150,7 @@ export default function VerEmpleados() {
   const kpis = {
     total: empleados.length,
     activos: empleadosFiltrados.length,
-    totalDeptos: departamentosRH.length // Ahora cuenta los departamentos de RH
+    totalDeptos: departamentosRH.length 
   };
 
   const formatearFecha = (fechaString) => {
@@ -515,7 +235,6 @@ export default function VerEmpleados() {
         {/* Contenedor de Selects (Filtros) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full xl:w-3/4">
           
-          {/* Estatus */}
           <div className="relative w-full flex items-center gap-2">
             <FilterListIcon sx={{ fontSize: 18 }} className="text-gray-400 absolute left-3" />
             <select 
@@ -528,7 +247,6 @@ export default function VerEmpleados() {
             </select>
           </div>
 
-          {/* Área */}
           <div className="relative w-full flex items-center gap-2">
             <FilterListIcon sx={{ fontSize: 18 }} className="text-gray-400 absolute left-3" />
             <select 
@@ -541,7 +259,6 @@ export default function VerEmpleados() {
             </select>
           </div>
 
-          {/* Departamento RH */}
           <div className="relative w-full flex items-center gap-2">
             <FilterListIcon sx={{ fontSize: 18 }} className="text-gray-400 absolute left-3" />
             <select 
@@ -576,15 +293,15 @@ export default function VerEmpleados() {
               ) : empleadosFiltrados.length > 0 ? (
                 empleadosFiltrados.map((emp) => (
                   <tr 
-                    key={emp.id} 
-                    onClick={() => setEmpleadoSeleccionado(emp)}
-                    className="hover:bg-blue-50 transition-colors cursor-pointer group"
-                  >
+                        key={emp.id} 
+                        onClick={(e) => handleVerDetalle(emp, e)} 
+                        className="hover:bg-blue-50 transition-colors cursor-pointer group"
+                      >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-4">
                         <div className="h-10 w-10 rounded-full overflow-hidden bg-gray-200 text-gray-400 flex items-center justify-center border border-gray-300 flex-shrink-0">
                            {emp.foto_emp ? (
-                             <img src={`${API_BASE_URL}/${emp.foto_emp}`} alt="foto" className="h-full w-full object-cover" />
+                             <img src={emp.foto_emp.startsWith('http') ? emp.foto_emp : `${API_BASE_URL}/${emp.foto_emp}`} alt="foto" className="h-full w-full object-cover" />
                            ) : (
                              <AccountCircleIcon sx={{ fontSize: 32 }} />
                            )}
@@ -613,10 +330,10 @@ export default function VerEmpleados() {
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex items-center justify-center gap-2">
                         <button 
-                          onClick={(e) => { e.stopPropagation(); setEmpleadoSeleccionado(emp); }}
-                          className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                          title="Ver Detalle"
-                        >
+                              onClick={(e) => handleVerDetalle(emp, e)} 
+                              className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                              title="Ver Detalle"
+                            >
                           <VisibilityIcon sx={{ fontSize: 20 }} />
                         </button>
                         
@@ -658,24 +375,32 @@ export default function VerEmpleados() {
           onGuardado={() => {
             setMostrarFormulario(false);
             setEmpleadoAEditar(null);
-            fetchEmpleados(); // Recargamos la tabla al guardar
+            fetchEmpleados(); 
           }} 
         />
       )}
 
-      {/* --- MODAL DETALLES --- */}
+      {/* --- MODAL DETALLES (DISEÑO ORIGINAL CON PESTAÑAS - CORREGIDO) --- */}
       {empleadoSeleccionado && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden relative animate-fade-in-up">
+          {/* Contenedor principal: Mantiene el max-h para el scroll interno general */}
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] relative animate-fade-in-up overflow-hidden">
+            
             <button onClick={() => setEmpleadoSeleccionado(null)} className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-black/10 rounded-full text-white z-10 transition">
               <CloseIcon sx={{ fontSize: 20 }} />
             </button>
-            <div className="h-32 bg-gradient-to-r from-blue-600 to-indigo-700"></div>
-            <div className="px-8 pb-8">
-              <div className="relative -mt-16 mb-6 flex justify-between items-end">
+            
+            <div className="h-32 bg-gradient-to-r from-blue-600 to-indigo-700 shrink-0"></div>
+            
+            {/* CORRECCIÓN AQUÍ: Quitamos 'overflow-hidden' para que la foto no se corte */}
+            <div className="px-8 flex flex-col flex-1 min-h-0">
+              
+              {/* CABECERA (Perfil) */}
+              {/* relative y -mt-16 suben la foto. Sin overflow-hidden, ya no se corta */}
+              <div className="relative -mt-16 mb-4 flex justify-between items-end shrink-0">
                 <div className="h-32 w-32 rounded-full border-4 border-white bg-white overflow-hidden shadow-lg flex items-center justify-center text-gray-300">
                     {empleadoSeleccionado.foto_emp ? (
-                         <img src={`${API_BASE_URL}/${empleadoSeleccionado.foto_emp}`} alt="foto perfil" className="h-full w-full object-cover" />
+                         <img src={empleadoSeleccionado.foto_emp.startsWith('http') ? empleadoSeleccionado.foto_emp : `${API_BASE_URL}/${empleadoSeleccionado.foto_emp}`} alt="foto perfil" className="h-full w-full object-cover" />
                     ) : (
                          <AccountCircleIcon sx={{ fontSize: 110 }} />
                     )}
@@ -687,7 +412,8 @@ export default function VerEmpleados() {
                    <p className="text-xs text-gray-400 mt-1">ID: {empleadoSeleccionado.num_empl}</p>
                 </div>
               </div>
-              <div className="mb-6 border-b border-gray-100 pb-4">
+
+              <div className="mb-4 shrink-0">
                 <h2 className="text-3xl font-bold text-gray-900">{empleadoSeleccionado.empleado}</h2>
                 <div className="flex items-center text-blue-700 font-medium mt-1 gap-2"><WorkIcon sx={{ fontSize: 18 }} />{empleadoSeleccionado.nombre_puesto || 'N/A'}</div>
                 <div className="flex items-center text-gray-500 text-sm mt-1 gap-2">
@@ -700,27 +426,92 @@ export default function VerEmpleados() {
                     </div>
                 )}
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Información Personal</h3>
-                    <div className="flex items-start gap-3"><BadgeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">CURP</p><p className="text-sm font-medium text-gray-800">{empleadoSeleccionado.curp || '---'}</p></div></div>
-                    <div className="flex items-start gap-3"><BadgeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">RFC</p><p className="text-sm font-medium text-gray-800">{empleadoSeleccionado.rfc || '---'}</p></div></div>
-                    <div className="flex items-start gap-3"><CakeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">Nacimiento / Edad</p><p className="text-sm font-medium text-gray-800">{formatearFecha(empleadoSeleccionado.fecha_nacimiento)} <span className="text-blue-600 font-bold">({calcularEdad(empleadoSeleccionado.fecha_nacimiento)} años)</span></p><p className="text-xs text-gray-400 capitalize">{empleadoSeleccionado.genero}</p></div></div>
-                </div>
-                <div className="space-y-4">
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Datos Laborales</h3>
-                    <div className="flex items-start gap-3"><CalendarTodayIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">Fecha de Ingreso</p><p className="text-sm font-medium text-gray-800">{formatearFecha(empleadoSeleccionado.fecha_ingreso)}</p></div></div>
-                    {empleadoSeleccionado.fecha_reingreso && (
-                        <div className="flex items-start gap-3"><CalendarTodayIcon className="text-orange-400" /><div><p className="text-xs text-orange-500">Fecha de Reingreso</p><p className="text-sm font-medium text-gray-800">{formatearFecha(empleadoSeleccionado.fecha_reingreso)}</p></div></div>
-                    )}
-                    <div className="flex items-start gap-3"><AccessTimeIcon className="text-blue-500" /><div><p className="text-xs text-gray-500">Antigüedad</p><p className="text-sm font-bold text-blue-700">{calcularAntiguedad(empleadoSeleccionado.fecha_ingreso)}</p></div></div>
-                    <div className="flex items-start gap-3"><BadgeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">NSS</p><p className="text-sm font-medium text-gray-800">{empleadoSeleccionado.nss || '---'}</p></div></div>
-                </div>
+
+              {/* NAVEGACIÓN DE PESTAÑAS */}
+              <div className="flex border-b border-gray-200 mb-4 shrink-0">
+                <button
+                  onClick={() => setTabActiva('info')}
+                  className={`px-4 py-3 font-medium text-sm border-b-2 transition-colors ${tabActiva === 'info' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
+                >
+                  Información General
+                </button>
+                <button
+                  onClick={() => setTabActiva('historial')}
+                  className={`px-4 py-3 font-medium text-sm border-b-2 transition-colors flex items-center gap-2 ${tabActiva === 'historial' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
+                >
+                  <HistoryIcon sx={{ fontSize: 18 }} /> Historial de Movimientos
+                </button>
               </div>
-              <div className="mt-8 pt-4 border-t border-gray-100 flex justify-between text-xs text-gray-400">
+
+              {/* CONTENEDOR CON SCROLL SOLO AQUÍ ADENTRO */}
+              <div className="overflow-y-auto custom-scrollbar flex-1 pb-4">
+                
+                {/* --- PESTAÑA 1: INFORMACIÓN GENERAL --- */}
+                {tabActiva === 'info' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in-up">
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Información Personal</h3>
+                        <div className="flex items-start gap-3"><BadgeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">CURP</p><p className="text-sm font-medium text-gray-800">{empleadoSeleccionado.curp || '---'}</p></div></div>
+                        <div className="flex items-start gap-3"><BadgeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">RFC</p><p className="text-sm font-medium text-gray-800">{empleadoSeleccionado.rfc || '---'}</p></div></div>
+                        <div className="flex items-start gap-3"><CakeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">Nacimiento / Edad</p><p className="text-sm font-medium text-gray-800">{formatearFecha(empleadoSeleccionado.fecha_nacimiento)} <span className="text-blue-600 font-bold">({calcularEdad(empleadoSeleccionado.fecha_nacimiento)} años)</span></p><p className="text-xs text-gray-400 capitalize">{empleadoSeleccionado.genero}</p></div></div>
+                        <div className="flex items-start gap-3"><SchoolIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">Nivel Académico</p><p className="text-sm font-medium text-gray-800">{empleadoSeleccionado.nombre_nivel_academico || '---'}</p></div></div>
+                    </div>
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Datos Laborales</h3>
+                        <div className="flex items-start gap-3"><CalendarTodayIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">Fecha de Ingreso</p><p className="text-sm font-medium text-gray-800">{formatearFecha(empleadoSeleccionado.fecha_ingreso)}</p></div></div>
+                        <div className="flex items-start gap-3"><AccessTimeIcon className="text-blue-500" /><div><p className="text-xs text-gray-500">Antigüedad</p><p className="text-sm font-bold text-blue-700">{calcularAntiguedad(empleadoSeleccionado.fecha_ingreso)}</p></div></div>
+                        <div className="flex items-start gap-3"><BadgeIcon className="text-gray-400" /><div><p className="text-xs text-gray-500">NSS</p><p className="text-sm font-medium text-gray-800">{empleadoSeleccionado.nss || '---'}</p></div></div>
+                    </div>
+                  </div>
+                )}
+
+                {/* --- PESTAÑA 2: HISTORIAL LABORAL --- */}
+                {tabActiva === 'historial' && (
+                  <div className="animate-fade-in-up pt-2">
+                    {cargandoHistorial ? (
+                      <p className="text-sm text-gray-500 italic animate-pulse">Cargando historial...</p>
+                    ) : historialLaboral.length > 0 ? (
+                      <div className="relative border-l-2 border-blue-200 ml-3 space-y-6">
+                        {historialLaboral.map((periodo, idx) => (
+                          <div key={periodo.periodo_id || idx} className="relative pl-6">
+                            <span className={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 border-white ${periodo.fecha_baja ? 'bg-gray-400' : 'bg-blue-600'}`}></span>
+                            
+                            <div className="bg-gray-50 hover:bg-gray-100 transition p-4 rounded-xl border border-gray-100">
+                              <div className="flex justify-between items-start mb-1">
+                                <p className="text-sm font-bold text-gray-900">{periodo.nombre_puesto}</p>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${periodo.fecha_baja ? 'bg-gray-200 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
+                                  {periodo.nombre_status_trabajador || 'N/A'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-600 mb-2">
+                                {periodo.nombre_departamento_rh} en <strong>{periodo.nombre_empresa}</strong>
+                              </p>
+                              <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <CalendarTodayIcon sx={{ fontSize: 14 }} /> 
+                                <span>{formatearFecha(periodo.fecha_ingreso)} — {periodo.fecha_baja ? formatearFecha(periodo.fecha_baja) : 'Actualidad'}</span>
+                              </div>
+                              {periodo.motivo_baja && (
+                                <p className="mt-2 text-xs text-red-500 bg-red-50 p-2 rounded border border-red-100">
+                                  <strong>Motivo de baja:</strong> {periodo.motivo_baja}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 italic">No hay registros de historial disponibles.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* FOOTER */}
+              <div className="mt-2 pt-4 mb-4 border-t border-gray-100 flex justify-between items-center text-xs text-gray-400 shrink-0">
                 <span>Registrado: {new Date(empleadoSeleccionado.created_at).toLocaleDateString()}</span>
                 <button onClick={() => setEmpleadoSeleccionado(null)} className="px-6 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition">Cerrar Ficha</button>
               </div>
+
             </div>
           </div>
         </div>

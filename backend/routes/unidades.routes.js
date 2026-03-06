@@ -39,6 +39,12 @@ router.patch('/alertas/:historialId/cerrar', ctrl.cerrarAlerta);
 // POST /api/unidades/requisicion   → crea requisición vehicular
 router.post('/requisicion', ctrl.crearRequisicionVehicular);
 
+// GET  /api/unidades/requisicion/:id/detalle-vehicular → detalle para el modal de edición
+router.get('/requisicion/:id/detalle-vehicular', ctrl.getDetalleRequisicionVehicular);
+
+// PUT  /api/unidades/requisicion/:id → edita fecha y comentario de una req vehicular
+router.put('/requisicion/:id', ctrl.editarRequisicionVehicular);
+
 // POST /api/unidades/historial/manual → registro manual (sin requisición)
 router.post('/historial/manual', ctrl.agregarRegistroManualHistorial);
 

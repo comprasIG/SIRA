@@ -42,7 +42,7 @@ const RequisicionRow = ({ req, onApprove, onReject, onViewDetails, onEdit, isPro
             </Tooltip>
             <Tooltip title="Rechazar Requisición"><IconButton onClick={() => onReject(req.id)} color="error" disabled={isProcessing}><CancelIcon /></IconButton></Tooltip>
             <Tooltip title="Ver Detalles"><IconButton onClick={() => onViewDetails(req.id)} color="default" disabled={isProcessing}><InfoIcon /></IconButton></Tooltip>
-            <Tooltip title="Editar Requisición"><IconButton onClick={() => onEdit(req.id)} color="primary" disabled={isProcessing}><EditIcon /></IconButton></Tooltip>
+            <Tooltip title="Editar Requisición"><IconButton onClick={() => onEdit({ id: req.id, esVehicular: req.es_vehicular })} color="primary" disabled={isProcessing}><EditIcon /></IconButton></Tooltip>
         </TableCell>
     </TableRow>
 );
