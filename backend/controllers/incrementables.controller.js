@@ -11,7 +11,7 @@
  *   GET  /api/incrementables/                      → listarIncrementables
  *   GET  /api/incrementables/datos-iniciales        → getDatosIniciales
  *   GET  /api/incrementables/:id/preview-distribucion → previewDistribucion
- *   POST /api/incrementables/crear                 → crearIncrementable
+ *   POST /api/incrementables/crear                  → crearIncrementable
  * =================================================================================================
  */
 
@@ -551,8 +551,8 @@ const crearIncrementable = async (req, res) => {
     const pdfItems = ocBasesRes.rows.map(base => {
       const montoBase = distribucion
         ? round4((distribucion || [])
-            .filter(d => d.oc_base_id === base.id)
-            .reduce((s, d) => s + d.monto_incrementable, 0))
+          .filter(d => d.oc_base_id === base.id)
+          .reduce((s, d) => s + d.monto_incrementable, 0))
         : round4(montoTotal / ocBasesRes.rows.length);
 
       return {
