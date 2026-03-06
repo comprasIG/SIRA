@@ -485,9 +485,10 @@ const crearIncrementable = async (req, res) => {
 
     // ── 9) Calcular y guardar distribución por artículo ──────────────────────
     const lineas = await getLineasOcBase(ocBaseIdsNum, client);
+    let distribucion = [];
 
     if (lineas.length > 0) {
-      const distribucion = calcularDistribucion(lineas, montoTotal, moneda, tcs);
+      distribucion = calcularDistribucion(lineas, montoTotal, moneda, tcs);
 
       for (const item of distribucion) {
         const aplicacionId = aplicacionPorOcBase[item.oc_base_id];
